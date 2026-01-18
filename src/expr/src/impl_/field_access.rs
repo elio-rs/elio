@@ -55,19 +55,14 @@ impl Expression for FieldAccessExpr {
         // node type
         if let ArrayImpl::Node(input) = input.as_ref() {
             // the output must be Any
-            let output = access_properties(input.props_iter(), input.len(), key);
+            let output = access_properties(input.props_iter_with_visibility(vis), input.len(), key);
             return Ok(Arc::new(output.into()));
         }
         // rel type
         if let ArrayImpl::Rel(input) = input.as_ref() {
             // the output must be Any
-            let mut builder = AnyArrayBuilder::with_capacity(input.len());
-            input.props_iter().for_each(|props| {
-                if let Some(props) = props {
-                    builder.push(props.field_at(key));
-                }
-            });
-            return Ok(Arc::new(builder.finish().into()));
+            let output = access_properties(input.props_iter_with_visibility(vis), input.len(), key);
+            return Ok(Arc::new(output.into()));
         }
 
         // virtual node

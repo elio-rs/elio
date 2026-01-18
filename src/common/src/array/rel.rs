@@ -71,11 +71,25 @@ impl RelArray {
         self.valid = valid;
     }
 
-    pub fn props_iter(&self) -> impl Iterator<Item = Option<&StructValue>> + '_ {
-        self.props
+    pub fn props_iter(&self) -> impl Iterator<Item = Option<StructValueRef<'_>>> + '_ {
+        self.valid
             .iter()
-            .zip(self.valid.iter())
-            .map(|(props, valid)| if *valid { Some(props) } else { None })
+            .enumerate()
+            .map(|(i, v)| if *v { Some(self.props[i].as_scalar_ref()) } else { None })
+    }
+
+    pub fn props_iter_with_visibility<'a>(
+        &'a self,
+        vis: &'a BitVec,
+    ) -> impl Iterator<Item = Option<StructValueRef<'a>>> + 'a {
+        debug_assert_eq!(self.len(), vis.len(), "visibility length mismatch");
+        self.valid.iter().zip(vis.iter()).enumerate().map(|(i, (v, visible))| {
+            if *v && *visible {
+                Some(self.props[i].as_scalar_ref())
+            } else {
+                None
+            }
+        })
     }
 
     pub fn slice(&self, start: usize, end: usize) -> Self {
