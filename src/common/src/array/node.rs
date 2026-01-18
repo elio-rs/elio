@@ -82,6 +82,7 @@ impl NodeArray {
         &'a self,
         vis: &'a BitVec,
     ) -> impl Iterator<Item = Option<StructValueRef<'a>>> + 'a {
+        debug_assert_eq!(self.len(), vis.len(), "visibility length mismatch");
         self.valid.iter().zip(vis.iter()).enumerate().map(|(i, (v, visible))| {
             if *v && *visible {
                 Some(self.props[i].as_scalar_ref())
