@@ -28,7 +28,7 @@ fn boolean_to_boolean(b: bool) -> bool {
 fn any_to_boolean(arg: ScalarRef<'_>) -> Option<bool> {
     match arg {
         ScalarRef::Bool(b) => Some(b),
-        ScalarRef::String(s) => Some(s.parse::<bool>().unwrap_or(false)),
+        ScalarRef::String(s) => Some(s.to_lowercase().parse::<bool>().unwrap_or(false)),
         ScalarRef::Integer(i) => Some(i != 0),
         ScalarRef::Float(f) => Some(f.0 != 0.0),
         _ => None,
@@ -52,7 +52,10 @@ fn any_to_integer(arg: ScalarRef<'_>) -> Option<ScalarValue> {
         ScalarRef::Integer(i) => Some(ScalarValue::Integer(i)),
         ScalarRef::Float(f) => Some(ScalarValue::Integer(f.0 as i64)),
         ScalarRef::Bool(b) => Some(ScalarValue::Integer(if b { 1 } else { 0 })),
-        ScalarRef::String(s) => Some(ScalarValue::Integer(s.parse::<i64>().unwrap_or(0))),
+        ScalarRef::String(s) => {
+            let i = s.to_lowercase().parse::<i64>().ok()?;
+            Some(ScalarValue::Integer(i))
+        }
         _ => None,
     }
 }
@@ -95,6 +98,7 @@ fn boolean_to_string(b: bool) -> ScalarValue {
 #[cypher_func(batch_name = "any_to_string_batch", sig = "(any) -> any")]
 fn any_to_string(arg: ScalarRef<'_>) -> Option<ScalarValue> {
     match arg {
+        ScalarRef::Integer(i) => Some(ScalarValue::String(i.to_string())),
         ScalarRef::String(s) => Some(ScalarValue::String(s.to_string())),
         ScalarRef::Float(f) => Some(ScalarValue::String(f.to_string())),
         ScalarRef::Bool(b) => Some(ScalarValue::String(b.to_string())),

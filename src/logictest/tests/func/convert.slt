@@ -89,7 +89,7 @@ return toInteger('123')
 query A
 return toInteger('invalid')
 ----
-0
+null
 
 # toInteger returns null for unsupported types
 query A
@@ -128,7 +128,7 @@ null
 query A
 return toString(42)
 ----
-null
+'42'
 
 query A
 return toString(3.14)
