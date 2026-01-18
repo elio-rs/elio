@@ -34,7 +34,7 @@ use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use regex::Regex;
 use syn::parse::Parse;
-use syn::{Ident, ItemFn, LitStr, parse_macro_input};
+use syn::{GenericArgument, Ident, ItemFn, LitStr, PathArguments, ReturnType, Type, parse_macro_input};
 
 #[proc_macro_attribute]
 pub fn cypher_func(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -43,6 +43,9 @@ pub fn cypher_func(attr: TokenStream, item: TokenStream) -> TokenStream {
     // let fn_body = &input_fn.block;
 
     let func_attr = parse_macro_input!(attr as CypherFuncAttr);
+
+    // Analyze return type to determine fallible and nullable
+    let (fallible, nullable) = analyze_return_type(&input_fn.sig.output);
 
     let batch_fn_name = format_ident!("{}", func_attr.batch_name);
 
@@ -90,6 +93,9 @@ pub fn cypher_func(attr: TokenStream, item: TokenStream) -> TokenStream {
         )*
     };
 
+    // Generate different code based on fallible and nullable
+    let loop_body = gen_loop_body(fn_name, &func_args, fallible, nullable);
+
     let expanded = quote! {
         #input_fn
         pub fn #batch_fn_name(args: &[ArrayRef], vis: &BitVec, len: usize) -> Result<ArrayImpl, EvalError> {
@@ -104,10 +110,9 @@ pub fn cypher_func(attr: TokenStream, item: TokenStream) -> TokenStream {
             for i in 0..len {
                 if valid_rows[i] {
                     // #debug_func_args
-                    let ret = #fn_name(#func_args)?;
-                    output_builder.push(Some(ret.as_scalar_ref()));
+                    #loop_body
                 } else {
-                    // tenary logic, if either one of the inputs is null, return null
+                    // ternary logic, if either one of the inputs is null, return null
                     output_builder.push(None);
                 }
             }
@@ -117,6 +122,74 @@ pub fn cypher_func(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     TokenStream::from(expanded)
+}
+
+/// Analyze the return type to determine if it's fallible (Result) and/or nullable (Option)
+fn analyze_return_type(ret: &ReturnType) -> (bool, bool) {
+    match ret {
+        ReturnType::Default => (false, false),
+        ReturnType::Type(_, ty) => analyze_type(ty),
+    }
+}
+
+/// Recursively analyze a type to check for Result and Option wrappers
+fn analyze_type(ty: &Type) -> (bool, bool) {
+    if let Type::Path(type_path) = ty {
+        if let Some(segment) = type_path.path.segments.last() {
+            let ident = segment.ident.to_string();
+
+            match ident.as_str() {
+                "Result" => {
+                    // Check if the first generic argument is Option
+                    #[allow(clippy::collapsible_if)]
+                    if let PathArguments::AngleBracketed(args) = &segment.arguments {
+                        if let Some(GenericArgument::Type(inner_ty)) = args.args.first() {
+                            let (_, inner_nullable) = analyze_type(inner_ty);
+                            return (true, inner_nullable);
+                        }
+                    }
+                    (true, false)
+                }
+                "Option" => (false, true),
+                _ => (false, false),
+            }
+        } else {
+            (false, false)
+        }
+    } else {
+        (false, false)
+    }
+}
+
+/// Generate the loop body based on fallible and nullable flags
+fn gen_loop_body(
+    fn_name: &syn::Ident,
+    func_args: &proc_macro2::TokenStream,
+    fallible: bool,
+    nullable: bool,
+) -> proc_macro2::TokenStream {
+    match (fallible, nullable) {
+        // T: direct value
+        (false, false) => quote! {
+            let ret = #fn_name(#func_args);
+            output_builder.push(Some(ret.as_scalar_ref()));
+        },
+        // Result<T, E>: may fail, but always has value when Ok
+        (true, false) => quote! {
+            let ret = #fn_name(#func_args)?;
+            output_builder.push(Some(ret.as_scalar_ref()));
+        },
+        // Option<T>: may be None
+        (false, true) => quote! {
+            let ret = #fn_name(#func_args);
+            output_builder.push(ret.as_ref().map(|v| v.as_scalar_ref()));
+        },
+        // Result<Option<T>, E>: may fail and may be None
+        (true, true) => quote! {
+            let ret = #fn_name(#func_args)?;
+            output_builder.push(ret.as_ref().map(|v| v.as_scalar_ref()));
+        },
+    }
 }
 
 struct CypherFuncAttr {
