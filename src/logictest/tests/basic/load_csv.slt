@@ -29,6 +29,15 @@ RETURN row[0]
 'Alice'
 'Bob'
 
-#query error Unknown function toInteger in \(:Person\{name: row\.name, age: toInteger\(row\.age\), city: row\.city\}\)
-#LOAD CSV FROM 'tests/testdata/with_header.csv' OPTIONS {header: true} AS row
-#CREATE (:Person{name: row.name, age: toInteger(row.age), city: row.city})
+query A
+LOAD CSV FROM 'tests/testdata/with_header.csv' OPTIONS {header: true} AS row
+CREATE (:Person{name: row.name, age: toInteger(row.age), city: row.city})
+----
+{name: 'Alice', age: '30', city: 'Beijing'}
+{name: 'Bob', age: '25', city: 'Shanghai'}
+
+query A
+MATCH (n) RETURN n
+----
+{id: 1, labels: [Person], props: {name: 'Alice', age: 30, city: 'Beijing'}}
+{id: 2, labels: [Person], props: {name: 'Bob', age: 25, city: 'Shanghai'}}

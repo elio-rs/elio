@@ -1,0 +1,182 @@
+# toBoolean tests
+query A
+return toBoolean(true)
+----
+true
+
+query A
+return toBoolean(false)
+----
+false
+
+query A
+return toBoolean(1)
+----
+true
+
+query A
+return toBoolean(0)
+----
+false
+
+query A
+return toBoolean(-1)
+----
+true
+
+query A
+return toBoolean(1.5)
+----
+true
+
+query A
+return toBoolean(0.0)
+----
+false
+
+query A
+return toBoolean('true')
+----
+true
+
+query A
+return toBoolean('false')
+----
+false
+
+# toBoolean returns null for unsupported types
+query A
+return toBoolean(null)
+----
+null
+
+# toInteger tests
+query A
+return toInteger(42)
+----
+42
+
+query A
+return toInteger(3.14)
+----
+3
+
+query A
+return toInteger(3.99)
+----
+3
+
+query A
+return toInteger(-3.14)
+----
+-3
+
+query A
+return toInteger(true)
+----
+1
+
+query A
+return toInteger(false)
+----
+0
+
+query A
+return toInteger('123')
+----
+123
+
+query A
+return toInteger('invalid')
+----
+0
+
+# toInteger returns null for unsupported types
+query A
+return toInteger(null)
+----
+null
+
+# toFloat tests
+query A
+return toFloat(42)
+----
+42
+
+query A
+return toFloat(3.14)
+----
+3.14
+
+query A
+return toFloat('3.14')
+----
+3.14
+
+query A
+return toFloat('invalid')
+----
+null
+
+# toFloat returns null for unsupported types
+query A
+return toFloat(null)
+----
+null
+
+# toString tests
+query A
+return toString(42)
+----
+null
+
+query A
+return toString(3.14)
+----
+'3.14'
+
+query A
+return toString(true)
+----
+'true'
+
+query A
+return toString(false)
+----
+'false'
+
+query A
+return toString('hello')
+----
+'hello'
+
+query A
+return toString(date('2023-01-15'))
+----
+'2023-01-15'
+
+query A
+return toString(localtime('10:30:00'))
+----
+'10:30:00'
+
+query A
+return toString(localdatetime('2023-01-15T10:30:00'))
+----
+'2023-01-15 10:30:00'
+
+query A
+return toString(datetime('2023-01-15T10:30:00+01:00'))
+----
+'2023-01-15 10:30:00 +01:00'
+
+query A
+return toString(duration('P1M2D'))
+----
+'P1M2DT0S0'
+
+# toString returns null for unsupported types
+query A
+return toString(null)
+----
+null
