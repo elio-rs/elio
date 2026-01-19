@@ -14,6 +14,12 @@ macro_rules! label_expr {
 }
 
 #[test]
+fn test_escaped_ident() {
+    assert_snapshot!(expr!("`a`"), @"a");
+    assert_snapshot!(expr!("`a.b`"), @"a.b");
+}
+
+#[test]
 fn test_literal() {
     assert_snapshot!(expr!("123"), @"123");
     assert_snapshot!(expr!("123.456"), @"123.456");

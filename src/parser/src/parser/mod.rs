@@ -746,7 +746,11 @@ peg::parser! {
         = first:$(['0'..='9']+) { first }
 
     rule ident() -> &'input str
-        = first:$(['a'..='z' | 'A'..='Z' | '_'] ['a'..='z' | 'A'..='Z' | '0'..='9' | '_']*) { first }
+        = escaped_ident()
+        / $(['a'..='z' | 'A'..='Z' | '_'] ['a'..='z' | 'A'..='Z' | '0'..='9' | '_']*)
+
+    rule escaped_ident() -> &'input str
+        = "`" content:$((!['`'] [_])*) "`" { content }
 
     rule comma_separator() = _? "," _?
 
