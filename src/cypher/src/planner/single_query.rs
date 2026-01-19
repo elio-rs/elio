@@ -2,7 +2,7 @@ use crate::error::PlanError;
 use crate::ir::mutating_pattern::MutatingPattern;
 use crate::ir::query::{IrSingleQuery, IrSingleQueryPart};
 use crate::ir::query_project::QueryProjection;
-use crate::plan_node::{Apply, ApplyInner, PlanExpr};
+use crate::plan_node::{Apply, ApplyInner, BlackHole, BlackHoleInner, PlanExpr};
 use crate::planner::PlannerContext;
 use crate::planner::create::plan_create;
 use crate::planner::load::plan_load;
@@ -11,7 +11,7 @@ use crate::planner::project::plan_query_projection;
 
 pub fn plan_single_query(
     ctx: &mut PlannerContext,
-    _single_query @ IrSingleQuery { parts }: &IrSingleQuery,
+    single_query @ IrSingleQuery { parts }: &IrSingleQuery,
 ) -> Result<Box<PlanExpr>, PlanError> {
     assert!(!parts.is_empty());
     let mut part_iter = parts.iter();
@@ -23,6 +23,13 @@ pub fn plan_single_query(
     // plan tail
     for tail in part_iter {
         root = plan_tail_part(ctx, root, tail)?
+    }
+
+    // if not in subquery context and there's no return clause(empty projection), then generate an BlackHole PlanNode.
+    // this is for the case of `CREATE (:Person{name:'Alex'})`
+    // TODO(pgao): check if in subquery
+    if single_query.parts.last().unwrap().query_project.is_none() {
+        root = PlanExpr::BlackHole(BlackHole::new(BlackHoleInner { input: root })).boxed();
     }
 
     Ok(root)

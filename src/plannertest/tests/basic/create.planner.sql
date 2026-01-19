@@ -9,8 +9,9 @@ RootIR { names: [n] }
       └─CreatePattern { nodes: [(n@0):Person create_map{name: 'Alice', age: 30}], rels: [] }
 RootPlan { names: [n] }
 └─ProduceResult { return_columns: n@0 }
-  └─CreateNode { items: [CreateNodeItem { variable: n@0, labels: [Person], properties: create_map{name: 'Alice', age: 30} }] }
-    └─Unit
+  └─BlackHole
+    └─CreateNode { items: [CreateNodeItem { variable: n@0, labels: [Person], properties: create_map{name: 'Alice', age: 30} }] }
+      └─Unit
 */
 
 -- Create a node with properties, with return clause
@@ -58,8 +59,9 @@ RootIR { names: [n, m] }
       └─CreatePattern { nodes: [(n@0):Person create_map{name: 'Alice', age: 30}, (m@1):Person create_map{name: 'Bob', age: 31}], rels: [] }
 RootPlan { names: [n, m] }
 └─ProduceResult { return_columns: n@0,m@1 }
-  └─CreateNode { items: [CreateNodeItem { variable: n@0, labels: [Person], properties: create_map{name: 'Alice', age: 30} }, CreateNodeItem { variable: m@1, labels: [Person], properties: create_map{name: 'Bob', age: 31} }] }
-    └─Unit
+  └─BlackHole
+    └─CreateNode { items: [CreateNodeItem { variable: n@0, labels: [Person], properties: create_map{name: 'Alice', age: 30} }, CreateNodeItem { variable: m@1, labels: [Person], properties: create_map{name: 'Bob', age: 31} }] }
+      └─Unit
 */
 
 -- create without variable
@@ -73,8 +75,9 @@ RootIR { names: [] }
       └─CreatePattern { nodes: [(anon@0):Person create_map{name: 'Alice', age: 30}, (anon@1):Person create_map{name: 'Bob', age: 31}], rels: [] }
 RootPlan { names: [] }
 └─ProduceResult { return_columns:  }
-  └─CreateNode { items: [CreateNodeItem { variable: anon@0, labels: [Person], properties: create_map{name: 'Alice', age: 30} }, CreateNodeItem { variable: anon@1, labels: [Person], properties: create_map{name: 'Bob', age: 31} }] }
-    └─Unit
+  └─BlackHole
+    └─CreateNode { items: [CreateNodeItem { variable: anon@0, labels: [Person], properties: create_map{name: 'Alice', age: 30} }, CreateNodeItem { variable: anon@1, labels: [Person], properties: create_map{name: 'Bob', age: 31} }] }
+      └─Unit
 */
 
 -- create multiple nodes with relationships
@@ -88,9 +91,10 @@ RootIR { names: [a, b] }
       └─CreatePattern { nodes: [(a@0):Person create_map{name: 'Alice', age: 30}, (b@1):Person create_map{name: 'Bob', age: 31}], rels: [(a@0)-[anon@2:KNOWS]->(b@1) create_map{}] }
 RootPlan { names: [a, b] }
 └─ProduceResult { return_columns: a@0,b@1 }
-  └─CreateRel { items: [CreateRelItem { variable: anon@2, reltype: KNOWS, start_node: a@0, end_node: b@1, properties: create_map{} }] }
-    └─CreateNode { items: [CreateNodeItem { variable: a@0, labels: [Person], properties: create_map{name: 'Alice', age: 30} }, CreateNodeItem { variable: b@1, labels: [Person], properties: create_map{name: 'Bob', age: 31} }] }
-      └─Unit
+  └─BlackHole
+    └─CreateRel { items: [CreateRelItem { variable: anon@2, reltype: KNOWS, start_node: a@0, end_node: b@1, properties: create_map{} }] }
+      └─CreateNode { items: [CreateNodeItem { variable: a@0, labels: [Person], properties: create_map{name: 'Alice', age: 30} }, CreateNodeItem { variable: b@1, labels: [Person], properties: create_map{name: 'Bob', age: 31} }] }
+        └─Unit
 */
 
 -- create left direction relationship
@@ -104,8 +108,9 @@ RootIR { names: [a, b, r] }
       └─CreatePattern { nodes: [(a@0):Person create_map{name: 'Alice', age: 30}, (b@1):Person create_map{name: 'Bob', age: 31}], rels: [(a@0)<-[r@2:KNOWS]-(b@1) create_map{}] }
 RootPlan { names: [a, b, r] }
 └─ProduceResult { return_columns: a@0,b@1,r@2 }
-  └─CreateRel { items: [CreateRelItem { variable: r@2, reltype: KNOWS, start_node: b@1, end_node: a@0, properties: create_map{} }] }
-    └─CreateNode { items: [CreateNodeItem { variable: a@0, labels: [Person], properties: create_map{name: 'Alice', age: 30} }, CreateNodeItem { variable: b@1, labels: [Person], properties: create_map{name: 'Bob', age: 31} }] }
-      └─Unit
+  └─BlackHole
+    └─CreateRel { items: [CreateRelItem { variable: r@2, reltype: KNOWS, start_node: b@1, end_node: a@0, properties: create_map{} }] }
+      └─CreateNode { items: [CreateNodeItem { variable: a@0, labels: [Person], properties: create_map{name: 'Alice', age: 30} }, CreateNodeItem { variable: b@1, labels: [Person], properties: create_map{name: 'Bob', age: 31} }] }
+        └─Unit
 */
 

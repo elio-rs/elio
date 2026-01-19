@@ -1,5 +1,5 @@
 query A
-CREATE (a:Person{name: 'Alex', age: 30})
+CREATE (a:Person{name: 'Alex', age: 30}) RETURN *
 ----
 {id: 1, labels: [Person], props: {name: 'Alex', age: 30}}
 
@@ -9,7 +9,7 @@ MATCH (n) RETURN n
 {id: 1, labels: [Person], props: {name: 'Alex', age: 30}}
 
 query AA
-CREATE (a:Person{name: 'Alex', age: 30}), (b:Person{name: 'Bob', age: 20}), (a)-[:KNOWS]->(b), (b)-[:KNOWS]->(a)
+CREATE (a:Person{name: 'Alex', age: 30}), (b:Person{name: 'Bob', age: 20}), (a)-[:KNOWS]->(b), (b)-[:KNOWS]->(a) RETURN *
 ----
 {id: 2, labels: [Person], props: {name: 'Alex', age: 30}}	{id: 3, labels: [Person], props: {name: 'Bob', age: 20}}
 

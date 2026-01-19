@@ -12,6 +12,7 @@ use crate::task::TaskExecContext;
 pub mod all_node_scan;
 pub mod apply;
 pub mod argument;
+pub mod black_hole;
 pub mod constraint;
 pub mod create_node;
 pub mod create_rel;

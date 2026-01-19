@@ -14,6 +14,7 @@ use crate::builder::expression::{BuildExprContext, build_expression};
 use crate::executor::all_node_scan::AllNodeScanExectuor;
 use crate::executor::apply::{ApplyExecutor, ArgumentContext, OutputColumnSource};
 use crate::executor::argument::ArgumentExecutor;
+use crate::executor::black_hole::BlackHoleExecutor;
 use crate::executor::create_node::{CreateNodeExectuor, CreateNodeItem};
 use crate::executor::create_rel::{CreateRelExectuor, CreateRelItem};
 use crate::executor::expand::ExpandExecutor;
@@ -108,6 +109,7 @@ fn build_node(ctx: &mut ExecutorBuildContext, node: &PlanExpr) -> Result<SharedE
         PlanExpr::Filter(filter) => build_filter(ctx, filter, inputs),
         PlanExpr::Pagination(_pagination) => todo!(),
         PlanExpr::Empty(_empty) => todo!(),
+        PlanExpr::BlackHole(black_hole) => build_black_hole(ctx, black_hole, inputs),
     }
 }
 
@@ -616,6 +618,20 @@ fn build_load(
         source_url: inner.source_url.clone().into(),
         format: csv_format.clone(),
         schema: load.schema(),
+    }
+    .into_shared())
+}
+
+fn build_black_hole(
+    _ctx: &mut ExecutorBuildContext,
+    black_hole: &plan_node::BlackHole,
+    inputs: Vec<SharedExecutor>,
+) -> Result<SharedExecutor, BuildError> {
+    assert_eq!(inputs.len(), 1);
+    let [input]: [SharedExecutor; 1] = inputs.try_into().unwrap();
+    Ok(BlackHoleExecutor {
+        input,
+        schema: black_hole.schema().clone(),
     }
     .into_shared())
 }

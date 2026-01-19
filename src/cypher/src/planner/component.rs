@@ -22,7 +22,7 @@ use crate::plan_node::{
 // So, if qg's node and imported is both empty, then qg is empty.
 pub(crate) fn plan_qg_simple(ctx: &mut PlannerContext, qg: &QueryGraph) -> Result<Box<PlanExpr>, PlanError> {
     if qg.nodes.is_empty() && qg.imported().is_empty() {
-        return Ok(PlanExpr::empty(Schema::empty(), ctx.ctx.clone()).boxed());
+        return Ok(PlanExpr::empty(Schema::empty().into(), ctx.ctx.clone()).boxed());
     }
 
     // Try to find an index that can be used for the first node
@@ -200,7 +200,7 @@ impl<'a> TraversalSolver<'a> {
             }
         };
 
-        let empty = PlanExpr::empty(Schema::empty(), self.root.ctx()).boxed();
+        let empty = PlanExpr::empty(Schema::empty().into(), self.root.ctx()).boxed();
         if length.is_simple() {
             // expand
             let inner = ExpandInner {

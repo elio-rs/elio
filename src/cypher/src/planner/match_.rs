@@ -2,7 +2,7 @@ use elio_common::schema::Schema;
 
 use super::*;
 use crate::ir::query_graph::QueryGraph;
-use crate::plan_node::{Argument, ArgumentInner, Empty, Unit};
+use crate::plan_node::{Argument, ArgumentInner, Unit};
 use crate::planner::component::plan_qg_simple;
 
 // plan the query graph in following order:
@@ -45,7 +45,7 @@ fn plan_query_graph(ctx: &mut PlannerContext, qg: &QueryGraph, is_rhs: bool) -> 
         }
 
         // other cases, put an empty
-        let root = PlanExpr::Empty(Empty::new(Schema::empty(), ctx.ctx.clone()));
+        let root = PlanExpr::empty(Schema::empty().into(), ctx.ctx.clone());
         return Ok(root.boxed());
     }
 

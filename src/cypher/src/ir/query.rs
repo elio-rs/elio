@@ -91,6 +91,7 @@ impl IrSingleQuery {
 pub struct IrSingleQueryPart {
     pub query_graph: QueryGraph,
     // for update and create clause, there may be no projection at the end
+    // in this case, planner should generate an Empty PlanNode.
     pub query_project: Option<QueryProjection>,
 }
 

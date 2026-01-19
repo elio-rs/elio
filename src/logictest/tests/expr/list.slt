@@ -62,7 +62,7 @@ return ['hello' + ' ' + 'world']
 
 # List in MATCH context
 query A
-CREATE (a:Person{name: 'Alex', age: 30})
+CREATE (a:Person{name: 'Alex', age: 30}) RETURN *
 ----
 {id: 1, labels: [Person], props: {name: 'Alex', age: 30}}
 

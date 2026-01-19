@@ -13,9 +13,10 @@ RootIR { names: [row] }
     └─Load { variable: row@0, source_url: https://example.com/data.csv, format: CsvLoadFormat { header: true, delimiter: , } }
 RootPlan { names: [row] }
 └─ProduceResult { return_columns: row@0 }
-  └─CreateNode { items: [CreateNodeItem { variable: anon@1, labels: [Person], properties: create_map{name: row@0.name, age: row@0.age} }] }
-    └─Apply
-      ├─Load { source_url: https://example.com/data.csv, variable: row@0, format: CsvLoadFormat { header: true, delimiter: , } }
-      └─Argument { variables: [row@0] }
+  └─BlackHole
+    └─CreateNode { items: [CreateNodeItem { variable: anon@1, labels: [Person], properties: create_map{name: row@0.name, age: row@0.age} }] }
+      └─Apply
+        ├─Load { source_url: https://example.com/data.csv, variable: row@0, format: CsvLoadFormat { header: true, delimiter: , } }
+        └─Argument { variables: [row@0] }
 */
 

@@ -13,6 +13,7 @@ use crate::plan_node::plan_base::{PlanBase, PlanNodeId};
 pub mod all_node_scan;
 pub mod apply;
 pub mod argument;
+pub mod black_hole;
 pub mod create_node;
 pub mod create_rel;
 pub mod empty;
@@ -31,6 +32,7 @@ pub mod var_expand;
 pub use all_node_scan::*;
 pub use apply::*;
 pub use argument::*;
+pub use black_hole::*;
 pub use create_node::*;
 pub use create_rel::*;
 pub use empty::*;
@@ -75,10 +77,11 @@ pub enum PlanExpr {
     Filter(Filter),
     Pagination(Pagination),
     Empty(Empty),
+    BlackHole(BlackHole),
 }
 
 impl PlanExpr {
-    pub fn empty(schema: Schema, ctx: Arc<PlanContext>) -> Self {
+    pub fn empty(schema: Arc<Schema>, ctx: Arc<PlanContext>) -> Self {
         Self::Empty(Empty::new(schema, ctx))
     }
 
@@ -155,6 +158,7 @@ impl_plan_node_common!(Sort, SortInner);
 impl_plan_node_common!(Filter, FilterInner);
 impl_plan_node_common!(Pagination, PaginationInner);
 impl_plan_node_common!(Empty, EmptyInner);
+impl_plan_node_common!(BlackHole, BlackHoleInner);
 impl_plan_node_common!(ProduceResult, ProduceResultInner);
 
 macro_rules! impl_plan_expr_dispatch {
@@ -210,5 +214,6 @@ impl_plan_expr_dispatch!(
     Filter,
     Pagination,
     Empty,
+    BlackHole,
     ProduceResult
 );

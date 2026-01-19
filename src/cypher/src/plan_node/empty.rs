@@ -15,7 +15,7 @@ pub struct Empty {
 }
 
 impl Empty {
-    pub fn new(schema: Schema, ctx: Arc<PlanContext>) -> Self {
+    pub fn new(schema: Arc<Schema>, ctx: Arc<PlanContext>) -> Self {
         let inner = EmptyInner { ctx, schema };
         Self {
             base: inner.build_base(),
@@ -41,12 +41,12 @@ impl PlanNode for Empty {
 pub struct EmptyInner {
     #[educe(Debug(ignore))]
     ctx: Arc<PlanContext>,
-    schema: Schema,
+    schema: Arc<Schema>,
 }
 
 impl InnerNode for EmptyInner {
     fn build_base(&self) -> PlanBase {
-        PlanBase::new(self.schema.clone().into(), self.ctx.clone())
+        PlanBase::new(self.schema.clone(), self.ctx.clone())
     }
 
     fn inputs(&self) -> Vec<&PlanExpr> {
