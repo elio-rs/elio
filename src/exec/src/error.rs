@@ -32,6 +32,8 @@ pub enum ExecError {
         #[backtrace]
         trace: Backtrace,
     },
+    #[error("panic: {0}")]
+    Panic(String, #[backtrace] Backtrace),
 }
 
 impl ExecError {
@@ -46,5 +48,9 @@ impl ExecError {
 
     pub fn io_error<T: ToString>(msg: T) -> Self {
         Self::IoError(msg.to_string(), Backtrace::capture())
+    }
+
+    pub fn panic<T: ToString>(msg: T) -> Self {
+        Self::Panic(msg.to_string(), Backtrace::capture())
     }
 }
