@@ -4,17 +4,17 @@
 
 # Create initial data
 query A
-CREATE (a:Person{email: 'alice@example.com', name: 'Alice'})
+CREATE (a:Person{email: 'alice@example.com', name: 'Alice'}) RETURN *
 ----
 {id: 1, labels: [Person], props: {email: 'alice@example.com', name: 'Alice'}}
 
 query A
-CREATE (b:Person{email: 'bob@example.com', name: 'Bob'})
+CREATE (b:Person{email: 'bob@example.com', name: 'Bob'}) RETURN *
 ----
 {id: 2, labels: [Person], props: {email: 'bob@example.com', name: 'Bob'}}
 
 query A
-CREATE (c:Person{email: 'charlie@example.com', name: 'Charlie'})
+CREATE (c:Person{email: 'charlie@example.com', name: 'Charlie'}) RETURN *
 ----
 {id: 3, labels: [Person], props: {email: 'charlie@example.com', name: 'Charlie'}}
 
@@ -54,17 +54,17 @@ MATCH (p:Person {email: 'alice@example.com'}) WHERE p.name = 'Wrong' RETURN p
 
 # Test composite key index lookup
 query A
-CREATE (x:Item{category: 'Electronics', sku: 'E001', name: 'Phone'})
+CREATE (x:Item{category: 'Electronics', sku: 'E001', name: 'Phone'}) RETURN *
 ----
 {id: 4, labels: [Item], props: {category: 'Electronics', sku: 'E001', name: 'Phone'}}
 
 query A
-CREATE (y:Item{category: 'Electronics', sku: 'E002', name: 'Laptop'})
+CREATE (y:Item{category: 'Electronics', sku: 'E002', name: 'Laptop'}) RETURN *
 ----
 {id: 5, labels: [Item], props: {category: 'Electronics', sku: 'E002', name: 'Laptop'}}
 
 query A
-CREATE (z:Item{category: 'Books', sku: 'B001', name: 'Novel'})
+CREATE (z:Item{category: 'Books', sku: 'B001', name: 'Novel'}) RETURN *
 ----
 {id: 6, labels: [Item], props: {category: 'Books', sku: 'B001', name: 'Novel'}}
 

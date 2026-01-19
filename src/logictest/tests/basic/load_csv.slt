@@ -31,7 +31,7 @@ RETURN row[0]
 
 query A
 LOAD CSV FROM 'tests/testdata/with_header.csv' OPTIONS {header: true} AS row
-CREATE (:Person{name: row.name, age: toInteger(row.age), city: row.city})
+CREATE (:Person{name: row.name, age: toInteger(row.age), city: row.city}) RETURN *
 ----
 {name: 'Alice', age: '30', city: 'Beijing'}
 {name: 'Bob', age: '25', city: 'Shanghai'}

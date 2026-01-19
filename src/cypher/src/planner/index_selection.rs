@@ -91,7 +91,7 @@ pub fn find_index_candidates(
 
 /// Extract label and property equality conditions from a filter expression
 fn extract_index_info(
-    ctx: &Arc<PlanContext>,
+    _ctx: &Arc<PlanContext>,
     expr: &Expr,
     target_var: &VariableName,
     label_id: &mut Option<LabelId>,
@@ -115,7 +115,7 @@ fn extract_index_info(
             // Check for AND - recurse into both sides
             if func_call.func == "and" {
                 for arg in &func_call.args {
-                    extract_index_info(ctx, arg, target_var, label_id, label_name, property_conditions);
+                    extract_index_info(_ctx, arg, target_var, label_id, label_name, property_conditions);
                 }
                 return;
             }

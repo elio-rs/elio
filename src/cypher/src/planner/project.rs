@@ -129,7 +129,7 @@ fn plan_sort(
     // extra project
     if !extra_projections.is_empty() {
         // add extra project
-        let empty = PlanExpr::empty(Schema::empty(), root.ctx());
+        let empty = PlanExpr::empty(Schema::empty().into(), root.ctx());
         let mut inner = ProjectInner::new_from_input(std::mem::replace(&mut root, Box::new(empty)));
         extra_projections
             .iter()
@@ -149,7 +149,7 @@ fn plan_sort(
     // remove extra project
     // TODO(pgao): maybe we can use the opt rule to remove unnecessary project
     if !extra_projections.is_empty() {
-        let empty = PlanExpr::empty(Schema::empty(), root.ctx());
+        let empty = PlanExpr::empty(Schema::empty().into(), root.ctx());
         let mut inner = ProjectInner::new_from_input(std::mem::replace(&mut root, Box::new(empty)));
         let extra_names: HashSet<_> = extra_projections.iter().map(|(n, _)| n).collect();
         inner.retain(|(name, _expr)| !extra_names.contains(name));

@@ -5,6 +5,7 @@ use itertools::Itertools;
 
 use super::*;
 use crate::array::{ArrayBuilderImpl, ArrayImpl, ArrayRef, PhysicalType};
+use crate::schema::Schema;
 
 #[derive(Clone)]
 pub struct DataChunk {
@@ -17,6 +18,20 @@ impl DataChunk {
         Self {
             columns: vec![],
             visibility: BitVec::repeat(true, 1),
+        }
+    }
+
+    /// Return an chunk with all columns empty
+    pub fn empty(schema: &Schema) -> Self {
+        let columns = schema
+            .columns()
+            .iter()
+            .map(|col| col.typ.physical_type().array_builder(0))
+            .map(|b| Arc::new(b.finish()))
+            .collect_vec();
+        Self {
+            columns,
+            visibility: BitVec::repeat(true, 0),
         }
     }
 

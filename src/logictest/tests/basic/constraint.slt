@@ -2,12 +2,12 @@
 
 # Create initial data
 query A
-CREATE (a:User{email: 'alice@example.com', name: 'Alice'})
+CREATE (a:User{email: 'alice@example.com', name: 'Alice'}) RETURN *
 ----
 {id: 1, labels: [User], props: {email: 'alice@example.com', name: 'Alice'}}
 
 query A
-CREATE (b:User{email: 'bob@example.com', name: 'Bob'})
+CREATE (b:User{email: 'bob@example.com', name: 'Bob'}) RETURN *
 ----
 {id: 2, labels: [User], props: {email: 'bob@example.com', name: 'Bob'}}
 
@@ -21,7 +21,7 @@ CREATE (c:User{email: 'alice@example.com', name: 'Charlie'})
 
 # Create a user with a new unique email - should succeed
 query A
-CREATE (d:User{email: 'david@example.com', name: 'David'})
+CREATE (d:User{email: 'david@example.com', name: 'David'}) RETURN *
 ----
 {id: 3, labels: [User], props: {email: 'david@example.com', name: 'David'}}
 
@@ -43,7 +43,7 @@ DROP CONSTRAINT user_email_unique
 
 # After dropping constraint, we can create duplicate email
 query A
-CREATE (e:User{email: 'alice@example.com', name: 'Eve'})
+CREATE (e:User{email: 'alice@example.com', name: 'Eve'}) RETURN *
 ----
 {id: 4, labels: [User], props: {email: 'alice@example.com', name: 'Eve'}}
 
@@ -53,12 +53,12 @@ DROP CONSTRAINT non_existent_constraint IF EXISTS
 
 # Test NODE KEY constraint (composite unique)
 query A
-CREATE (p:Product{category: 'Electronics', sku: 'SKU001', name: 'Phone'})
+CREATE (p:Product{category: 'Electronics', sku: 'SKU001', name: 'Phone'}) RETURN *
 ----
 {id: 5, labels: [Product], props: {category: 'Electronics', sku: 'SKU001', name: 'Phone'}}
 
 query A
-CREATE (p:Product{category: 'Electronics', sku: 'SKU002', name: 'Laptop'})
+CREATE (p:Product{category: 'Electronics', sku: 'SKU002', name: 'Laptop'}) RETURN *
 ----
 {id: 6, labels: [Product], props: {category: 'Electronics', sku: 'SKU002', name: 'Laptop'}}
 
@@ -71,7 +71,7 @@ CREATE (p:Product{category: 'Electronics', sku: 'SKU001', name: 'Tablet'})
 
 # Create product with different composite key - should succeed
 query A
-CREATE (p:Product{category: 'Clothing', sku: 'SKU001', name: 'Shirt'})
+CREATE (p:Product{category: 'Clothing', sku: 'SKU001', name: 'Shirt'}) RETURN *
 ----
 {id: 7, labels: [Product], props: {category: 'Clothing', sku: 'SKU001', name: 'Shirt'}}
 
@@ -81,7 +81,7 @@ CREATE (p:Product{category: 'Books', name: 'Novel'})
 
 # NODE KEY with all properties present - should succeed
 query A
-CREATE (p:Product{category: 'Books', sku: 'BOOK001', name: 'Novel'})
+CREATE (p:Product{category: 'Books', sku: 'BOOK001', name: 'Novel'}) RETURN *
 ----
 {id: 8, labels: [Product], props: {category: 'Books', sku: 'BOOK001', name: 'Novel'}}
 
@@ -90,7 +90,7 @@ statement ok
 DROP CONSTRAINT product_key
 
 query A
-CREATE (t:Tag{name: 'test'})
+CREATE (t:Tag{name: 'test'}) RETURN *
 ----
 {id: 9, labels: [Tag], props: {name: 'test'}}
 
@@ -99,19 +99,19 @@ CREATE CONSTRAINT tag_code_unique FOR (t:Tag) REQUIRE t.code IS UNIQUE
 
 # UNIQUE allows missing property (this is the key difference from NODE KEY)
 query A
-CREATE (t:Tag{name: 'no_code_tag1'})
+CREATE (t:Tag{name: 'no_code_tag1'}) RETURN *
 ----
 {id: 10, labels: [Tag], props: {name: 'no_code_tag1'}}
 
 # Multiple tags without the constrained property are allowed
 query A
-CREATE (t:Tag{name: 'no_code_tag2'})
+CREATE (t:Tag{name: 'no_code_tag2'}) RETURN *
 ----
 {id: 11, labels: [Tag], props: {name: 'no_code_tag2'}}
 
 # But duplicate non-null values still fail
 query A
-CREATE (t:Tag{name: 'with_code', code: 'ABC'})
+CREATE (t:Tag{name: 'with_code', code: 'ABC'}) RETURN *
 ----
 {id: 12, labels: [Tag], props: {name: 'with_code', code: 'ABC'}}
 

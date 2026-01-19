@@ -1,5 +1,5 @@
 query A
-CREATE (a:Person{name: 'Alex', age: 30})
+CREATE (a:Person{name: 'Alex', age: 30}) RETURN *
 ----
 {id: 1, labels: [Person], props: {name: 'Alex', age: 30}}
 
@@ -14,6 +14,7 @@ CREATE (a:Person{name: 'Alex', age: 30}),
 (c:Person{name: 'Carl', age: 40}),
 (a)-[:KNOWS]->(b), (b)-[:KNOWS]->(a)
 (b)-[:KNOWS]->(c), (c)-[:KNOWS]->(b)
+RETURN *
 ----
 {id: 2, labels: [Person], props: {name: 'Alex', age: 30}}	{id: 3, labels: [Person], props: {name: 'Bob', age: 20}}	{id: 4, labels: [Person], props: {name: 'Carl', age: 40}}
 
