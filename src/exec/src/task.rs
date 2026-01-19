@@ -19,6 +19,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use crate::builder::{ExecutorBuildContext, build_executor};
 use crate::error::ExecError;
 use crate::executor::SharedExecutor;
+use crate::panic::spawn_with_hook;
 
 // global execution context
 #[derive(Educe)]
@@ -174,7 +175,13 @@ impl TaskRunner {
             }
         };
         let mut stream = stream.boxed();
-        tokio::spawn(async move {
+
+        let tx_for_panic = tx.clone();
+        let panic_hook = move |msg: String| {
+            let _ = tx_for_panic.send(Err(ExecError::panic(msg)));
+        };
+
+        let fut = async move {
             let mut success = true;
             // TODO(pgao): cancellation token
             while let Some(chunk) = stream.next().await {
@@ -196,6 +203,8 @@ impl TaskRunner {
             } else {
                 let _ = txn.abort();
             }
-        });
+        };
+
+        spawn_with_hook("task_runner".to_string(), fut, panic_hook);
     }
 }

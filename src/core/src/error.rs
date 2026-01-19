@@ -23,4 +23,8 @@ pub enum Error {
 
     #[error("constraint '{0}' not found")]
     ConstraintNotFound(String),
+
+    // Internal error (e.g., panic captured)
+    #[error("paniced: {0}")]
+    Panic(String),
 }
