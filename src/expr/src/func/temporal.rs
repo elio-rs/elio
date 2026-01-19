@@ -166,28 +166,28 @@ fn any_duration(arg: ScalarRef<'_>) -> Result<ScalarValue, EvalError> {
 pub(crate) fn register(registry: &mut FunctionRegistry) {
     let date = define_function!( name: "date", impls: 
     [
-        { args: [{anyof String | Date | LocalDateTime | ZonedDateTime}], ret: Any, func: date_batch},
+        { args: [{anyof String | Date | LocalDateTime | ZonedDateTime| Any}], ret: Any, func: date_batch},
         { args: [], ret: Any, func: current_date_batch}
     ],
     is_agg: false);
 
     let local_time = define_function!( name: "localtime", impls: 
     [
-        { args: [{anyof String | LocalTime | LocalDateTime | ZonedDateTime}], ret: Any, func: local_time_batch},
+        { args: [{anyof String | LocalTime | LocalDateTime | ZonedDateTime| Any}], ret: Any, func: local_time_batch},
         { args: [], ret: Any, func: current_local_time_batch}
     ],
     is_agg: false);
 
     let local_date_time = define_function!( name: "localdatetime", impls: 
     [
-        { args: [{anyof String | LocalDateTime | ZonedDateTime}], ret: Any, func: local_date_time_batch},
+        { args: [{anyof String | LocalDateTime | ZonedDateTime| Any}], ret: Any, func: local_date_time_batch},
         { args: [], ret: Any, func: current_local_date_time_batch}
     ],
     is_agg: false);
 
     let date_time = define_function!( name: "datetime", impls: 
     [
-        { args: [{anyof String | ZonedDateTime}], ret: Any, func: zoned_date_time_batch},
+        { args: [{anyof String | ZonedDateTime | Any}], ret: Any, func: zoned_date_time_batch},
         { args: [], ret: Any, func: current_zoned_date_time_batch}
     ],
     is_agg: false);
