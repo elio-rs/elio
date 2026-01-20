@@ -22,3 +22,15 @@
   tasks:
     - bind
     - plan
+- sql: |
+    MATCH (a:Person), (b:Person) WHERE a.age > b.age RETURN a, b
+  desc: match with cross product
+  tasks:
+    - bind
+    - plan
+- sql: |
+    MATCH (a:Person)--(b), (c:Person)--(d) WHERE a.age > c.age RETURN a, b, c, d
+  desc: match with cross product and overlapping variables
+  tasks:
+    - bind
+    - plan

@@ -104,6 +104,7 @@ fn build_node(ctx: &mut ExecutorBuildContext, node: &PlanExpr) -> Result<SharedE
         PlanExpr::CreateNode(create_node) => build_create_node(ctx, create_node, inputs),
         PlanExpr::CreateRel(create_rel) => build_create_rel(ctx, create_rel, inputs),
         PlanExpr::Load(load) => build_load(ctx, load, inputs),
+        PlanExpr::CrossProduct(_cross_product) => todo!(),
         PlanExpr::Project(project) => build_project(ctx, project, inputs),
         PlanExpr::Sort(_sort) => todo!(),
         PlanExpr::Filter(filter) => build_filter(ctx, filter, inputs),

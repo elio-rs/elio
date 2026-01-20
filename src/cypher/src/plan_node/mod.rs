@@ -16,6 +16,7 @@ pub mod argument;
 pub mod black_hole;
 pub mod create_node;
 pub mod create_rel;
+pub mod cross_product;
 pub mod empty;
 pub mod expand;
 pub mod filter;
@@ -35,6 +36,7 @@ pub use argument::*;
 pub use black_hole::*;
 pub use create_node::*;
 pub use create_rel::*;
+pub use cross_product::*;
 pub use empty::*;
 pub use expand::*;
 pub use filter::*;
@@ -72,6 +74,7 @@ pub enum PlanExpr {
     CreateRel(CreateRel),
     // relational
     Load(Load),
+    CrossProduct(CrossProduct),
     Project(Project),
     Sort(Sort),
     Filter(Filter),
@@ -160,6 +163,7 @@ impl_plan_node_common!(Pagination, PaginationInner);
 impl_plan_node_common!(Empty, EmptyInner);
 impl_plan_node_common!(BlackHole, BlackHoleInner);
 impl_plan_node_common!(ProduceResult, ProduceResultInner);
+impl_plan_node_common!(CrossProduct, CrossProductInner);
 
 macro_rules! impl_plan_expr_dispatch {
     ($($plan_node:ident),*) => {
@@ -209,6 +213,7 @@ impl_plan_expr_dispatch!(
     CreateNode,
     CreateRel,
     Load,
+    CrossProduct,
     Project,
     Sort,
     Filter,
