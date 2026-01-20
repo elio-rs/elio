@@ -30,14 +30,15 @@ impl PlanNode for AllNodeScan {
 
     fn xmlnode(&self) -> XmlNode<'_> {
         let mut fields = vec![("variable", Pretty::from(self.inner.variable.as_ref()))];
-        if !self.inner.arguments.is_empty() {
+        if let Some(arguments) = self.inner.arguments.as_ref() {
             fields.push((
                 "arguments",
                 Pretty::Array(
-                    self.inner
-                        .arguments
+                    arguments
+                        .schema()
+                        .columns()
                         .iter()
-                        .map(|x| Pretty::from(x.name.as_ref()))
+                        .map(|x| Pretty::display(&x.name.clone()))
                         .collect_vec(),
                 ),
             ));
@@ -50,19 +51,31 @@ impl PlanNode for AllNodeScan {
 #[educe(Debug)]
 pub struct AllNodeScanInner {
     pub variable: VariableName,
-    pub arguments: Vec<Variable>,
+    pub arguments: Option<Box<PlanExpr>>, // must be argument
     #[educe(Debug(ignore))]
     pub ctx: Arc<PlanContext>,
 }
 
 impl AllNodeScanInner {
+    pub fn new(variable: VariableName, arguments: Option<Box<PlanExpr>>, ctx: Arc<PlanContext>) -> Self {
+        if let Some(ref input) = arguments {
+            assert!(input.as_argument().is_some());
+        }
+        Self {
+            variable,
+            arguments,
+            ctx,
+        }
+    }
+
     fn build_schema(&self) -> Arc<Schema> {
         let mut schema = Schema::empty();
         schema.fields.push(Variable {
             name: self.variable.clone(),
             typ: DataType::VirtualNode,
         });
-        schema.fields.extend(self.arguments.clone());
+        let optional_arguments = self.arguments.as_ref().map(|x| x.schema()).unwrap_or_default();
+        schema.fields.extend(optional_arguments.iter().cloned());
         schema.into()
     }
 }
@@ -74,6 +87,6 @@ impl InnerNode for AllNodeScanInner {
     }
 
     fn inputs(&self) -> Vec<&PlanExpr> {
-        vec![]
+        self.arguments.as_ref().map(|x| vec![x.as_ref()]).unwrap_or_default()
     }
 }

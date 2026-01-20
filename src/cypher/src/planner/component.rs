@@ -105,11 +105,14 @@ impl<'a> TraversalSolver<'a> {
             // Check if we can use an index for this node
             let (plan, filter) = Self::try_create_index_seek(ctx, first, &qg.filter, &imported).unwrap_or_else(|| {
                 // Fallback to AllNodeScan
-                let inner = AllNodeScanInner {
-                    variable: first.clone(),
-                    arguments: imported,
-                    ctx: ctx.ctx.clone(),
-                };
+                let arguments = (!imported.is_empty()).then(|| {
+                    Argument::new(ArgumentInner {
+                        variables: imported.clone(),
+                        ctx: ctx.ctx.clone(),
+                    })
+                    .into()
+                });
+                let inner = AllNodeScanInner::new(first.clone(), arguments, ctx.ctx.clone());
                 (AllNodeScan::new(inner).into(), qg.filter.clone())
             });
 

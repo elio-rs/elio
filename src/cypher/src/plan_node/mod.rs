@@ -3,6 +3,7 @@ use std::sync::Arc;
 use elio_common::data_type::DataType;
 use elio_common::schema::{Schema, Variable};
 use elio_common::variable::VariableName;
+use enum_as_inner::EnumAsInner;
 use itertools::Itertools;
 use pretty_xmlish::{Pretty, XmlNode};
 
@@ -57,7 +58,7 @@ pub enum PathMode {
     Trail, // repeated node, non-repeated rel
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, EnumAsInner)]
 pub enum PlanExpr {
     // graph
     AllNodeScan(AllNodeScan),
@@ -90,10 +91,6 @@ impl PlanExpr {
 
     pub fn boxed(self) -> Box<Self> {
         Box::new(self)
-    }
-
-    pub fn is_empty(&self) -> bool {
-        matches!(self, Self::Empty(_))
     }
 }
 
