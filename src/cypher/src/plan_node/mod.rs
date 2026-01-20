@@ -3,6 +3,7 @@ use std::sync::Arc;
 use elio_common::data_type::DataType;
 use elio_common::schema::{Schema, Variable};
 use elio_common::variable::VariableName;
+use enum_as_inner::EnumAsInner;
 use itertools::Itertools;
 use pretty_xmlish::{Pretty, XmlNode};
 
@@ -16,6 +17,7 @@ pub mod argument;
 pub mod black_hole;
 pub mod create_node;
 pub mod create_rel;
+pub mod cross_product;
 pub mod empty;
 pub mod expand;
 pub mod filter;
@@ -35,6 +37,7 @@ pub use argument::*;
 pub use black_hole::*;
 pub use create_node::*;
 pub use create_rel::*;
+pub use cross_product::*;
 pub use empty::*;
 pub use expand::*;
 pub use filter::*;
@@ -55,7 +58,7 @@ pub enum PathMode {
     Trail, // repeated node, non-repeated rel
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, EnumAsInner)]
 pub enum PlanExpr {
     // graph
     AllNodeScan(AllNodeScan),
@@ -72,6 +75,7 @@ pub enum PlanExpr {
     CreateRel(CreateRel),
     // relational
     Load(Load),
+    CrossProduct(CrossProduct),
     Project(Project),
     Sort(Sort),
     Filter(Filter),
@@ -87,10 +91,6 @@ impl PlanExpr {
 
     pub fn boxed(self) -> Box<Self> {
         Box::new(self)
-    }
-
-    pub fn is_empty(&self) -> bool {
-        matches!(self, Self::Empty(_))
     }
 }
 
@@ -160,6 +160,7 @@ impl_plan_node_common!(Pagination, PaginationInner);
 impl_plan_node_common!(Empty, EmptyInner);
 impl_plan_node_common!(BlackHole, BlackHoleInner);
 impl_plan_node_common!(ProduceResult, ProduceResultInner);
+impl_plan_node_common!(CrossProduct, CrossProductInner);
 
 macro_rules! impl_plan_expr_dispatch {
     ($($plan_node:ident),*) => {
@@ -209,6 +210,7 @@ impl_plan_expr_dispatch!(
     CreateNode,
     CreateRel,
     Load,
+    CrossProduct,
     Project,
     Sort,
     Filter,

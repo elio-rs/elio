@@ -41,3 +41,15 @@ MATCH (n) RETURN n
 ----
 {id: 1, labels: [Person], props: {name: 'Alice', age: 30, city: 'Beijing'}}
 {id: 2, labels: [Person], props: {name: 'Bob', age: 25, city: 'Shanghai'}}
+
+query AAA
+LOAD CSV FROM 'tests/testdata/rel.csv' OPTIONS {header: true} AS row
+MATCH (a:Person{name: row.from}), (b: Person{name:row.to})
+CREATE (a)-[:KNOWS{date:date(row.date)}]->(b)
+----
+
+query AA
+MATCH (a)-[r]->(b) RETURN a,b
+----
+{id: 1, labels: [Person], props: {name: 'Alice', age: 30, city: 'Beijing'}}	{id: 2, labels: [Person], props: {name: 'Bob', age: 25, city: 'Shanghai'}}
+{id: 2, labels: [Person], props: {name: 'Bob', age: 25, city: 'Shanghai'}}	{id: 1, labels: [Person], props: {name: 'Alice', age: 30, city: 'Beijing'}}

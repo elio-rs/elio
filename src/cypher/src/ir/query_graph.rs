@@ -194,19 +194,19 @@ impl QueryGraph {
         }
     }
 
-    // partition the filter by argument only filter and non-argument only filter
-    pub fn partition_filter_by_argument_only(&self) -> (FilterExprs, FilterExprs) {
+    // partition the filter by imported only filter and non-imported only filter
+    pub fn partition_filter_by_imported_only(&self) -> (FilterExprs, FilterExprs) {
         let imported = self.imported_variables();
-        let (argument_only, non_argument_only) = self.filter.clone().partition_by(|e| e.depend_only_on(&imported));
-        (argument_only, non_argument_only)
+        let (imported_only, non_imported_only) = self.filter.clone().partition_by(|e| e.depend_only_on(&imported));
+        (imported_only, non_imported_only)
     }
 }
 
 impl QueryGraph {
     // partition the query graph by connected component
     // also partition the filter into component if it only depends on the solved variables.
-    pub fn connected_component(&self) -> Vec<QueryGraph> {
-        let (argument_only_filter, mut other_filter) = self.partition_filter_by_argument_only();
+    pub fn connected_component(&self) -> (Vec<QueryGraph>, FilterExprs) {
+        let (argument_only_filter, mut other_filter) = self.partition_filter_by_imported_only();
         let mut visited = IndexSet::new();
         let mut components = vec![];
 
@@ -244,10 +244,9 @@ impl QueryGraph {
             qg.add_filter(solved);
             components.push(qg);
         }
+        // assert!(other_filter.is_true());
 
-        // other_filter must be empty
-
-        components
+        (components, other_filter)
     }
 
     // find the connected component for the given node, and also populate visited

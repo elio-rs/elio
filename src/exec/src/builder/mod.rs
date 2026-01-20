@@ -17,6 +17,7 @@ use crate::executor::argument::ArgumentExecutor;
 use crate::executor::black_hole::BlackHoleExecutor;
 use crate::executor::create_node::{CreateNodeExectuor, CreateNodeItem};
 use crate::executor::create_rel::{CreateRelExectuor, CreateRelItem};
+use crate::executor::cross_product::CrossProductExecutor;
 use crate::executor::expand::ExpandExecutor;
 use crate::executor::filter::FilterExecutor;
 use crate::executor::load_csv::LoadCsvExecutor;
@@ -104,6 +105,7 @@ fn build_node(ctx: &mut ExecutorBuildContext, node: &PlanExpr) -> Result<SharedE
         PlanExpr::CreateNode(create_node) => build_create_node(ctx, create_node, inputs),
         PlanExpr::CreateRel(create_rel) => build_create_rel(ctx, create_rel, inputs),
         PlanExpr::Load(load) => build_load(ctx, load, inputs),
+        PlanExpr::CrossProduct(cross_product) => build_cross_product(ctx, cross_product, inputs),
         PlanExpr::Project(project) => build_project(ctx, project, inputs),
         PlanExpr::Sort(_sort) => todo!(),
         PlanExpr::Filter(filter) => build_filter(ctx, filter, inputs),
@@ -116,11 +118,33 @@ fn build_node(ctx: &mut ExecutorBuildContext, node: &PlanExpr) -> Result<SharedE
 fn build_all_node_scan(
     _ctx: &mut ExecutorBuildContext,
     all_node_scan: &plan_node::AllNodeScan,
-    inputs: Vec<SharedExecutor>,
+    inputs: Vec<SharedExecutor>, // expected to be Argument or None
 ) -> Result<SharedExecutor, BuildError> {
-    assert_eq!(inputs.len(), 0);
     let schema = all_node_scan.schema();
-    Ok(AllNodeScanExectuor::new(schema).into_shared())
+    let arguments = &all_node_scan.inner().arguments;
+    // if inputs is not empty, which means the all node scan's input is argument, and the executor is already built.
+
+    if let Some(arguments) = arguments {
+        assert_eq!(inputs.len(), 1);
+        let argument_schema = arguments.schema();
+        // build output mapping: arguments first (from input/left), then node (from scan/right)
+        let mut output_mapping = Vec::with_capacity(schema.columns().len());
+        let arg_name_to_col = argument_schema.name_to_col_map();
+
+        for col in schema.columns() {
+            if let Some(&arg_idx) = arg_name_to_col.get(&col.name) {
+                // from argument (left/input)
+                output_mapping.push(OutputColumnSource::Left(arg_idx));
+            } else {
+                // from node scan (right), node is always at index 0
+                output_mapping.push(OutputColumnSource::Right(0));
+            }
+        }
+
+        Ok(AllNodeScanExectuor::with_input(schema, inputs[0].clone(), output_mapping).into_shared())
+    } else {
+        Ok(AllNodeScanExectuor::new(schema).into_shared())
+    }
 }
 
 fn build_node_index_seek(
@@ -632,6 +656,48 @@ fn build_black_hole(
     Ok(BlackHoleExecutor {
         input,
         schema: black_hole.schema().clone(),
+    }
+    .into_shared())
+}
+
+fn build_cross_product(
+    _ctx: &mut ExecutorBuildContext,
+    cross_product: &plan_node::CrossProduct,
+    inputs: Vec<SharedExecutor>,
+) -> Result<SharedExecutor, BuildError> {
+    assert_eq!(inputs.len(), 2);
+    let [left, right]: [SharedExecutor; 2] = inputs.try_into().unwrap();
+
+    let left_schema = left.schema();
+    let right_schema = right.schema();
+    let output_schema = cross_product.schema();
+
+    let left_name_to_col = left_schema.name_to_col_map();
+    let right_name_to_col = right_schema.name_to_col_map();
+
+    // build output mapping: for overlapping variables, prefer left side
+    let output_mapping: Vec<OutputColumnSource> = output_schema
+        .columns()
+        .iter()
+        .map(|col| {
+            if let Some(&left_idx) = left_name_to_col.get(&col.name) {
+                Ok(OutputColumnSource::Left(left_idx))
+            } else if let Some(&right_idx) = right_name_to_col.get(&col.name) {
+                Ok(OutputColumnSource::Right(right_idx))
+            } else {
+                Err(BuildError::MalformedPlan(
+                    format!("Output column {} not found in left or right schema", col.name),
+                    Backtrace::capture(),
+                ))
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(CrossProductExecutor {
+        left,
+        right,
+        schema: cross_product.schema().clone(),
+        output_mapping,
     }
     .into_shared())
 }

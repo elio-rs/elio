@@ -5,3 +5,11 @@
   tasks:
     - bind
     - plan
+- sql: |
+    LOAD CSV FROM 'https://example.com/data.csv' AS row 
+    MATCH (f:Forum {id: toInteger(row.`Forum.id`)}), (p:Post {id: toInteger(row.`Post.id`)})
+    CREATE (f)-[:CONTAINER_OF]->(p)
+  desc: Load a CSV file and create relationships
+  tasks:
+    - bind
+    - plan

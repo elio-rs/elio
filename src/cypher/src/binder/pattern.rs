@@ -303,7 +303,7 @@ fn bind_simple_pattern(
 
         // bind properties
         if let Some(props) = properties {
-            let props = bind_properties(pctx, &var, props)?;
+            let props = bind_properties(pctx, &scope, &var, props)?;
             node_filter = node_filter.and(props);
         }
         // TODO(pgao): bind predicate, in parser we do not support predicate right now
@@ -348,7 +348,7 @@ fn bind_simple_pattern(
         let mut rel_filter = FilterExprs::empty();
         // bind properties
         if let Some(props) = properties {
-            let props = bind_properties(pctx, &var, props)?;
+            let props = bind_properties(pctx, &scope, &var, props)?;
             rel_filter = rel_filter.and(props);
         }
         // TODO(pgao): bind predicate, in parser we do not support predicate right now
@@ -580,10 +580,14 @@ fn resolve_variable(pctx: &PatternContext, scope: &Scope, name: &str) -> Result<
     Ok(None)
 }
 
-fn bind_properties(pctx: &PatternContext, var: &Variable, props: &ast::Expr) -> Result<FilterExprs, PlanError> {
-    // use an empty scope here, since the MapExpression should only contain constant keys and values
-    let scope = Scope::empty();
-    let ectx = pctx.derive_expr_context(&scope, "Variable Properties");
+// need to pass scope here since the properties expression may reference imported variables
+fn bind_properties(
+    pctx: &PatternContext,
+    scope: &Scope,
+    var: &Variable,
+    props: &ast::Expr,
+) -> Result<FilterExprs, PlanError> {
+    let ectx = pctx.derive_expr_context(scope, "Variable Properties");
     let mut filter = FilterExprs::empty();
     if let ast::Expr::MapExpression { keys, values } = props {
         for (key, value) in keys.iter().zip(values.iter()) {
