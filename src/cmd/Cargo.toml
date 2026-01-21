@@ -14,4 +14,5 @@ elio_core = { workspace = true }
 futures = { workspace = true }
 rustyline = "14"
 tabled = "0.17"
+tikv-jemallocator = { workspace = true }
 tokio = { workspace = true }

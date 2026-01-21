@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -9,12 +11,18 @@ use futures::stream::StreamExt;
 use rustyline::DefaultEditor;
 use rustyline::error::ReadlineError;
 use tabled::settings::Style;
+use tikv_jemallocator::Jemalloc;
+
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
 
 #[derive(Debug, Parser)]
 #[command(author, version, about = "Elio - An embedded graph database", long_about = None)]
 struct Args {
     #[arg(short, long, help = "Database path", default_value = ".elio")]
     db_path: String,
+    #[arg(short = 'f', long = "file", help = "Read Cypher statements from file")]
+    input_file: Option<PathBuf>,
 }
 
 fn print_help() {
@@ -161,6 +169,40 @@ async fn run_repl(sess: Arc<Session>) {
     }
 }
 
+fn statements_from_file(path: &PathBuf) -> Result<Vec<String>, String> {
+    let content = fs::read_to_string(path).map_err(|e| format!("Failed to read file {}: {}", path.display(), e))?;
+
+    let mut statements = Vec::new();
+    let mut current = String::new();
+
+    for ch in content.chars() {
+        current.push(ch);
+
+        if ch == ';' {
+            let trimmed = current.trim();
+            if !trimmed.is_empty() {
+                statements.push(trimmed.to_string());
+            }
+            current.clear();
+        }
+    }
+
+    Ok(statements)
+}
+
+async fn run_file(sess: Arc<Session>, path: &PathBuf) {
+    match statements_from_file(path) {
+        Ok(statements) => {
+            for statement in statements {
+                println!("{}", statement);
+                execute_query(&sess, statement.trim_end_matches(';')).await;
+                println!();
+            }
+        }
+        Err(e) => eprintln!("{}", e),
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
@@ -175,5 +217,9 @@ async fn main() {
     };
 
     let sess = db.new_session();
-    run_repl(sess).await;
+    if let Some(path) = args.input_file {
+        run_file(sess, &path).await;
+    } else {
+        run_repl(sess).await;
+    }
 }

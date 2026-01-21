@@ -58,6 +58,7 @@ roaring = "0.11.3"                                   # for path storage(not used
 sqlplannertest = "0.4.1"
 syn = { version = "2.0", features = ["full"] }       # expr proc macros
 thiserror = "2.0.12"
+tikv-jemallocator = "0.6"                            # for fast memory alloc
 tokio = { version = "1.48.0", features = ["full"] }
 tracing = "0.1.43"
 
