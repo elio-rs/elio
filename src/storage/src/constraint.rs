@@ -53,7 +53,7 @@ impl ConstraintKind {
 /// Constraint metadata stored in the database
 #[derive(Debug, Clone)]
 pub struct ConstraintMeta {
-    pub name: String,
+    pub name: Arc<str>,
     pub entity_type: EntityType,
     pub label_id: LabelId,
     pub constraint_kind: ConstraintKind,
@@ -122,7 +122,7 @@ impl ConstraintCodec {
         }
 
         Some(ConstraintMeta {
-            name,
+            name: name.into(),
             entity_type,
             label_id,
             constraint_kind,

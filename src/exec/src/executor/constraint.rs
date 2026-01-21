@@ -73,7 +73,7 @@ pub fn check_unique_constraints(
                     let prop_value_refs: Vec<&[u8]> = prop_values.iter().map(|v| v.as_slice()).collect();
                     if tx.unique_index_exists(*label_id, &constraint.property_key_ids, &prop_value_refs)? {
                         return Err(ExecError::ConstraintViolation {
-                            constraint: constraint.name.clone(),
+                            constraint: constraint.name.to_string(),
                             reason: "Node with this property value already exists".to_string(),
                             trace: Backtrace::capture(),
                         });
@@ -83,7 +83,7 @@ pub fn check_unique_constraints(
                     // For NODE KEY, missing property is an error
                     if is_node_key {
                         return Err(ExecError::ConstraintViolation {
-                            constraint: constraint.name.clone(),
+                            constraint: constraint.name.to_string(),
                             reason: format!("Property '{}' is required by NODE KEY constraint", prop_name),
                             trace: Backtrace::capture(),
                         });
@@ -94,7 +94,7 @@ pub fn check_unique_constraints(
                     // For NODE KEY, NULL value is an error
                     if is_node_key {
                         return Err(ExecError::ConstraintViolation {
-                            constraint: constraint.name.clone(),
+                            constraint: constraint.name.to_string(),
                             reason: format!("Property '{}' cannot be NULL for NODE KEY constraint", prop_name),
                             trace: Backtrace::capture(),
                         });

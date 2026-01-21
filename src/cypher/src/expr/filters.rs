@@ -52,6 +52,10 @@ impl FilterExprs {
     pub fn pretty(&self) -> String {
         self.exprs.iter().map(|e| e.pretty()).collect::<Vec<_>>().join(" AND ")
     }
+
+    pub fn diff(&self, other: &Self) -> Self {
+        Self::from_iter(self.exprs.iter().filter(|expr| !other.exprs.contains(expr)).cloned())
+    }
 }
 
 impl From<FilterExprs> for Expr {

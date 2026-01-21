@@ -47,3 +47,36 @@ RootPlan { names: [row, f, p] }
             └─AllNodeScan { variable: p@2, arguments: [row@0] }
 */
 
+-- Create a unique constraint on the forum id
+CREATE CONSTRAINT forum_key FOR (f:Forum) REQUIRE (f.id) IS NODE KEY
+
+/*
+
+*/
+
+-- Load a CSV file and create relationships with index seek
+LOAD CSV FROM 'https://example.com/data.csv' AS row 
+MATCH (f:Forum {id: toInteger(row.`Forum.id`)}), (p:Post {id: toInteger(row.`Post.id`)})
+CREATE (f)-[:CONTAINER_OF]->(p)
+
+/*
+RootIR { names: [row, f, p] }
+└─IrSingleQueryPart
+  ├─QueryGraph { imported: [row@0], nodes: [f@1, p@2], filter: f@1:Resolved(Forum, 0) AND eq(f@1.Resolved(id, 1), toInteger(row@0.Forum.id)) AND p@2:Post AND eq(p@2.Resolved(id, 1), toInteger(row@0.Post.id)) }
+  │ └─mutating_pattern
+  │   └─CreatePattern { nodes: [], rels: [(f@1)-[anon@3:CONTAINER_OF]->(p@2) create_map{}] }
+  └─IrSingleQueryPart
+    ├─QueryGraph
+    └─Load { variable: row@0, source_url: https://example.com/data.csv, format: CsvLoadFormat { header: true, delimiter: , } }
+RootPlan { names: [row, f, p] }
+└─ProduceResult { return_columns: row@0,f@1,p@2 }
+  └─BlackHole
+    └─CreateRel { items: [CreateRelItem { variable: anon@3, reltype: CONTAINER_OF, start_node: f@1, end_node: p@2, properties: create_map{} }] }
+      └─Apply
+        ├─Load { source_url: https://example.com/data.csv, variable: row@0, format: CsvLoadFormat { header: true, delimiter: , } }
+        └─CrossProduct
+          ├─NodeIndexSeek { variable: f@1, label: ResolvedIrToken(Forum, 0), constraint: forum_key, properties: [ResolvedIrToken(id, 1) = toInteger(row@0.Forum.id)] }
+          └─Filter { condition: p@2:Post AND eq(p@2.Resolved(id, 1), toInteger(row@0.Post.id)) }
+            └─AllNodeScan { variable: p@2, arguments: [row@0] }
+*/
+

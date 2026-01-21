@@ -13,3 +13,16 @@
   tasks:
     - bind
     - plan
+- sql: |
+    CREATE CONSTRAINT forum_key FOR (f:Forum) REQUIRE (f.id) IS NODE KEY
+  desc: Create a unique constraint on the forum id
+  tasks:
+    - ddl
+- sql: |
+    LOAD CSV FROM 'https://example.com/data.csv' AS row 
+    MATCH (f:Forum {id: toInteger(row.`Forum.id`)}), (p:Post {id: toInteger(row.`Post.id`)})
+    CREATE (f)-[:CONTAINER_OF]->(p)
+  desc: Load a CSV file and create relationships with index seek
+  tasks:
+    - bind
+    - plan

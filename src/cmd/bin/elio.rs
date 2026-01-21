@@ -13,7 +13,7 @@ use tabled::settings::Style;
 #[derive(Debug, Parser)]
 #[command(author, version, about = "Elio - An embedded graph database", long_about = None)]
 struct Args {
-    #[arg(short, long, help = "Database path", default_value = ".db")]
+    #[arg(short, long, help = "Database path", default_value = ".elio")]
     db_path: String,
 }
 

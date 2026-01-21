@@ -25,6 +25,13 @@ pub type LabelId = TokenId;
 pub type RelationshipTypeId = TokenId;
 pub type PropertyKeyId = TokenId;
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq, derive_more::Display)]
+#[display("ResolvedIrToken({name}, {id})")]
+pub struct ResolvedIrToken {
+    pub name: Arc<str>,
+    pub id: TokenId,
+}
+
 #[derive(Debug, Clone, Hash, PartialEq, Eq, EnumAsInner, derive_more::Display)]
 pub enum IrToken {
     #[display("Resolved({name}, {token})")]

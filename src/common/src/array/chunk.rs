@@ -36,14 +36,7 @@ impl DataChunk {
     }
 
     pub fn new(columns: Vec<Arc<ArrayImpl>>, visibility: BitVec) -> Self {
-        if columns.is_empty() {
-            return Self {
-                columns: Vec::new(),
-                visibility: BitVec::new(),
-            };
-        }
-
-        let len = columns.first().unwrap().len();
+        let len = visibility.len();
 
         if cfg!(debug_assertions) {
             assert!(

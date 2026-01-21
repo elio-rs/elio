@@ -2,12 +2,13 @@
 
 use std::collections::VecDeque;
 
-use elio_common::schema::Schema;
+use elio_common::data_type::DataType;
+use elio_common::schema::{Schema, Variable};
 use elio_common::variable::VariableName;
 use indexmap::IndexSet;
 use itertools::Itertools;
 
-use super::index_selection::{find_index_candidates, remove_index_conditions};
+use super::index_selection::find_index_candidates;
 use super::*;
 use crate::expr::FilterExprs;
 use crate::ir::node_connection::RelPattern;
@@ -67,7 +68,7 @@ impl<'a> TraversalSolver<'a> {
     /// Returns (solver, remaining_filter) where remaining_filter has index conditions removed
     fn new_with_index_selection(ctx: &'a mut PlannerContext, qg: &'a QueryGraph) -> (Self, FilterExprs) {
         assert!(!qg.nodes.is_empty() || !qg.imported().is_empty());
-        let imported = qg.imported().iter().cloned().collect_vec();
+        let imported = qg.imported().clone();
         let mut solved = IndexSet::new();
         let mut stack = VecDeque::new();
         let mut remaining_filter = qg.filter.clone();
@@ -77,7 +78,7 @@ impl<'a> TraversalSolver<'a> {
         let mut root = if !imported.is_empty() {
             // imported as argument as plan leaf
             let inner = ArgumentInner {
-                variables: imported.clone(),
+                variables: imported.iter().cloned().collect_vec(),
                 ctx: ctx.ctx.clone(),
             };
             let root: PlanExpr = Argument::new(inner).into();
@@ -101,27 +102,28 @@ impl<'a> TraversalSolver<'a> {
         if stack.is_empty() && !qg.nodes.is_empty() {
             // Try to find an index for the first node
             let first = qg_nodes.next().unwrap();
+            let first = Variable::new(first, &DataType::VirtualNode);
 
             // Check if we can use an index for this node
-            let (plan, filter) = Self::try_create_index_seek(ctx, first, &qg.filter, &imported).unwrap_or_else(|| {
+            let (plan, filter) = Self::try_create_index_seek(ctx, &first, &qg.filter, &imported).unwrap_or_else(|| {
                 // Fallback to AllNodeScan
                 let arguments = (!imported.is_empty()).then(|| {
                     Argument::new(ArgumentInner {
-                        variables: imported.clone(),
+                        variables: imported.iter().cloned().collect_vec(),
                         ctx: ctx.ctx.clone(),
                     })
                     .into()
                 });
-                let inner = AllNodeScanInner::new(first.clone(), arguments, ctx.ctx.clone());
+                let inner = AllNodeScanInner::new(first.name.clone(), arguments, ctx.ctx.clone());
                 (AllNodeScan::new(inner).into(), qg.filter.clone())
             });
 
             root = Some(plan);
             remaining_filter = filter;
-            solved.insert(first.clone());
+            solved.insert(first.name.clone());
 
             // push connections on stack
-            for conn in qg.connections(first).rev() {
+            for conn in qg.connections(&first.name).rev() {
                 stack.push_back(conn);
             }
         }
@@ -143,27 +145,37 @@ impl<'a> TraversalSolver<'a> {
     /// Returns Some((plan, remaining_filter)) if an index can be used, None otherwise
     fn try_create_index_seek(
         ctx: &PlannerContext,
-        node_var: &VariableName,
+        node_var: &Variable,
         filter: &FilterExprs,
-        _arguments: &[elio_common::schema::Variable],
+        arguments: &IndexSet<Variable>,
     ) -> Option<(PlanExpr, FilterExprs)> {
         // Find index candidates for this node
-        let candidate = find_index_candidates(&ctx.ctx, filter, node_var)?;
+        let candidate = find_index_candidates(&ctx.ctx, arguments, filter, node_var)?;
 
+        let arguments = if !arguments.is_empty() {
+            Some(
+                Argument::new(ArgumentInner {
+                    variables: arguments.iter().cloned().collect_vec(),
+                    ctx: ctx.ctx.clone(),
+                })
+                .into(),
+            )
+        } else {
+            None
+        };
         // Create NodeIndexSeek plan
-        let plan = NodeIndexSeek::new(NodeIndexSeekInner {
-            variable: candidate.variable.clone(),
-            label_name: candidate.label_name.clone(),
-            label_id: candidate.label_id,
-            constraint_name: candidate.index_hint.constraint_name.clone(),
-            property_names: candidate.property_names.clone(),
-            property_key_ids: candidate.property_key_ids.clone(),
-            property_values: candidate.property_values.clone(),
-            ctx: ctx.ctx.clone(),
-        });
+        let plan = NodeIndexSeek::new(NodeIndexSeekInner::new(
+            candidate.variable.clone(),
+            candidate.label.clone(),
+            candidate.index_hint.constraint_name.clone(),
+            candidate.prop_tokens.clone(),
+            candidate.prop_values.clone(),
+            ctx.ctx.clone(),
+            arguments,
+        ));
 
         // Remove conditions covered by the index from the filter
-        let remaining_filter = remove_index_conditions(filter, &candidate);
+        let remaining_filter = filter.diff(&candidate.solved_predicate);
 
         Some((plan.into(), remaining_filter))
     }

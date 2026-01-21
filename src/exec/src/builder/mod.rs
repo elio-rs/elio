@@ -1,9 +1,7 @@
 use std::backtrace::Backtrace;
 use std::sync::Arc;
 
-use elio_common::mapb::IndexKeyCodec;
-use elio_common::scalar::ScalarValue;
-use elio_common::schema::Name2ColumnMap;
+use elio_common::schema::{Name2ColumnMap, Schema};
 use elio_common::variable::VariableName;
 use elio_cypher::ir::query_project::LoadFormat;
 use elio_cypher::plan_node::{self, CreateNode, PlanExpr, PlanNode, Project};
@@ -148,50 +146,73 @@ fn build_all_node_scan(
 }
 
 fn build_node_index_seek(
-    _ctx: &mut ExecutorBuildContext,
+    ctx: &mut ExecutorBuildContext,
     node_index_seek: &plan_node::NodeIndexSeek,
     inputs: Vec<SharedExecutor>,
 ) -> Result<SharedExecutor, BuildError> {
-    assert_eq!(inputs.len(), 0);
-
     let schema = node_index_seek.schema();
+    let arguments = &node_index_seek.inner().arguments;
 
-    // Extract constant values and encode them for index lookup
-    // The encoding must match how values are stored in the index (using IndexKeyCodec)
-    let property_values: Vec<Vec<u8>> = node_index_seek
+    // build expression context based on input schema (if any)
+    let input_schema = if let Some(arg) = arguments {
+        arg.schema()
+    } else {
+        Arc::new(Schema::empty())
+    };
+    let ectx = BuildExprContext::new(&input_schema, ctx);
+
+    // build prop_value expressions
+    let prop_values: Vec<SharedExpression> = node_index_seek
         .inner()
-        .property_values
+        .prop_values
         .iter()
-        .map(|expr| {
-            // For index lookup, the expression must be a constant
-            match expr {
-                elio_cypher::expr::Expr::Constant(constant) => {
-                    // Encode using IndexKeyCodec (same as index storage)
-                    let encoded = match &constant.data {
-                        Some(value) => IndexKeyCodec::encode_single(&value.as_scalar_ref()),
-                        None => IndexKeyCodec::encode_single(&ScalarValue::Unknown.as_scalar_ref()),
-                    };
-                    Ok(encoded)
-                }
-                _ => {
-                    // Non-constant expressions not supported for index seek
-                    // This shouldn't happen in practice, but handle gracefully
-                    Err(BuildError::MalformedPlan(
-                        format!("NodeIndexSeek requires constant property values, got: {:?}", expr),
-                        Backtrace::capture(),
-                    ))
-                }
-            }
-        })
-        .collect::<Result<Vec<_>, BuildError>>()?;
+        .map(|expr| build_expression(&ectx, expr))
+        .collect::<Result<Vec<_>, _>>()?;
 
-    Ok(NodeIndexSeekExecutor::new(
-        schema,
-        node_index_seek.inner().label_id,
-        node_index_seek.inner().property_key_ids.clone(),
-        property_values,
-    )
-    .into_shared())
+    if let Some(_arguments) = arguments {
+        // with input
+        if inputs.len() != 1 {
+            return Err(BuildError::MalformedPlan(
+                "NodeIndexSeek with arguments expects exactly 1 input".to_string(),
+                Backtrace::capture(),
+            ));
+        }
+        let input = inputs.into_iter().next().unwrap();
+        let input_schema = input.schema();
+
+        // build output mapping: node first, then arguments
+        let mut output_mapping = Vec::with_capacity(schema.columns().len());
+        let input_name_to_col = input_schema.name_to_col_map();
+
+        for col in schema.columns() {
+            if let Some(&input_idx) = input_name_to_col.get(&col.name) {
+                // from input (left)
+                output_mapping.push(OutputColumnSource::Left(input_idx));
+            } else {
+                // from index seek result (right), node is always at index 0
+                output_mapping.push(OutputColumnSource::Right(0));
+            }
+        }
+
+        Ok(NodeIndexSeekExecutor::with_input(
+            schema,
+            node_index_seek.inner().label.clone(),
+            node_index_seek.inner().prop_tokens.clone(),
+            prop_values,
+            input,
+            output_mapping,
+        )
+        .into_shared())
+    } else {
+        // no input
+        Ok(NodeIndexSeekExecutor::new(
+            schema,
+            node_index_seek.inner().label.clone(),
+            node_index_seek.inner().prop_tokens.clone(),
+            prop_values,
+        )
+        .into_shared())
+    }
 }
 
 fn build_expand(
