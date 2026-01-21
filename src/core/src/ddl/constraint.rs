@@ -78,7 +78,7 @@ pub fn create_constraint(store: &Arc<GraphStore>, constraint: &ast::CreateConstr
 
     // 6. Store constraint metadata
     let meta = ConstraintMeta {
-        name: constraint.name.clone(),
+        name: constraint.name.as_str().into(),
         entity_type,
         label_id,
         constraint_kind,

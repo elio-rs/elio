@@ -5,10 +5,9 @@
 
 use std::sync::Arc;
 
-use elio_common::data_type::DataType;
+use educe::Educe;
+use elio_common::ResolvedIrToken;
 use elio_common::schema::{Schema, Variable};
-use elio_common::variable::VariableName;
-use elio_common::{LabelId, PropertyKeyId};
 use itertools::Itertools;
 use pretty_xmlish::{Pretty, XmlNode};
 
@@ -51,16 +50,16 @@ impl PlanNode for NodeIndexSeek {
 
     fn xmlnode(&self) -> XmlNode<'_> {
         let mut fields = vec![
-            ("variable", Pretty::from(self.inner.variable.as_ref())),
-            ("label", Pretty::from(self.inner.label_name.as_str())),
-            ("constraint", Pretty::from(self.inner.constraint_name.as_str())),
+            ("variable", Pretty::from(self.inner.variable.name.as_ref())),
+            ("label", Pretty::from(self.inner.label.to_string())),
+            ("constraint", Pretty::from(self.inner.constraint_name.as_ref())),
         ];
 
         let props = self
             .inner
-            .property_names
+            .prop_tokens
             .iter()
-            .zip(self.inner.property_values.iter())
+            .zip(self.inner.prop_values.iter())
             .map(|(name, val)| format!("{} = {}", name, val.pretty()))
             .collect_vec();
         fields.push((
@@ -72,40 +71,53 @@ impl PlanNode for NodeIndexSeek {
     }
 }
 
-#[derive(Clone)]
+#[derive(Educe)]
+#[educe(Clone, Debug)]
 pub struct NodeIndexSeekInner {
     /// Output variable name for the node
-    pub variable: VariableName,
-    pub label_name: String,
-    pub label_id: LabelId,
-    pub constraint_name: String,
-    pub property_names: Vec<String>,
-    pub property_key_ids: Vec<PropertyKeyId>,
-    pub property_values: Vec<Expr>,
+    pub variable: Variable,
+    pub label: ResolvedIrToken,
+    pub constraint_name: Arc<str>,
+    pub prop_tokens: Vec<ResolvedIrToken>,
+    pub prop_values: Vec<Expr>,
+    #[educe(Debug(ignore))]
     pub ctx: Arc<PlanContext>,
-}
-
-impl std::fmt::Debug for NodeIndexSeekInner {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("NodeIndexSeekInner")
-            .field("variable", &self.variable)
-            .field("label_name", &self.label_name)
-            .field("label_id", &self.label_id)
-            .field("constraint_name", &self.constraint_name)
-            .field("property_names", &self.property_names)
-            .field("property_key_ids", &self.property_key_ids)
-            .field("property_values", &self.property_values)
-            .finish_non_exhaustive()
-    }
+    pub arguments: Option<Box<PlanExpr>>, // must be argument
 }
 
 impl NodeIndexSeekInner {
+    pub fn new(
+        variable: Variable,
+        label: ResolvedIrToken,
+        constraint_name: Arc<str>,
+        prop_tokens: Vec<ResolvedIrToken>,
+        prop_values: Vec<Expr>,
+        ctx: Arc<PlanContext>,
+        arguments: Option<Box<PlanExpr>>,
+    ) -> Self {
+        if let Some(ref arguments) = arguments {
+            assert!(
+                arguments.as_argument().is_some(),
+                "NodeIndexSeek input must be argument"
+            );
+        }
+        Self {
+            variable,
+            label,
+            constraint_name,
+            prop_tokens,
+            prop_values,
+            ctx,
+            arguments,
+        }
+    }
+
     fn build_schema(&self) -> Arc<Schema> {
         let mut schema = Schema::empty();
-        schema.fields.push(Variable {
-            name: self.variable.clone(),
-            typ: DataType::VirtualNode,
-        });
+        schema.fields.push(self.variable.clone());
+        if let Some(ref arguments) = self.arguments {
+            schema.fields.extend(arguments.schema().columns().iter().cloned());
+        }
         schema.into()
     }
 }
@@ -117,6 +129,6 @@ impl InnerNode for NodeIndexSeekInner {
     }
 
     fn inputs(&self) -> Vec<&PlanExpr> {
-        vec![]
+        self.arguments.as_ref().map(|x| x.as_ref()).into_iter().collect()
     }
 }

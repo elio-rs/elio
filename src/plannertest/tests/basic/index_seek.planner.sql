@@ -23,7 +23,7 @@ MATCH (p:Person {email: 'alice@example.com'}) RETURN p
 RootPlan { names: [p] }
 └─ProduceResult { return_columns: p@1 }
   └─Project { exprs: [p@1 AS p@0] }
-    └─NodeIndexSeek { variable: p@0, label: Person, constraint: person_email_unique, properties: [email = 'alice@example.com'] }
+    └─NodeIndexSeek { variable: p@0, label: ResolvedIrToken(Person, 0), constraint: person_email_unique, properties: [ResolvedIrToken(email, 1) = 'alice@example.com'] }
 */
 
 -- match with partial index coverage - NodeIndexSeek + Filter for remaining
@@ -34,6 +34,6 @@ RootPlan { names: [p] }
 └─ProduceResult { return_columns: p@1 }
   └─Project { exprs: [p@1 AS p@0] }
     └─Filter { condition: eq(p@0.name, 'Alice') }
-      └─NodeIndexSeek { variable: p@0, label: Person, constraint: person_email_unique, properties: [email = 'alice@example.com'] }
+      └─NodeIndexSeek { variable: p@0, label: ResolvedIrToken(Person, 0), constraint: person_email_unique, properties: [ResolvedIrToken(email, 1) = 'alice@example.com'] }
 */
 

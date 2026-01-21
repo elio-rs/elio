@@ -17,7 +17,7 @@ use crate::planner::{RootPlan, plan_root};
 #[derive(Debug, Clone)]
 pub struct IndexHint {
     /// Constraint/index name
-    pub constraint_name: String,
+    pub constraint_name: Arc<str>,
     /// Label ID
     pub label_id: LabelId,
     /// Property key IDs in the index

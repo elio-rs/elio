@@ -3,9 +3,6 @@
   <p align="center">
     <strong>The Embedded Graph Database</strong>
   </p>
-  <p align="center">
-    Query your data with Cypher, no server required.
-  </p>
 </p>
 
 <p align="center">
@@ -16,8 +13,8 @@
   <img src="https://img.shields.io/badge/rust-nightly-orange.svg" alt="Rust">
 </p>
 
-> [!WARNING] This project is under active development and is not yet stable. Do
-> not use in production.
+> [!WARNING] 
+> This project is under active development and is not yet stable. Do not use in production.
 
 ---
 
@@ -36,19 +33,18 @@ elio> CREATE (a:Person {name: 'Alice'})-[:KNOWS]->(b:Person {name: 'Bob'}) RETUR
 Executed in 0.009s
 ```
 
-## Why Elio?
+## Features
 
 - **Embedded**: Link as a library or use the CLI. No Docker, no server process.
-- **Cypher**: Use the query language you already know from Neo4j.
-- **Schema-free**: Just create nodes and relationships. No migrations needed.
-- **Fast**: Built on RocksDB with a native Rust execution engine.
+- **Cypher**: Use the query language you already know.
+- **Fast**: Built with a native Rust execution engine and can process larger than memory workloads.
 
 ## Quick Start
 
 ### Installation
 
 ```bash
-git clone https://github.com/power1628/elio.git
+git clone https://github.com/elio-rs/elio.git
 cd elio
 make build
 ```
@@ -109,15 +105,6 @@ MATCH (a:Person)-[:KNOWS]->(b:Person) RETURN a.name, b.name
 -- Variable-length paths
 MATCH (a)-[:KNOWS*1..3]->(b) RETURN a, b
 ```
-
-## Roadmap
-
-- [x] Core Cypher support (MATCH, CREATE, WHERE, RETURN)
-- [x] Interactive CLI with history
-- [x] Unique constraints and indexes
-- [ ] More Cypher clauses (MERGE, DELETE, SET)
-- [ ] Rust library API documentation
-- [ ] Performance benchmarks
 
 ## Contributing
 

@@ -182,7 +182,7 @@ impl PlannerSession for MockPlannerSession {
         self.catalog
             .find_index(label_id, property_key_ids)
             .map(|(constraint_name, prop_ids)| IndexHint {
-                constraint_name,
+                constraint_name: constraint_name.into(),
                 label_id,
                 property_key_ids: prop_ids,
             })

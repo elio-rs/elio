@@ -97,6 +97,14 @@ impl Expr {
     pub fn from_variable(var: &Variable) -> Self {
         Expr::VariableRef(VariableRef::new_unchecked(var.name.clone(), var.typ.clone()))
     }
+
+    #[inline]
+    pub fn new_has_label(entity: Variable, label_or_rel: IrToken) -> Self {
+        Expr::HasLabel(HasLabel {
+            entity: Self::from_variable(&entity).boxed(),
+            label_or_rel,
+        })
+    }
 }
 
 impl Expr {
