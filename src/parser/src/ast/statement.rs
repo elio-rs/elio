@@ -6,13 +6,21 @@ use crate::ast::RegularQuery;
 #[derive(Debug, Display)]
 pub enum Statement {
     // Analyze
-    // Explain
+    #[display("{}", _0)]
+    Explain(Box<Explain>),
     #[display("{}", _0)]
     Query(Box<RegularQuery>),
     #[display("{}", _0)]
     CreateConstraint(Box<CreateConstraint>),
     #[display("{}", _0)]
     DropConstraint(Box<DropConstraint>),
+}
+
+/// EXPLAIN query
+#[derive(Debug, Display)]
+#[display("EXPLAIN {}", query)]
+pub struct Explain {
+    pub query: RegularQuery,
 }
 
 /// CREATE CONSTRAINT constraint_name [IF NOT EXISTS]

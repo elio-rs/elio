@@ -14,9 +14,16 @@ peg::parser! {
     /// Statement
     /// ---------------------
     pub rule statement() -> Statement
-        = _? s:create_constraint_stmt() _? (";" _?)? { s }
+        = _? s:explain_stmt() _? (";" _?)? { s }
+        / _? s:create_constraint_stmt() _? (";" _?)? { s }
         / _? s:drop_constraint_stmt() _? (";" _?)? { s }
         / _? s:regular_query() _? (";" _?)? { s }
+
+    /// EXPLAIN query
+    rule explain_stmt() -> Statement
+        = EXPLAIN() _ query:regular_query_inner() {
+            Statement::Explain(Box::new(Explain { query }))
+        }
 
     /// CREATE CONSTRAINT constraint_name [IF NOT EXISTS]
     /// FOR (var:Label) REQUIRE prop IS UNIQUE
@@ -160,6 +167,11 @@ peg::parser! {
     /// RegularQuery
     /// ---------------------
     rule regular_query() -> Statement
+        = query:regular_query_inner() {
+            Statement::Query(Box::new(query))
+        }
+
+    rule regular_query_inner() -> RegularQuery
         = first:single_query() _ union_:(union_query() ++ _) {
             let mut queries = vec![first];
             let mut union_all = false;
@@ -167,16 +179,16 @@ peg::parser! {
                 union_all |= is_all;
                 queries.push(query);
             }
-            Statement::Query(Box::new(RegularQuery{
+            RegularQuery{
                 queries,
                 union_all,
-            }))
+            }
         }
         / first:single_query() {
-            Statement::Query(Box::new(RegularQuery{
+            RegularQuery{
                 queries: vec![first],
                 union_all: false,
-            }))
+            }
     }
 
     rule single_query() -> SingleQuery
@@ -875,6 +887,8 @@ peg::parser! {
         = ['n' | 'N'] ['o' | 'O'] ['d' | 'D'] ['e' | 'E'] { "NODE" }
     rule DROP() -> &'static str
         = ['d' | 'D'] ['r' | 'R'] ['o' | 'O'] ['p' | 'P'] { "DROP" }
+    rule EXPLAIN() -> &'static str
+        = ['e' | 'E'] ['x' | 'X'] ['p' | 'P'] ['l' | 'L'] ['a' | 'A'] ['i' | 'I'] ['n' | 'N'] { "EXPLAIN" }
 
     // operator
     rule OR() -> &'static str

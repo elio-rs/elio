@@ -202,6 +202,10 @@ macro_rules! func_impl_arg {
     ({ anyof $($dt:ident)|+ }) => {
         $crate::func::sig::FuncImplArg::Union(vec![$(DataType::$dt),+])
     };
+
+    ({ anylist }) => {
+        $crate::func::sig::FuncImplArg::AnyList
+    };
 }
 
 // generate function implementation
