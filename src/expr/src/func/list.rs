@@ -68,6 +68,67 @@ pub fn list_index_batch(args: &[ArrayRef], vis: &BitVec, len: usize) -> Result<A
     Ok(builder.finish().into())
 }
 
+// args[0]: AnyArray
+pub fn any_list_index_batch(args: &[ArrayRef], vis: &BitVec, len: usize) -> Result<ArrayImpl, EvalError> {
+    let any_arr = args[0]
+        .as_any()
+        .unwrap_or_else(|| panic!("expected any array got {:?} array", args[0].physical_type()));
+    let idx_arr = args[1].as_any().expect("expected any array for index");
+
+    // Output is element type, use AnyArrayBuilder since element type is dynamic
+    let mut builder = AnyArrayBuilder::with_capacity(len);
+
+    // Compute valid rows (both list and index must be non-null)
+    let valid_rows = vis.clone() & any_arr.valid_map().clone() & idx_arr.valid_map().clone();
+
+    for i in 0..len {
+        if valid_rows[i] {
+            let any_ref = unsafe { any_arr.get_unchecked(i) };
+            let idx_ref = idx_arr.get(i).unwrap();
+            let list_ref = if let Some(list_ref) = any_ref.as_list() {
+                list_ref
+            } else {
+                return Err(EvalError::type_error(format!(
+                    "expected list value got {:?}",
+                    any_ref.to_string()
+                )));
+            };
+            // Get the index value
+            let idx = match idx_ref {
+                ScalarRef::Integer(idx) => idx,
+                _ => {
+                    return Err(EvalError::type_error(format!(
+                        "list index must be integer, got {:?}",
+                        idx_ref
+                    )));
+                }
+            };
+
+            // Handle negative indices
+            let list_len = list_ref.len() as i64;
+            let actual_idx = if idx < 0 { list_len + idx } else { idx };
+
+            // Bounds check
+            if actual_idx < 0 || actual_idx >= list_len {
+                // Out of bounds returns null
+                builder.push(None);
+            } else {
+                // Get element at index
+                let element = list_ref.iter().nth(actual_idx as usize);
+                if let Some(elem) = element {
+                    builder.push(Some(elem.to_owned_scalar().as_scalar_ref()));
+                } else {
+                    builder.push(None);
+                }
+            }
+        } else {
+            builder.push(None);
+        }
+    }
+
+    Ok(builder.finish().into())
+}
+
 /// list_slice(list, start, end) -> list
 /// Returns a slice of the list from start (inclusive) to end (exclusive).
 /// Negative indices count from the end.
@@ -167,6 +228,18 @@ pub(crate) fn register(registry: &mut FunctionRegistry) {
                 vec![FuncImplArg::AnyList, FuncImplArg::Exact(DataType::Any)],
                 FuncImplReturn::ListElement(0),
                 list_index_batch,
+            ),
+            FuncImpl::new(
+                "list_index",
+                vec![FuncImplArg::Exact(DataType::Any), FuncImplArg::Exact(DataType::Integer)],
+                FuncImplReturn::ListElement(0),
+                any_list_index_batch,
+            ),
+            FuncImpl::new(
+                "list_index",
+                vec![FuncImplArg::Exact(DataType::Any), FuncImplArg::Exact(DataType::Any)],
+                FuncImplReturn::ListElement(0),
+                any_list_index_batch,
             ),
         ],
         is_agg: false,

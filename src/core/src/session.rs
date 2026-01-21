@@ -93,10 +93,17 @@ impl Session {
     ) -> Result<Pin<Box<dyn ResultHandle>>, Error> {
         let ast = parse_statement(&query)?;
         match ast {
+            ast::Statement::Explain(explain) => self.handle_explain(&explain.query).await,
             ast::Statement::Query(regular_query) => self.handle_query(&regular_query).await,
             ast::Statement::CreateConstraint(constraint) => self.handle_create_constraint(&constraint).await,
             ast::Statement::DropConstraint(constraint) => self.handle_drop_constraint(&constraint).await,
         }
+    }
+
+    async fn handle_explain(self: &Arc<Self>, query: &ast::RegularQuery) -> Result<Pin<Box<dyn ResultHandle>>, Error> {
+        let plan = plan_query(self.clone(), query)?;
+        let explain_str = plan.explain();
+        Ok(Box::pin(ExplainResultHandle::new(explain_str)))
     }
 
     async fn handle_query(self: &Arc<Self>, query: &ast::RegularQuery) -> Result<Pin<Box<dyn ResultHandle>>, Error> {
@@ -201,6 +208,46 @@ impl Stream for EmptyResultHandle {
 }
 
 impl ResultHandle for EmptyResultHandle {
+    fn columns(&self) -> &[String] {
+        &self.columns
+    }
+}
+
+/// Result handle for EXPLAIN statements
+pub struct ExplainResultHandle {
+    columns: Vec<String>,
+    explain: String,
+    done: bool,
+}
+
+impl ExplainResultHandle {
+    pub fn new(explain: String) -> Self {
+        Self {
+            columns: vec!["plan".to_string()],
+            explain,
+            done: false,
+        }
+    }
+}
+
+impl Stream for ExplainResultHandle {
+    type Item = Result<Row, Error>;
+
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        if self.done {
+            std::task::Poll::Ready(None)
+        } else {
+            self.done = true;
+            let row = vec![Some(ScalarValue::String(std::mem::take(&mut self.explain)))];
+            std::task::Poll::Ready(Some(Ok(row)))
+        }
+    }
+}
+
+impl ResultHandle for ExplainResultHandle {
     fn columns(&self) -> &[String] {
         &self.columns
     }
