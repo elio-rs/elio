@@ -6,6 +6,7 @@ use elio_common::variable::VariableName;
 use elio_parser::ast;
 
 use crate::expr::{Expr, VariableRef};
+use crate::ir::query::Bindings;
 
 #[derive(Debug, Clone)]
 pub struct ScopeItem {
@@ -95,5 +96,9 @@ impl Scope {
         let mut items = self.items;
         items.extend(other.items);
         Self { items }
+    }
+
+    pub fn input_bindings(&self) -> Bindings {
+        self.items.iter().map(|item| item.as_variable().clone()).collect()
     }
 }

@@ -22,7 +22,7 @@ use crate::plan_node::{
 // we do not handle optionl match and update pattern in qg here.
 // So, if qg's node and imported is both empty, then qg is empty.
 pub(crate) fn plan_qg_simple(ctx: &mut PlannerContext, qg: &QueryGraph) -> Result<Box<PlanExpr>, PlanError> {
-    if qg.nodes.is_empty() && qg.imported().is_empty() {
+    if qg.nodes.is_empty() && qg.input_bindings().is_empty() {
         return Ok(PlanExpr::empty(Schema::empty().into(), ctx.ctx.clone()).boxed());
     }
 
@@ -67,8 +67,8 @@ impl<'a> TraversalSolver<'a> {
     /// Create solver with index selection optimization
     /// Returns (solver, remaining_filter) where remaining_filter has index conditions removed
     fn new_with_index_selection(ctx: &'a mut PlannerContext, qg: &'a QueryGraph) -> (Self, FilterExprs) {
-        assert!(!qg.nodes.is_empty() || !qg.imported().is_empty());
-        let imported = qg.imported().clone();
+        assert!(!qg.nodes.is_empty() || !qg.input_bindings().is_empty());
+        let imported = qg.input_bindings().clone();
         let mut solved = IndexSet::new();
         let mut stack = VecDeque::new();
         let mut remaining_filter = qg.filter.clone();

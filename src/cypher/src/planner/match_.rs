@@ -1,62 +1,60 @@
-use elio_common::schema::Schema;
-
 use super::*;
 use crate::expr::FilterExprs;
 use crate::ir::query_graph::QueryGraph;
-use crate::plan_node::{Argument, ArgumentInner, CrossProduct, CrossProductInner, Filter, FilterInner, Unit};
+use crate::plan_node::{CrossProduct, CrossProductInner, Filter, FilterInner};
 use crate::planner::component::plan_qg_simple;
 
 // plan the query graph in following order:
 // 1. plan match parts
 // 2. plan optional match parts
-pub fn plan_match(
+// NB: Require at least one match pattern or optional match pattern
+pub fn plan_reading_pattern(
     ctx: &mut PlannerContext,
     _part @ IrSingleQueryPart {
-        query_graph,
-        query_project: _,
+        input_binding: _,
+        match_pattern,
+        optional_match_patterns,
+        mutating_patterns: _,
+        projection: _,
     }: &IrSingleQueryPart,
-    is_rhs: bool, // true on this is an rhs part of a join
 ) -> Result<Box<PlanExpr>, PlanError> {
-    // TODO(pgao): pushdown projection order by to query graph
-    plan_query_graph(ctx, query_graph, is_rhs)
+    let mut root = None;
+    // match pattern
+    if let Some(match_pattern) = match_pattern {
+        root = Some(plan_match_pattern(ctx, match_pattern, false)?);
+    };
+    // TODO(pgao): plan optional match pattern and connect to match pattern
+    if !optional_match_patterns.is_empty() {
+        return Err(PlanError::not_supported("optional match not supported yet"));
+    }
+
+    root.ok_or_else(|| PlanError::bad_plan("at least one match pattern is required"))
 }
 
-fn plan_query_graph(ctx: &mut PlannerContext, qg: &QueryGraph, is_rhs: bool) -> Result<Box<PlanExpr>, PlanError> {
-    // get connected component
-    let (qgs, remaining_filter) = qg.connected_component();
-
-    if qgs.is_empty() {
-        // if qg have imported variable, just put an argument here.
-        if !qg.imported().is_empty() {
-            let root = PlanExpr::Argument(Argument::new(ArgumentInner {
-                variables: qg.imported().into_iter().cloned().collect_vec(),
-                ctx: ctx.ctx.clone(),
-            }));
-            return Ok(root.boxed());
-        }
-
-        // if qg does not have any imported variable and this is an lhs query graph, put an Unit node here to drive the
-        // execution.
-        if !is_rhs {
-            let root = PlanExpr::Unit(Unit::new(ctx.ctx.clone()));
-            return Ok(root.boxed());
-        }
-
-        // other cases, put an empty
-        let root = PlanExpr::empty(Schema::empty().into(), ctx.ctx.clone());
-        return Ok(root.boxed());
+fn plan_query_graph(ctx: &mut PlannerContext, qg: &QueryGraph, is_optional: bool) -> Result<Box<PlanExpr>, PlanError> {
+    if is_optional {
+        return Err(PlanError::not_supported("optional match not supported yet"));
     }
+    // connected components
+    let (qgs, remaining_filter) = qg.connected_component();
+    assert!(!qgs.is_empty());
 
     // plan components
     let plans = qgs
         .iter()
         .map(|qg| plan_component(ctx, qg))
         .collect::<Result<Vec<_>, _>>()?;
-
-    // connect the components and optional match
-    let root = plan_connect_component_and_optional_match(ctx, plans, remaining_filter)?;
-
+    // connect components by Joins.
+    let root = plan_connect_components(ctx, plans, remaining_filter)?;
     Ok(root)
+}
+
+fn plan_match_pattern(
+    ctx: &mut PlannerContext,
+    match_pattern: &QueryGraph,
+    is_optional: bool,
+) -> Result<Box<PlanExpr>, PlanError> {
+    plan_query_graph(ctx, match_pattern, is_optional)
 }
 
 fn plan_component(ctx: &mut PlannerContext, qg: &QueryGraph) -> Result<Box<PlanExpr>, PlanError> {
@@ -67,10 +65,9 @@ fn plan_component(ctx: &mut PlannerContext, qg: &QueryGraph) -> Result<Box<PlanE
 // Solve the qgs and remaining predicates with
 // - CrossProduct if predicates are non-equal predicates
 // - HashJoin if the predicates are all equal predicates
-// TODO(pgao): plan optional matches
 // TODO(pgao): use cost based method to connect components
 // TODO(pgao): generate hash join for eq predicates
-fn plan_connect_component_and_optional_match(
+fn plan_connect_components(
     _ctx: &mut PlannerContext,
     components: Vec<Box<PlanExpr>>,
     predicates: FilterExprs,
@@ -99,8 +96,6 @@ fn plan_connect_component_and_optional_match(
         }))
         .boxed();
     }
-
-    // TODO(pgao): Optional match
 
     Ok(root)
 }

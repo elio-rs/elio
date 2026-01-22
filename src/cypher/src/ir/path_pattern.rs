@@ -1,18 +1,18 @@
 use elio_common::variable::VariableName;
 
 use crate::expr::FilterExprs;
-use crate::ir::node_connection::{ExhaustiveNodeConnection, RelPattern};
+use crate::ir::node_connection::{NodeConnection, RelPattern};
 
 pub enum PathPattern {
     SingleNode(SingleNode),
-    NodeConnections(NodeConnections),
-    SelectivePathPattern(SelectivePathPattern),
+    Chain(ChainPattern),
+    Selective(SelectivePathPattern),
 }
 
 impl PathPattern {
-    pub fn as_node_connections(self) -> Option<NodeConnections> {
+    pub fn as_node_connections(self) -> Option<ChainPattern> {
         match self {
-            PathPattern::NodeConnections(node_connections) => Some(node_connections),
+            PathPattern::Chain(node_connections) => Some(node_connections),
             _ => None,
         }
     }
@@ -25,11 +25,11 @@ pub struct SingleNode {
 
 // length 1 or more path pattern made of node connections
 #[derive(Clone)]
-pub struct NodeConnections {
-    pub connections: Vec<ExhaustiveNodeConnection>,
+pub struct ChainPattern {
+    pub connections: Vec<NodeConnection>,
 }
 
-impl NodeConnections {
+impl ChainPattern {
     pub fn endpoint_nodes(&self) -> Vec<&VariableName> {
         let mut nodes = Vec::new();
         for conn in &self.connections {
@@ -39,12 +39,12 @@ impl NodeConnections {
     }
 }
 
-impl NodeConnections {
+impl ChainPattern {
     pub fn as_rels(self) -> Option<Vec<RelPattern>> {
         let mut rels = Vec::new();
         for conn in self.connections {
             match conn {
-                ExhaustiveNodeConnection::RelPattern(rel) => rels.push(rel),
+                NodeConnection::RelPattern(rel) => rels.push(rel),
                 _ => return None,
             }
         }
@@ -54,7 +54,7 @@ impl NodeConnections {
 
 #[derive(Clone)]
 pub struct SelectivePathPattern {
-    path_pattern: NodeConnections,
+    path_pattern: ChainPattern,
     _filter: FilterExprs,
     _selector: Selector,
 }

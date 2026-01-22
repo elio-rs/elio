@@ -1,22 +1,27 @@
+use elio_common::schema::Variable;
 use elio_common::variable::VariableName;
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
+use itertools::Itertools;
 use pretty_xmlish::{Pretty, PrettyConfig, XmlNode};
 
+use crate::ir::MutatingPattern;
 use crate::ir::query_graph::QueryGraph;
 use crate::ir::query_project::QueryProjection;
+
+// binding table variables
+pub type Bindings = IndexSet<Variable>;
 
 pub struct IrQueryRoot {
     pub inner: IrQuery,
     // mapping from variable name to output names
-    // TODO(pgao): should we record the datatype here?
-    pub names: IndexMap<String, VariableName>,
+    pub output_names: IndexMap<String, VariableName>,
 }
 
 impl IrQueryRoot {
     pub fn explain(&self) -> String {
         let fields = vec![(
             "names",
-            Pretty::Array(self.names.iter().map(|(k, _)| Pretty::display(k)).collect()),
+            Pretty::Array(self.output_names.iter().map(|(k, _)| Pretty::display(k)).collect()),
         )];
         let children = vec![Pretty::Record(self.inner.xmlnode())];
         let tree = Pretty::simple_record("RootIR", fields, children);
@@ -61,11 +66,6 @@ impl IrQuery {
 #[derive(Default)]
 pub struct IrSingleQuery {
     pub parts: Vec<IrSingleQueryPart>,
-    // pub query_graph: QueryGraph,
-    // pub query_project: QueryProjection,
-    // pub tail: Option<Box<IrSingleQuery>>,
-    // TODO(pgao): the interesting_order may be derived here.
-    // pub interesting_order: OrderingChoice,
 }
 
 impl IrSingleQuery {
@@ -87,38 +87,118 @@ impl IrSingleQuery {
     }
 }
 
-#[derive(Default)]
+// #[derive(Default)]
 pub struct IrSingleQueryPart {
-    pub query_graph: QueryGraph,
+    pub input_binding: Bindings,
+    pub match_pattern: Option<QueryGraph>,
+    pub optional_match_patterns: Vec<QueryGraph>,
+    pub mutating_patterns: Vec<MutatingPattern>,
     // for update and create clause, there may be no projection at the end
-    // in this case, planner should generate an Empty PlanNode.
-    pub query_project: Option<QueryProjection>,
+    // in this case, palnner should generate an Empty PlanNode.
+    pub projection: Option<QueryProjection>,
 }
 
 impl IrSingleQueryPart {
-    pub fn empty() -> Self {
-        Self::default()
+    pub fn new(input_binding: Bindings) -> Self {
+        Self {
+            input_binding,
+            match_pattern: None,
+            optional_match_patterns: vec![],
+            mutating_patterns: vec![],
+            projection: None,
+        }
     }
 
+    // note: qg should handle the input_bindgs by itself
+    pub fn with_match_pattern(&mut self, qg: QueryGraph) {
+        self.match_pattern = Some(qg);
+    }
+
+    pub fn add_match_pattern(&mut self, qg: QueryGraph) {
+        self.match_pattern = if let Some(existing) = self.match_pattern.take() {
+            let mut existing = existing;
+            existing.merge(qg);
+            Some(existing)
+        } else {
+            Some(qg)
+        };
+    }
+
+    // note: qg should handle the input_bindgs by itself
+    pub fn add_optional_match_pattern(&mut self, qg: QueryGraph) {
+        self.optional_match_patterns.push(qg);
+    }
+
+    // note: mp should handle the input_bindgs by itself
+    pub fn add_mutating_pattern(&mut self, mp: MutatingPattern) {
+        self.mutating_patterns.push(mp);
+    }
+
+    // note: proj should handle the input_bindgs by itself
     pub fn with_projection(&mut self, proj: QueryProjection) {
-        self.query_project = Some(proj);
+        self.projection = Some(proj);
+    }
+
+    #[inline]
+    pub fn has_reading_pattern(&self) -> bool {
+        self.match_pattern.is_some() || !self.optional_match_patterns.is_empty()
+    }
+
+    #[inline]
+    pub fn has_mutating_pattern(&self) -> bool {
+        !self.mutating_patterns.is_empty()
+    }
+
+    pub fn input_bindings(&self) -> &Bindings {
+        &self.input_binding
     }
 
     pub fn update_projection<F>(&mut self, f: F)
     where
         F: FnOnce(&mut QueryProjection),
     {
-        if let Some(proj) = &mut self.query_project {
+        if let Some(proj) = &mut self.projection {
             f(proj);
         }
     }
 
     pub fn xmlnode(&self) -> XmlNode<'_> {
         let mut children = vec![];
-        children.push(Pretty::Record(self.query_graph.xmlnode()));
-        if let Some(proj) = &self.query_project {
-            children.push(Pretty::Record(proj.xmlnode()));
+
+        fn named_children<'a>(name: &'static str, children: Vec<Pretty<'a>>) -> Pretty<'a> {
+            Pretty::simple_record(name, Default::default(), children)
         }
-        XmlNode::simple_record("IrSingleQueryPart", vec![], children)
+        // match pattern
+        if let Some(qg) = &self.match_pattern {
+            children.push(named_children("match_pattern", vec![Pretty::Record(qg.xmlnode())]));
+        }
+
+        // optional match patterns
+        if !self.optional_match_patterns.is_empty() {
+            children.push(named_children(
+                "optional_match_patterns",
+                self.optional_match_patterns
+                    .iter()
+                    .map(|qg| Pretty::Record(qg.xmlnode()))
+                    .collect_vec(),
+            ));
+        }
+
+        // mutating patterns
+        if !self.mutating_patterns.is_empty() {
+            children.push(named_children(
+                "mutating_patterns",
+                self.mutating_patterns
+                    .iter()
+                    .map(|mp| Pretty::Record(mp.xmlnode()))
+                    .collect_vec(),
+            ));
+        }
+
+        // projections
+        if let Some(proj) = &self.projection {
+            children.push(named_children("projection", vec![Pretty::Record(proj.xmlnode())]));
+        }
+        XmlNode::simple_record("IrSingleQueryPart", Default::default(), children)
     }
 }

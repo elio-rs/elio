@@ -4,9 +4,8 @@ CREATE (n:Person {name: 'Alice', age: 30})
 /*
 RootIR { names: [n] }
 └─IrSingleQueryPart
-  └─QueryGraph
-    └─mutating_pattern
-      └─CreatePattern { nodes: [(n@0):Person create_map{name: 'Alice', age: 30}], rels: [] }
+  └─mutating_patterns
+    └─CreatePattern { nodes: [(n@0):Person create_map{name: 'Alice', age: 30}], rels: [] }
 RootPlan { names: [n] }
 └─ProduceResult { return_columns: n@0 }
   └─BlackHole
@@ -20,10 +19,10 @@ CREATE (n:Person {name: 'Alice', age: 30}) RETURN *
 /*
 RootIR { names: [n] }
 └─IrSingleQueryPart
-  ├─QueryGraph
-  │ └─mutating_pattern
-  │   └─CreatePattern { nodes: [(n@0):Person create_map{name: 'Alice', age: 30}], rels: [] }
-  └─Project { items: [n@0 AS n@0] }
+  ├─mutating_patterns
+  │ └─CreatePattern { nodes: [(n@0):Person create_map{name: 'Alice', age: 30}], rels: [] }
+  └─projection
+    └─Project { items: [n@0 AS n@0] }
 RootPlan { names: [n] }
 └─ProduceResult { return_columns: n@0 }
   └─Project { exprs: [n@0 AS n@0] }
@@ -37,10 +36,10 @@ CREATE (n:Person {name: 'Alice', age: 30}) RETURN n
 /*
 RootIR { names: [n] }
 └─IrSingleQueryPart
-  ├─QueryGraph
-  │ └─mutating_pattern
-  │   └─CreatePattern { nodes: [(n@0):Person create_map{name: 'Alice', age: 30}], rels: [] }
-  └─Project { items: [n@1 AS n@0] }
+  ├─mutating_patterns
+  │ └─CreatePattern { nodes: [(n@0):Person create_map{name: 'Alice', age: 30}], rels: [] }
+  └─projection
+    └─Project { items: [n@1 AS n@0] }
 RootPlan { names: [n] }
 └─ProduceResult { return_columns: n@1 }
   └─Project { exprs: [n@1 AS n@0] }
@@ -54,9 +53,8 @@ CREATE (n:Person {name: 'Alice', age: 30}), (m:Person {name: 'Bob', age: 31})
 /*
 RootIR { names: [n, m] }
 └─IrSingleQueryPart
-  └─QueryGraph
-    └─mutating_pattern
-      └─CreatePattern { nodes: [(n@0):Person create_map{name: 'Alice', age: 30}, (m@1):Person create_map{name: 'Bob', age: 31}], rels: [] }
+  └─mutating_patterns
+    └─CreatePattern { nodes: [(n@0):Person create_map{name: 'Alice', age: 30}, (m@1):Person create_map{name: 'Bob', age: 31}], rels: [] }
 RootPlan { names: [n, m] }
 └─ProduceResult { return_columns: n@0,m@1 }
   └─BlackHole
@@ -70,9 +68,8 @@ CREATE (:Person{name: 'Alice', age: 30}), (:Person{name: 'Bob', age: 31})
 /*
 RootIR { names: [] }
 └─IrSingleQueryPart
-  └─QueryGraph
-    └─mutating_pattern
-      └─CreatePattern { nodes: [(anon@0):Person create_map{name: 'Alice', age: 30}, (anon@1):Person create_map{name: 'Bob', age: 31}], rels: [] }
+  └─mutating_patterns
+    └─CreatePattern { nodes: [(anon@0):Person create_map{name: 'Alice', age: 30}, (anon@1):Person create_map{name: 'Bob', age: 31}], rels: [] }
 RootPlan { names: [] }
 └─ProduceResult { return_columns:  }
   └─BlackHole
@@ -86,9 +83,8 @@ CREATE (a:Person {name: 'Alice', age: 30}), (b:Person {name: 'Bob', age: 31}), (
 /*
 RootIR { names: [a, b] }
 └─IrSingleQueryPart
-  └─QueryGraph
-    └─mutating_pattern
-      └─CreatePattern { nodes: [(a@0):Person create_map{name: 'Alice', age: 30}, (b@1):Person create_map{name: 'Bob', age: 31}], rels: [(a@0)-[anon@2:KNOWS]->(b@1) create_map{}] }
+  └─mutating_patterns
+    └─CreatePattern { nodes: [(a@0):Person create_map{name: 'Alice', age: 30}, (b@1):Person create_map{name: 'Bob', age: 31}], rels: [(a@0)-[anon@2:KNOWS]->(b@1) create_map{}] }
 RootPlan { names: [a, b] }
 └─ProduceResult { return_columns: a@0,b@1 }
   └─BlackHole
@@ -103,9 +99,8 @@ CREATE (a:Person {name: 'Alice', age: 30}), (b:Person {name: 'Bob', age: 31}), (
 /*
 RootIR { names: [a, b, r] }
 └─IrSingleQueryPart
-  └─QueryGraph
-    └─mutating_pattern
-      └─CreatePattern { nodes: [(a@0):Person create_map{name: 'Alice', age: 30}, (b@1):Person create_map{name: 'Bob', age: 31}], rels: [(a@0)<-[r@2:KNOWS]-(b@1) create_map{}] }
+  └─mutating_patterns
+    └─CreatePattern { nodes: [(a@0):Person create_map{name: 'Alice', age: 30}, (b@1):Person create_map{name: 'Bob', age: 31}], rels: [(a@0)<-[r@2:KNOWS]-(b@1) create_map{}] }
 RootPlan { names: [a, b, r] }
 └─ProduceResult { return_columns: a@0,b@1,r@2 }
   └─BlackHole
