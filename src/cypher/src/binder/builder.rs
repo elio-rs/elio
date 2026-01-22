@@ -1,9 +1,5 @@
-use elio_common::schema::Variable;
-use indexmap::IndexSet;
+use crate::ir::query::{Bindings, IrSingleQuery, IrSingleQueryPart};
 
-use crate::ir::query::{IrSingleQuery, IrSingleQueryPart};
-
-// TODO(pgao): do we really need this structure?
 pub struct IrSingleQueryBuilder {
     parts: Vec<IrSingleQueryPart>,
     // imported variables are stored in bctx::outer_scopes
@@ -20,18 +16,16 @@ impl Default for IrSingleQueryBuilder {
 impl IrSingleQueryBuilder {
     pub fn new() -> Self {
         Self {
-            parts: vec![IrSingleQueryPart::empty()],
+            parts: vec![IrSingleQueryPart::new(Bindings::default())],
         }
+    }
+
+    pub fn new_tail(&mut self, input_binding: Bindings) {
+        self.parts.push(IrSingleQueryPart::new(input_binding));
     }
 
     pub fn tail_mut(&mut self) -> Option<&mut IrSingleQueryPart> {
         self.parts.last_mut()
-    }
-
-    pub fn new_tail(&mut self, imported: IndexSet<Variable>) {
-        let mut tail = IrSingleQueryPart::empty();
-        tail.query_graph.add_imported_set(&imported);
-        self.parts.push(tail);
     }
 
     pub fn build(self) -> IrSingleQuery {

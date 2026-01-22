@@ -17,10 +17,9 @@ use crate::error::PlanError;
 use crate::expr::property_access::PropertyAccess;
 use crate::expr::{Expr, ExprNode, FilterExprs, PathStep, ProjectPath};
 use crate::ir::node_connection::{
-    ExhaustiveNodeConnection, NodeBinding, PatternLength, QuantifiedPathPattern, RelPattern, Repetition,
-    VariableGrouping,
+    NodeBinding, NodeConnection, PatternLength, QuantifiedPathPattern, RelPattern, Repetition, VariableGrouping,
 };
-use crate::ir::path_pattern::{NodeConnections, PathPattern, SingleNode};
+use crate::ir::path_pattern::{ChainPattern, PathPattern, SingleNode};
 
 #[derive(Debug, Clone)]
 pub struct PatternContext<'a> {
@@ -151,8 +150,8 @@ pub(crate) fn bind_pattern_part(
             (path, extra, steps)
         } else {
             // connections
-            let connections = rels.into_iter().map(ExhaustiveNodeConnection::RelPattern).collect();
-            let path = PathPattern::NodeConnections(NodeConnections { connections });
+            let connections = rels.into_iter().map(NodeConnection::RelPattern).collect();
+            let path = PathPattern::Chain(ChainPattern { connections });
             (path, extra, steps)
         }
     } else {
@@ -163,18 +162,18 @@ pub(crate) fn bind_pattern_part(
         let mut extra = NodeConnectionExtra::empty();
         for (ns, rs, simple_extra) in bound_simple {
             nodes.extend(ns.clone());
-            conns.extend(rs.iter().cloned().map(ExhaustiveNodeConnection::RelPattern));
+            conns.extend(rs.iter().cloned().map(NodeConnection::RelPattern));
             extra = extra.merge(simple_extra);
         }
 
         // quantified
         for (qpp, qpp_extra) in bound_quantified {
-            conns.push(ExhaustiveNodeConnection::QuantifiedPathPattern(qpp));
+            conns.push(NodeConnection::QuantifiedPathPattern(qpp));
             extra = extra.merge(qpp_extra);
         }
 
         (
-            PathPattern::NodeConnections(NodeConnections { connections: conns }),
+            PathPattern::Chain(ChainPattern { connections: conns }),
             extra,
             // TODO(pgao): construct steps
             vec![],

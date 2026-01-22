@@ -60,7 +60,10 @@ impl RootPlan {
 
 pub fn plan_root(
     sctx: Arc<dyn PlannerSession>,
-    _root @ IrQueryRoot { inner, names }: &IrQueryRoot,
+    _root @ IrQueryRoot {
+        inner,
+        output_names: names,
+    }: &IrQueryRoot,
 ) -> Result<RootPlan, PlanError> {
     let plan_ctx = sctx.clone().derive_plan_context();
     let mut ctx = PlannerContext {

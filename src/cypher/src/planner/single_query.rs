@@ -1,12 +1,14 @@
+use itertools::Itertools;
+
 use crate::error::PlanError;
 use crate::ir::mutating_pattern::MutatingPattern;
 use crate::ir::query::{IrSingleQuery, IrSingleQueryPart};
 use crate::ir::query_project::QueryProjection;
-use crate::plan_node::{Apply, ApplyInner, BlackHole, BlackHoleInner, PlanExpr};
+use crate::plan_node::{Apply, ApplyInner, Argument, ArgumentInner, BlackHole, BlackHoleInner, PlanExpr, Unit};
 use crate::planner::PlannerContext;
 use crate::planner::create::plan_create;
 use crate::planner::load::plan_load;
-use crate::planner::match_::plan_match;
+use crate::planner::match_::plan_reading_pattern;
 use crate::planner::project::plan_query_projection;
 
 pub fn plan_single_query(
@@ -28,7 +30,7 @@ pub fn plan_single_query(
     // if not in subquery context and there's no return clause(empty projection), then generate an BlackHole PlanNode.
     // this is for the case of `CREATE (:Person{name:'Alex'})`
     // TODO(pgao): check if in subquery
-    if single_query.parts.last().unwrap().query_project.is_none() {
+    if single_query.parts.last().unwrap().projection.is_none() {
         root = PlanExpr::BlackHole(BlackHole::new(BlackHoleInner { input: root })).boxed();
     }
 
@@ -38,30 +40,52 @@ pub fn plan_single_query(
 fn plan_head(
     ctx: &mut PlannerContext,
     part @ IrSingleQueryPart {
-        query_graph,
-        query_project,
+        input_binding,
+        match_pattern,
+        optional_match_patterns,
+        mutating_patterns,
+        projection,
     }: &IrSingleQueryPart,
 ) -> Result<Box<PlanExpr>, PlanError> {
+    assert!(input_binding.is_empty(), "input binding should be empty for head part");
     // Check if this is a LOAD clause - if so, handle it specially
     // NB: if this is an load clause, then there must be no query graph here.
-    if let Some(QueryProjection::Load(ir_load)) = query_project {
-        assert!(query_graph.mutating_patterns.is_empty());
-        assert!(query_graph.rels.is_empty());
+    if let Some(QueryProjection::Load(ir_load)) = projection {
+        assert!(match_pattern.is_none());
+        assert!(optional_match_patterns.is_empty());
+        assert!(mutating_patterns.is_empty());
         // LOAD is the root - no match or mutating patterns
         return plan_load(ctx, ir_load);
     }
 
-    // plan match
-    let mut root = plan_match(ctx, part, false)?;
+    let mut root = None;
+    // plan match pattern and optional match pattern
+    if match_pattern.is_some() || !optional_match_patterns.is_empty() {
+        root = Some(plan_reading_pattern(ctx, part)?);
+    }
+
     // plan updating pattern
-    for mutating_pattern in query_graph.mutating_patterns.iter() {
-        root = plan_mutating_pattern(ctx, root, mutating_pattern)?;
+    if !mutating_patterns.is_empty() {
+        if root.is_none() {
+            // put an unit here to drive the mutating pattern
+            root = Some(PlanExpr::Unit(Unit::new(ctx.ctx.clone())).boxed());
+        }
+        for mutating_pattern in mutating_patterns.iter() {
+            if let Some(lhs) = root {
+                root = Some(plan_mutating_pattern(ctx, lhs, mutating_pattern)?);
+            }
+        }
     }
+
     // plan projection
-    if let Some(proj) = query_project {
-        root = plan_query_projection(ctx, root, proj)?;
+    if let Some(proj) = projection {
+        // put an unit here to drive the projection
+        if root.is_none() {
+            root = Some(PlanExpr::Unit(Unit::new(ctx.ctx.clone())).boxed());
+        }
+        root = Some(plan_query_projection(ctx, root.unwrap(), proj)?);
     }
-    Ok(root)
+    Ok(root.unwrap())
 }
 
 fn plan_mutating_pattern(
@@ -77,23 +101,31 @@ fn plan_mutating_pattern(
 fn plan_tail_part(
     ctx: &mut PlannerContext,
     lhs_plan: Box<PlanExpr>,
-    part @ IrSingleQueryPart {
-        query_graph,
-        query_project,
-    }: &IrSingleQueryPart,
+    part: &IrSingleQueryPart,
 ) -> Result<Box<PlanExpr>, PlanError> {
-    // plan rhs
-    let rhs_plan = plan_match(ctx, part, true)?;
-
-    // plan apply
-    let mut root = plan_apply(ctx, lhs_plan, rhs_plan)?;
+    let mut root = if part.has_reading_pattern() {
+        // plan rhs
+        let rhs_plan = plan_reading_pattern(ctx, part)?;
+        // plan apply
+        plan_apply(ctx, lhs_plan, rhs_plan)?
+    } else if !part.input_binding.is_empty() {
+        // if have input_binding, plan apply
+        let rhs_plan = PlanExpr::Argument(Argument::new(ArgumentInner {
+            variables: part.input_bindings().clone().into_iter().collect_vec(),
+            ctx: ctx.ctx.clone(),
+        }))
+        .boxed();
+        plan_apply(ctx, lhs_plan, rhs_plan)?
+    } else {
+        lhs_plan
+    };
 
     // plan mutate pattern
-    for mutating_pattern in query_graph.mutating_patterns.iter() {
+    for mutating_pattern in part.mutating_patterns.iter() {
         root = plan_mutating_pattern(ctx, root, mutating_pattern)?;
     }
     // plan projection
-    if let Some(proj) = query_project {
+    if let Some(proj) = &part.projection {
         root = plan_query_projection(ctx, root, proj)?;
     }
     Ok(root)

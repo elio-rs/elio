@@ -13,6 +13,7 @@ use crate::binder::query::ClauseKind;
 use crate::binder::scope::{Scope, ScopeItem};
 use crate::error::{PlanError, SemanticError};
 use crate::expr::CreateStruct;
+use crate::ir::MutatingPattern;
 use crate::ir::mutating_pattern::{CreateNode, CreatePattern, CreateRel};
 
 pub fn bind_create(
@@ -83,8 +84,7 @@ fn bind_create_pattern(
     builder
         .tail_mut()
         .unwrap()
-        .query_graph
-        .add_create_pattern(create_pattern);
+        .add_mutating_pattern(MutatingPattern::Create(create_pattern));
     let out_scope = in_scope.product(create_scope);
     Ok(out_scope)
 }

@@ -93,37 +93,38 @@ impl QuantifiedPathPattern {
     }
 }
 
+// Node connection can be a single rel pattern or a quantified path pattern
 #[derive(Clone, Hash, PartialEq, Eq)]
-pub enum ExhaustiveNodeConnection {
+pub enum NodeConnection {
     RelPattern(RelPattern),
     QuantifiedPathPattern(QuantifiedPathPattern),
 }
 
-impl ExhaustiveNodeConnection {
+impl NodeConnection {
     pub fn endpoint_nodes(&self) -> Vec<&VariableName> {
         match self {
-            ExhaustiveNodeConnection::RelPattern(rel) => rel.endpoint_nodes(),
-            ExhaustiveNodeConnection::QuantifiedPathPattern(qp) => qp.endpoint_nodes(),
+            NodeConnection::RelPattern(rel) => rel.endpoint_nodes(),
+            NodeConnection::QuantifiedPathPattern(qp) => qp.endpoint_nodes(),
         }
     }
 
     pub fn path_elements(&self) -> Vec<PathElement> {
         match self {
-            ExhaustiveNodeConnection::RelPattern(rel) => rel.path_elements(),
-            ExhaustiveNodeConnection::QuantifiedPathPattern(_) => todo!("qpp support"),
+            NodeConnection::RelPattern(rel) => rel.path_elements(),
+            NodeConnection::QuantifiedPathPattern(_) => todo!("qpp support"),
         }
     }
 }
 
-impl From<RelPattern> for ExhaustiveNodeConnection {
+impl From<RelPattern> for NodeConnection {
     fn from(value: RelPattern) -> Self {
-        ExhaustiveNodeConnection::RelPattern(value)
+        NodeConnection::RelPattern(value)
     }
 }
 
-impl From<QuantifiedPathPattern> for ExhaustiveNodeConnection {
+impl From<QuantifiedPathPattern> for NodeConnection {
     fn from(value: QuantifiedPathPattern) -> Self {
-        ExhaustiveNodeConnection::QuantifiedPathPattern(value)
+        NodeConnection::QuantifiedPathPattern(value)
     }
 }
 

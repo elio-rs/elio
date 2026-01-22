@@ -14,6 +14,8 @@ pub enum PlanError {
     SemanticError(#[from] SemanticError, #[backtrace] Backtrace),
     #[error("{}", _0)]
     NotSupported(String),
+    #[error("{}", _0)]
+    BadPlan(String),
 }
 
 impl PlanError {
@@ -28,6 +30,10 @@ impl PlanError {
 
     pub fn not_supported<T: ToString>(msg: T) -> Self {
         Self::NotSupported(msg.to_string())
+    }
+
+    pub fn bad_plan<T: ToString>(msg: T) -> Self {
+        Self::BadPlan(msg.to_string())
     }
 }
 

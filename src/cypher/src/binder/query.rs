@@ -35,7 +35,10 @@ pub fn bind_root_query(sctx: Arc<dyn PlannerSession>, query: &ast::RegularQuery)
         .map(|x| (x.symbol.clone().unwrap().to_string(), x.variable.clone()))
         .collect();
 
-    let root = IrQueryRoot { inner: ir, names };
+    let root = IrQueryRoot {
+        inner: ir,
+        output_names: names,
+    };
 
     Ok(root)
 }

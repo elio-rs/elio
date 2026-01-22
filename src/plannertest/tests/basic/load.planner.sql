@@ -5,12 +5,11 @@ CREATE (:Person {name: row.name, age: row.age})
 /*
 RootIR { names: [row] }
 └─IrSingleQueryPart
-  ├─QueryGraph { imported: [row@0] }
-  │ └─mutating_pattern
-  │   └─CreatePattern { nodes: [(anon@1):Person create_map{name: row@0.name, age: row@0.age}], rels: [] }
+  ├─mutating_patterns
+  │ └─CreatePattern { nodes: [(anon@1):Person create_map{name: row@0.name, age: row@0.age}], rels: [] }
   └─IrSingleQueryPart
-    ├─QueryGraph
-    └─Load { variable: row@0, source_url: https://example.com/data.csv, format: CsvLoadFormat { header: true, delimiter: , } }
+    └─projection
+      └─Load { variable: row@0, source_url: https://example.com/data.csv, format: CsvLoadFormat { header: true, delimiter: , } }
 RootPlan { names: [row] }
 └─ProduceResult { return_columns: row@0 }
   └─BlackHole
@@ -28,12 +27,13 @@ CREATE (f)-[:CONTAINER_OF]->(p)
 /*
 RootIR { names: [row, f, p] }
 └─IrSingleQueryPart
-  ├─QueryGraph { imported: [row@0], nodes: [f@1, p@2], filter: f@1:Forum AND eq(f@1.id, toInteger(row@0.Forum.id)) AND p@2:Post AND eq(p@2.id, toInteger(row@0.Post.id)) }
-  │ └─mutating_pattern
-  │   └─CreatePattern { nodes: [], rels: [(f@1)-[anon@3:CONTAINER_OF]->(p@2) create_map{}] }
+  ├─match_pattern
+  │ └─QueryGraph { input_bindings: [row@0], nodes: [f@1, p@2], filter: f@1:Forum AND eq(f@1.id, toInteger(row@0.Forum.id)) AND p@2:Post AND eq(p@2.id, toInteger(row@0.Post.id)) }
+  ├─mutating_patterns
+  │ └─CreatePattern { nodes: [], rels: [(f@1)-[anon@3:CONTAINER_OF]->(p@2) create_map{}] }
   └─IrSingleQueryPart
-    ├─QueryGraph
-    └─Load { variable: row@0, source_url: https://example.com/data.csv, format: CsvLoadFormat { header: true, delimiter: , } }
+    └─projection
+      └─Load { variable: row@0, source_url: https://example.com/data.csv, format: CsvLoadFormat { header: true, delimiter: , } }
 RootPlan { names: [row, f, p] }
 └─ProduceResult { return_columns: row@0,f@1,p@2 }
   └─BlackHole
@@ -62,12 +62,13 @@ CREATE (f)-[:CONTAINER_OF]->(p)
 /*
 RootIR { names: [row, f, p] }
 └─IrSingleQueryPart
-  ├─QueryGraph { imported: [row@0], nodes: [f@1, p@2], filter: f@1:Resolved(Forum, 0) AND eq(f@1.Resolved(id, 1), toInteger(row@0.Forum.id)) AND p@2:Post AND eq(p@2.Resolved(id, 1), toInteger(row@0.Post.id)) }
-  │ └─mutating_pattern
-  │   └─CreatePattern { nodes: [], rels: [(f@1)-[anon@3:CONTAINER_OF]->(p@2) create_map{}] }
+  ├─match_pattern
+  │ └─QueryGraph { input_bindings: [row@0], nodes: [f@1, p@2], filter: f@1:Resolved(Forum, 0) AND eq(f@1.Resolved(id, 1), toInteger(row@0.Forum.id)) AND p@2:Post AND eq(p@2.Resolved(id, 1), toInteger(row@0.Post.id)) }
+  ├─mutating_patterns
+  │ └─CreatePattern { nodes: [], rels: [(f@1)-[anon@3:CONTAINER_OF]->(p@2) create_map{}] }
   └─IrSingleQueryPart
-    ├─QueryGraph
-    └─Load { variable: row@0, source_url: https://example.com/data.csv, format: CsvLoadFormat { header: true, delimiter: , } }
+    └─projection
+      └─Load { variable: row@0, source_url: https://example.com/data.csv, format: CsvLoadFormat { header: true, delimiter: , } }
 RootPlan { names: [row, f, p] }
 └─ProduceResult { return_columns: row@0,f@1,p@2 }
   └─BlackHole
