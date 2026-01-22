@@ -25,9 +25,7 @@ impl Sort {
 impl PlanNode for Sort {
     type Inner = SortInner;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
-    }
+    crate::impl_plan_inner!();
 
     fn xmlnode(&self) -> XmlNode<'_> {
         let fields = vec![(

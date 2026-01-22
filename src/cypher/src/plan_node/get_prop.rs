@@ -15,12 +15,19 @@ pub struct GetProperty {
     pub(crate) inner: GetPropertyInner,
 }
 
+impl GetProperty {
+    pub fn new(inner: GetPropertyInner) -> Self {
+        Self {
+            base: inner.build_base(),
+            inner,
+        }
+    }
+}
+
 impl PlanNode for GetProperty {
     type Inner = GetPropertyInner;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
-    }
+    crate::impl_plan_inner!();
 
     fn xmlnode(&self) -> XmlNode<'_> {
         let fields = vec![("entities", Pretty::from(self.inner.entities.join(", ")))];
@@ -31,8 +38,8 @@ impl PlanNode for GetProperty {
 
 #[derive(Clone, Debug)]
 pub struct GetPropertyInner {
-    input: Box<PlanExpr>,
-    entities: Vec<VariableName>,
+    pub input: Box<PlanExpr>,
+    pub entities: Vec<VariableName>,
 }
 
 impl GetPropertyInner {

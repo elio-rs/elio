@@ -24,9 +24,7 @@ impl AllNodeScan {
 impl PlanNode for AllNodeScan {
     type Inner = AllNodeScanInner;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
-    }
+    crate::impl_plan_inner!();
 
     fn xmlnode(&self) -> XmlNode<'_> {
         let mut fields = vec![("variable", Pretty::from(self.inner.variable.as_ref()))];

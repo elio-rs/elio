@@ -44,9 +44,7 @@ impl NodeIndexSeek {
 impl PlanNode for NodeIndexSeek {
     type Inner = NodeIndexSeekInner;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
-    }
+    crate::impl_plan_inner!();
 
     fn xmlnode(&self) -> XmlNode<'_> {
         let mut fields = vec![

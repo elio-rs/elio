@@ -19,9 +19,7 @@ impl ProduceResult {
 impl PlanNode for ProduceResult {
     type Inner = ProduceResultInner;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
-    }
+    crate::impl_plan_inner!();
 
     fn xmlnode(&self) -> XmlNode<'_> {
         let fields = vec![("return_columns", Pretty::from(self.inner.return_columns.join(",")))];

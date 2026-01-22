@@ -30,9 +30,7 @@ impl Unit {
 impl PlanNode for Unit {
     type Inner = UnitInner;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
-    }
+    crate::impl_plan_inner!();
 
     fn xmlnode(&self) -> XmlNode<'_> {
         XmlNode::simple_record("Unit", vec![], vec![])

@@ -19,9 +19,7 @@ impl Filter {
 impl PlanNode for Filter {
     type Inner = FilterInner;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
-    }
+    crate::impl_plan_inner!();
 
     fn xmlnode(&self) -> XmlNode<'_> {
         let fields = vec![("condition", Pretty::from(self.inner.condition.pretty()))];
