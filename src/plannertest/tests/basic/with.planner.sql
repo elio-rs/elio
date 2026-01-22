@@ -5,7 +5,7 @@ MATCH (a) WITH a MATCH (b)--(a) RETURN a,b
 RootIR { names: [a, b] }
 └─IrSingleQueryPart
   ├─match_pattern
-  │ └─QueryGraph { imported: [a@1], nodes: [b@2, a@1], rels: [(b@2)<-[anon@3:]->(a@1)] }
+  │ └─QueryGraph { input_bindings: [a@1], nodes: [b@2, a@1], rels: [(b@2)<-[anon@3:]->(a@1)] }
   ├─projection
   │ └─Project { items: [a@4 AS a@1, b@5 AS b@2] }
   └─IrSingleQueryPart
@@ -75,7 +75,7 @@ MATCH (a)-[]-(b) WITH a MATCH (b)-[]-(c) RETURN a,b,c
 RootIR { names: [a, b, c] }
 └─IrSingleQueryPart
   ├─match_pattern
-  │ └─QueryGraph { imported: [a@3], nodes: [b@4, c@5], rels: [(b@4)<-[anon@6:]->(c@5)] }
+  │ └─QueryGraph { input_bindings: [a@3], nodes: [b@4, c@5], rels: [(b@4)<-[anon@6:]->(c@5)] }
   ├─projection
   │ └─Project { items: [a@7 AS a@3, b@8 AS b@4, c@9 AS c@5] }
   └─IrSingleQueryPart
@@ -101,7 +101,7 @@ MATCH (a)-[]-(b) WITH a, b MATCH (b)-[]-(c) RETURN a,b,c
 RootIR { names: [a, b, c] }
 └─IrSingleQueryPart
   ├─match_pattern
-  │ └─QueryGraph { imported: [a@3, b@4], nodes: [b@4, c@5], rels: [(b@4)<-[anon@6:]->(c@5)] }
+  │ └─QueryGraph { input_bindings: [a@3, b@4], nodes: [b@4, c@5], rels: [(b@4)<-[anon@6:]->(c@5)] }
   ├─projection
   │ └─Project { items: [a@7 AS a@3, b@8 AS b@4, c@9 AS c@5] }
   └─IrSingleQueryPart
@@ -130,12 +130,12 @@ RootIR { names: [a, b, c] }
   │ └─Project { items: [a@9 AS a@6, b@10 AS b@7, c@11 AS c@8] }
   └─IrSingleQueryPart
     ├─match_pattern
-    │ └─QueryGraph { imported: [a@3, b@4], nodes: [c@5] }
+    │ └─QueryGraph { input_bindings: [a@3, b@4], nodes: [c@5] }
     ├─projection
     │ └─Project { items: [a@6 AS a@3, b@7 AS b@4, c@8 AS c@5] }
     └─IrSingleQueryPart
       ├─match_pattern
-      │ └─QueryGraph { imported: [a@1], nodes: [b@2] }
+      │ └─QueryGraph { input_bindings: [a@1], nodes: [b@2] }
       ├─projection
       │ └─Project { items: [a@3 AS a@1, b@4 AS b@2] }
       └─IrSingleQueryPart

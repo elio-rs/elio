@@ -28,7 +28,7 @@ CREATE (f)-[:CONTAINER_OF]->(p)
 RootIR { names: [row, f, p] }
 └─IrSingleQueryPart
   ├─match_pattern
-  │ └─QueryGraph { imported: [row@0], nodes: [f@1, p@2], filter: f@1:Forum AND eq(f@1.id, toInteger(row@0.Forum.id)) AND p@2:Post AND eq(p@2.id, toInteger(row@0.Post.id)) }
+  │ └─QueryGraph { input_bindings: [row@0], nodes: [f@1, p@2], filter: f@1:Forum AND eq(f@1.id, toInteger(row@0.Forum.id)) AND p@2:Post AND eq(p@2.id, toInteger(row@0.Post.id)) }
   ├─mutating_patterns
   │ └─CreatePattern { nodes: [], rels: [(f@1)-[anon@3:CONTAINER_OF]->(p@2) create_map{}] }
   └─IrSingleQueryPart
@@ -63,7 +63,7 @@ CREATE (f)-[:CONTAINER_OF]->(p)
 RootIR { names: [row, f, p] }
 └─IrSingleQueryPart
   ├─match_pattern
-  │ └─QueryGraph { imported: [row@0], nodes: [f@1, p@2], filter: f@1:Resolved(Forum, 0) AND eq(f@1.Resolved(id, 1), toInteger(row@0.Forum.id)) AND p@2:Post AND eq(p@2.Resolved(id, 1), toInteger(row@0.Post.id)) }
+  │ └─QueryGraph { input_bindings: [row@0], nodes: [f@1, p@2], filter: f@1:Resolved(Forum, 0) AND eq(f@1.Resolved(id, 1), toInteger(row@0.Forum.id)) AND p@2:Post AND eq(p@2.Resolved(id, 1), toInteger(row@0.Post.id)) }
   ├─mutating_patterns
   │ └─CreatePattern { nodes: [], rels: [(f@1)-[anon@3:CONTAINER_OF]->(p@2) create_map{}] }
   └─IrSingleQueryPart
