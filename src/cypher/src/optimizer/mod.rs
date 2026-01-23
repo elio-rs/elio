@@ -5,11 +5,44 @@ mod rule;
 mod rules;
 mod visitor;
 
+use crate::error::PlanError;
 pub use crate::optimizer::rewriter::*;
-pub use crate::optimizer::rule::{OptimizationRule, Result, RewriteOrder, RuleContext};
+pub use crate::optimizer::rule::{OptimizationRule, RewriteOrder, RuleContext};
 pub use crate::optimizer::rules::*;
 pub use crate::optimizer::visitor::*;
+use crate::plan_context::PlanContext;
 use crate::plan_node::PlanExpr;
+use crate::planner::RootPlan;
+
+#[derive(Clone, Debug)]
+pub enum RulePassKind {
+    Once,
+    FixedPoint(usize),
+}
+
+#[derive(Clone)]
+pub struct RulePass {
+    pub name: &'static str,
+    pub rules: Vec<Arc<dyn OptimizationRule>>,
+    pub kind: RulePassKind,
+}
+
+impl RulePass {
+    pub fn new(name: &'static str, rules: Vec<Arc<dyn OptimizationRule>>, kind: RulePassKind) -> Self {
+        Self { name, rules, kind }
+    }
+
+    pub fn optimizer(&self) -> RuleBasedOptimizer {
+        match self.kind {
+            RulePassKind::Once => RuleBasedOptimizer::new_once(self.rules.clone()),
+            RulePassKind::FixedPoint(iter) => RuleBasedOptimizer::new_fixed_point(self.rules.clone(), iter),
+        }
+    }
+
+    pub fn run(&self, plan: PlanExpr, ctx: &mut RuleContext<'_>) -> Result<PlanExpr, PlanError> {
+        self.optimizer().optimize(plan, ctx)
+    }
+}
 
 pub struct RuleBasedOptimizer {
     rules: Vec<Arc<dyn OptimizationRule>>,
@@ -28,7 +61,7 @@ impl RuleBasedOptimizer {
         Self { rules, max_iterations }
     }
 
-    pub fn optimize(&self, plan: PlanExpr, ctx: &mut RuleContext<'_>) -> Result<PlanExpr> {
+    pub fn optimize(&self, plan: PlanExpr, ctx: &mut RuleContext<'_>) -> Result<PlanExpr, PlanError> {
         let mut root = plan;
         for _ in 0..self.max_iterations {
             let mut changed = false;
@@ -48,13 +81,27 @@ impl RuleBasedOptimizer {
     }
 }
 
+pub fn optimize_query(plan_ctx: &Arc<PlanContext>, root_plan: RootPlan) -> Result<RootPlan, PlanError> {
+    let passes = logical_rule_passes();
+    let RootPlan { plan, names } = root_plan;
+    let mut plan = *plan;
+    for pass in passes {
+        let mut ctx = RuleContext { plan_ctx };
+        plan = pass.run(plan, &mut ctx)?;
+    }
+    Ok(RootPlan {
+        plan: plan.boxed(),
+        names,
+    })
+}
+
 fn apply_rule_bottom_up(
     rule: &dyn OptimizationRule,
     plan: PlanExpr,
     ctx: &mut RuleContext<'_>,
-) -> Result<(PlanExpr, bool)> {
+) -> Result<(PlanExpr, bool), PlanError> {
     let mut changed = false;
-    let rewritten_children = plan.map_children_result(|child| -> Result<PlanExpr> {
+    let rewritten_children = plan.map_children_result(|child| -> Result<PlanExpr, PlanError> {
         let (new_child, child_changed) = apply_rule_bottom_up(rule, child, ctx)?;
         if child_changed {
             changed = true;
@@ -78,7 +125,7 @@ fn apply_rule_top_down(
     rule: &dyn OptimizationRule,
     plan: PlanExpr,
     ctx: &mut RuleContext<'_>,
-) -> Result<(PlanExpr, bool)> {
+) -> Result<(PlanExpr, bool), PlanError> {
     let mut changed = false;
     let mut current = plan;
     if let Some(new_plan) = rule.apply(current.clone(), ctx)? {
@@ -86,7 +133,7 @@ fn apply_rule_top_down(
         changed = true;
     }
 
-    let current = current.map_children_result(|child| -> Result<PlanExpr> {
+    let current = current.map_children_result(|child| -> Result<PlanExpr, PlanError> {
         let (new_child, child_changed) = apply_rule_top_down(rule, child, ctx)?;
         if child_changed {
             changed = true;

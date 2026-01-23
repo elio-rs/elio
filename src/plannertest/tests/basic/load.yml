@@ -5,6 +5,7 @@
   tasks:
     - bind
     - plan
+    - optimize
 - sql: |
     LOAD CSV FROM 'https://example.com/data.csv' AS row 
     MATCH (f:Forum {id: toInteger(row.`Forum.id`)}), (p:Post {id: toInteger(row.`Post.id`)})
@@ -19,6 +20,11 @@
   tasks:
     - ddl
 - sql: |
+    CREATE CONSTRAINT post_key FOR (p:Post) REQUIRE (p.id) IS NODE KEY
+  desc: Create a unique constraint on the post id
+  tasks:
+    - ddl
+- sql: |
     LOAD CSV FROM 'https://example.com/data.csv' AS row 
     MATCH (f:Forum {id: toInteger(row.`Forum.id`)}), (p:Post {id: toInteger(row.`Post.id`)})
     CREATE (f)-[:CONTAINER_OF]->(p)
@@ -26,3 +32,4 @@
   tasks:
     - bind
     - plan
+    - optimize

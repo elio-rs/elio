@@ -10,7 +10,6 @@ use crate::ir::query::{IrQuery, IrQueryRoot, IrSingleQueryPart};
 use crate::plan_context::PlanContext;
 use crate::plan_node::{PlanExpr, ProduceResult, ProduceResultInner};
 use crate::planner::single_query::plan_single_query;
-use crate::session::PlannerSession;
 
 mod component;
 mod create;
@@ -59,15 +58,14 @@ impl RootPlan {
 }
 
 pub fn plan_root(
-    sctx: Arc<dyn PlannerSession>,
+    plan_ctx: &Arc<PlanContext>,
     _root @ IrQueryRoot {
         inner,
         output_names: names,
     }: &IrQueryRoot,
 ) -> Result<RootPlan, PlanError> {
-    let plan_ctx = sctx.clone().derive_plan_context();
     let mut ctx = PlannerContext {
-        ctx: plan_ctx,
+        ctx: plan_ctx.clone(),
         // generate from session context
         _config: Default::default(),
     };
