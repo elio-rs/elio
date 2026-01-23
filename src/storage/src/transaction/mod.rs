@@ -7,16 +7,27 @@ use elio_common::array::chunk::DataChunk;
 use elio_common::array::{ArrayImpl, NodeArray, RelArray, StructArray, VirtualNodeArray};
 use elio_common::{LabelId, NodeId, PropertyKeyId, SemanticDirection, TokenId};
 
-use crate::cf_constraint;
 use crate::constraint::{ConstraintCodec, ConstraintMeta, UniqueIndexCodec};
 use crate::dict::IdStore;
 use crate::error::GraphStoreError;
 use crate::token::TokenStore;
 use crate::transaction::node::{batch_materialize_node, batch_node_create, batch_node_scan};
 use crate::transaction::relationship::{NodeIdContainer, RelIterForNode, batch_rel_create, rel_iter_for_node};
+use crate::{KvEngine, cf_constraint};
 
 mod node;
 mod relationship;
+
+// global transaction lock guard, this is used to enforce single-writer
+pub enum TxGuard {
+    Read(parking_lot::RwLockReadGuard<'static, ()>),
+    Write(parking_lot::RwLockWriteGuard<'static, ()>),
+}
+
+// #safety
+//   the underlying lock is held by the guard and lives as long as TxGuard
+unsafe impl Send for TxGuard {}
+unsafe impl Sync for TxGuard {}
 
 pub struct RelScanOptions {}
 pub struct NodeScanOptions {
@@ -35,23 +46,28 @@ pub struct TransactionImpl {
     token: Arc<TokenStore>,
     // write buffer
     write_state: Mutex<WriteState>,
+    // holds global tx lock guard to enforce single-writer
+    // RAII, lock will release when dropped
+    #[allow(unused)]
+    tx_guard: TxGuard,
 }
 
 #[derive(Default)]
 pub struct WriteState {
     // TODO(pgao): should we use transaction db?
-    pub(crate) batch: rocksdb::WriteBatchWithTransaction<true>,
+    pub(crate) batch: rocksdb::WriteBatchWithTransaction<false>,
     // TODO(pgao): local buffer
     // local_cache: HashMap<Vec<u8>, Option<Vec<u8>>>,
 }
 
 impl TransactionImpl {
-    pub fn new(db: Arc<rocksdb::TransactionDB>, dict: Arc<IdStore>, token: Arc<TokenStore>) -> Self {
+    pub fn new(db: Arc<KvEngine>, dict: Arc<IdStore>, token: Arc<TokenStore>, tx_guard: TxGuard) -> Self {
         Self {
             inner: OwnedSnapshot::new(db),
             dict,
             token,
             write_state: WriteState::default().into(),
+            tx_guard,
         }
     }
 }
@@ -274,12 +290,12 @@ impl TransactionImpl {
 }
 
 struct OwnedSnapshot {
-    pub(crate) _db: Arc<rocksdb::TransactionDB>,
+    pub(crate) _db: Arc<KvEngine>,
     pub(crate) snapshot: rocksdb::Snapshot<'static>,
 }
 
 impl OwnedSnapshot {
-    pub fn new(db: Arc<rocksdb::TransactionDB>) -> Self {
+    pub fn new(db: Arc<KvEngine>) -> Self {
         unsafe {
             let snapshot = db.snapshot();
             let static_snapshot: rocksdb::Snapshot<'static> = std::mem::transmute(snapshot);

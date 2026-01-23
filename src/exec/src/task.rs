@@ -7,10 +7,11 @@ use elio_common::array::chunk::DataChunk;
 use elio_common::array::{NodeArray, VirtualNodeArray};
 use elio_common::schema::Schema;
 use elio_common::{TokenId, TokenKind};
+use elio_cypher::plan_node::PlanExpr;
 use elio_cypher::planner::RootPlan;
 use elio_expr::error::EvalError;
 use elio_expr::impl_::EvalCtx;
-use elio_storage::graph::GraphStore;
+use elio_storage::graph::{GraphStore, TransactionMode};
 use elio_storage::transaction::TransactionImpl;
 use futures::StreamExt;
 use itertools::Itertools;
@@ -123,7 +124,13 @@ impl TaskHandle {
 
 /// create task and spawn running task execution
 pub async fn create_task(ectx: &Arc<ExecContext>, query_id: Arc<str>, plan: RootPlan) -> Result<TaskHandle, ExecError> {
-    let tx = ectx.store.transaction();
+    let is_write = plan_is_write(plan.plan.as_ref());
+    let tx_mode = if is_write {
+        TransactionMode::ReadWrite
+    } else {
+        TransactionMode::ReadOnly
+    };
+    let tx = ectx.store.transaction(tx_mode);
     let task_context = Arc::new(TaskExecContext {
         exec_ctx: ectx.clone(),
         tx,
@@ -153,6 +160,15 @@ pub async fn create_task(ectx: &Arc<ExecContext>, query_id: Arc<str>, plan: Root
     runner.start();
 
     Ok(handle)
+}
+
+fn plan_is_write(plan: &PlanExpr) -> bool {
+    match plan {
+        // NB: create constraint is handled separately in the ddl module
+        // TODO(pgao): we should put the create constraint into the task execution
+        PlanExpr::CreateNode(_) | PlanExpr::CreateRel(_) => true,
+        _ => plan.inputs().into_iter().any(plan_is_write),
+    }
 }
 
 pub struct TaskRunner {

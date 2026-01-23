@@ -10,17 +10,20 @@ use crate::constraint::ConstraintStore;
 use crate::dict::IdStore;
 use crate::error::GraphStoreError;
 use crate::token::TokenStore;
-use crate::transaction::TransactionImpl;
-use crate::{cf_constraint, cf_meta, cf_property, cf_topology};
+use crate::transaction::{TransactionImpl, TxGuard};
+use crate::{KvEngine, cf_constraint, cf_meta, cf_property, cf_topology};
 
 pub struct GraphStore {
-    db: Arc<rocksdb::TransactionDB>,
+    db: Arc<KvEngine>,
     dict: Arc<IdStore>,
     token: Arc<TokenStore>,
     constraint: Arc<ConstraintStore>,
-    /// Label-level locks for constraint operations
-    /// Read lock: normal writes (CREATE node)
-    /// Write lock: CREATE CONSTRAINT (exclusive)
+    // TODO(pgao): we should have an lock manager to handle all the locks in the graph store.
+    // global transaction lock, used to enforce single-writer
+    tx_lock: RwLock<()>,
+    // Label-level locks for constraint operations
+    // Read lock: normal writes (CREATE node)
+    // Write lock: CREATE CONSTRAINT (exclusive)
     label_locks: RwLock<HashMap<LabelId, Arc<RwLock<()>>>>,
 }
 
@@ -62,27 +65,20 @@ impl GraphStore {
             ColumnFamilyDescriptor::new(cf_property::CF_NAME, Options::default()),
             ColumnFamilyDescriptor::new(cf_constraint::CF_NAME, Options::default()),
         ];
-        let tx_db_opts = rocksdb::TransactionDBOptions::default();
-
-        // create db and create cf if not exist
-        let db = match rocksdb::TransactionDB::open_cf_descriptors(&opts, &tx_db_opts, path, cf_descriptors) {
+        let db = match KvEngine::open_cf_descriptors(&opts, path, cf_descriptors) {
             Ok(db) => db,
             Err(_) => {
-                // if db not exists, create one
-                let db = rocksdb::TransactionDB::open_default(path)?;
-
-                // create cf
+                let db = KvEngine::open(&opts, path)?;
                 let cf_opts = Options::default();
                 db.create_cf(cf_meta::CF_NAME, &cf_opts)?;
                 db.create_cf(cf_topology::CF_NAME, &cf_opts)?;
                 db.create_cf(cf_property::CF_NAME, &cf_opts)?;
                 db.create_cf(cf_constraint::CF_NAME, &cf_opts)?;
-
                 db
             }
         };
-
         let db = Arc::new(db);
+
         let dict = Arc::new(IdStore::new(db.clone())?);
         let token = Arc::new(TokenStore::new(db.clone())?);
         let constraint = Arc::new(ConstraintStore::new(db.clone()));
@@ -92,6 +88,7 @@ impl GraphStore {
             dict,
             token,
             constraint,
+            tx_lock: RwLock::new(()),
             label_locks: RwLock::new(HashMap::new()),
         })
     }
@@ -104,15 +101,32 @@ impl GraphStore {
         &self.constraint
     }
 
-    pub fn db(&self) -> &Arc<rocksdb::TransactionDB> {
+    pub fn db(&self) -> &Arc<KvEngine> {
         &self.db
     }
 
-    pub fn transaction(&self) -> Arc<TransactionImpl> {
+    pub fn transaction(&self, mode: TransactionMode) -> Arc<TransactionImpl> {
+        let tx_guard = match mode {
+            TransactionMode::ReadOnly => {
+                let guard = self.tx_lock.read();
+                // SAFETY:
+                //    tx_lock will live longer than the guard
+                let guard: parking_lot::RwLockReadGuard<'static, ()> = unsafe { std::mem::transmute(guard) };
+                TxGuard::Read(guard)
+            }
+            TransactionMode::ReadWrite => {
+                let guard = self.tx_lock.write();
+                // SAFETY:
+                //    tx_lock will live longer than the guard
+                let guard: parking_lot::RwLockWriteGuard<'static, ()> = unsafe { std::mem::transmute(guard) };
+                TxGuard::Write(guard)
+            }
+        };
         Arc::new(TransactionImpl::new(
             self.db.clone(),
             self.dict.clone(),
             self.token.clone(),
+            tx_guard,
         ))
     }
 

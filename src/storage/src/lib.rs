@@ -6,6 +6,8 @@ pub mod graph;
 pub mod token;
 pub mod transaction;
 
+pub type KvEngine = rocksdb::DBWithThreadMode<rocksdb::MultiThreaded>;
+
 pub(crate) mod cf_meta {
     pub const CF_NAME: &str = "cf_meta";
     // token -> token_id

@@ -9,8 +9,8 @@ use std::sync::Arc;
 use bytes::{BufMut, Bytes, BytesMut};
 use elio_common::{LabelId, NodeId, PropertyKeyId};
 
-use crate::cf_constraint;
 use crate::error::GraphStoreError;
+use crate::{KvEngine, cf_constraint};
 
 /// Constraint entity type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -192,11 +192,11 @@ impl UniqueIndexCodec {
 
 /// Constraint store operations
 pub struct ConstraintStore {
-    db: Arc<rocksdb::TransactionDB>,
+    db: Arc<KvEngine>,
 }
 
 impl ConstraintStore {
-    pub fn new(db: Arc<rocksdb::TransactionDB>) -> Self {
+    pub fn new(db: Arc<KvEngine>) -> Self {
         Self { db }
     }
 
