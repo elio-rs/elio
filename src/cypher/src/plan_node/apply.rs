@@ -18,9 +18,7 @@ impl Apply {
 impl PlanNode for Apply {
     type Inner = ApplyInner;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
-    }
+    crate::impl_plan_inner!();
 
     fn xmlnode(&self) -> XmlNode<'_> {
         let children = self

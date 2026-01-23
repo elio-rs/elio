@@ -27,9 +27,7 @@ impl Empty {
 impl PlanNode for Empty {
     type Inner = EmptyInner;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
-    }
+    crate::impl_plan_inner!();
 
     fn xmlnode(&self) -> XmlNode<'_> {
         XmlNode::simple_record("Empty", vec![], vec![])

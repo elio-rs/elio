@@ -27,9 +27,7 @@ impl CreateNode {
 impl PlanNode for CreateNode {
     type Inner = CreateNodeInner;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
-    }
+    crate::impl_plan_inner!();
 
     fn xmlnode(&self) -> XmlNode<'_> {
         let fields = vec![(

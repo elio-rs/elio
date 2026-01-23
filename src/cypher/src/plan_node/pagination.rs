@@ -18,9 +18,7 @@ impl Pagination {
 impl PlanNode for Pagination {
     type Inner = PaginationInner;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
-    }
+    crate::impl_plan_inner!();
 
     fn xmlnode(&self) -> XmlNode<'_> {
         let fields = vec![

@@ -18,9 +18,7 @@ impl CrossProduct {
 impl PlanNode for CrossProduct {
     type Inner = CrossProductInner;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
-    }
+    crate::impl_plan_inner!();
 
     fn xmlnode(&self) -> XmlNode<'_> {
         let children = self

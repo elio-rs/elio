@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::task::Poll;
 
 use async_stream::stream;
 use elio_catalog::Catalog;
@@ -9,7 +10,7 @@ use elio_common::array::chunk::DataChunk;
 use elio_common::scalar::{Row, ScalarValue};
 use elio_common::{LabelId, PropertyKeyId, TokenId, TokenKind};
 use elio_cypher::plan_context::PlanContext;
-use elio_cypher::session::{IndexHint, PlannerSession, parse_statement, plan_query};
+use elio_cypher::session::{IndexHint, PlanLevel, PlannerSession, parse_statement, plan_query};
 use elio_exec::error::ExecError;
 use elio_exec::task::{ExecContext, create_task};
 use elio_parser::ast;
@@ -101,13 +102,13 @@ impl Session {
     }
 
     async fn handle_explain(self: &Arc<Self>, query: &ast::RegularQuery) -> Result<Pin<Box<dyn ResultHandle>>, Error> {
-        let plan = plan_query(self.clone(), query)?;
+        let plan = plan_query(self.clone(), query, PlanLevel::Optimize)?;
         let explain_str = plan.explain();
         Ok(Box::pin(ExplainResultHandle::new(explain_str)))
     }
 
     async fn handle_query(self: &Arc<Self>, query: &ast::RegularQuery) -> Result<Pin<Box<dyn ResultHandle>>, Error> {
-        let plan = plan_query(self.clone(), query)?;
+        let plan = plan_query(self.clone(), query, PlanLevel::Optimize)?;
         // execute query
         let query_id = uuid::Uuid::new_v4().to_string().into();
         let handle = create_task(&self.exec_ctx, query_id, plan).await?;
@@ -192,17 +193,14 @@ impl EmptyResultHandle {
 impl Stream for EmptyResultHandle {
     type Item = Result<Row, Error>;
 
-    fn poll_next(
-        mut self: std::pin::Pin<&mut Self>,
-        _cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut std::task::Context<'_>) -> Poll<Option<Self::Item>> {
         if self.done {
-            std::task::Poll::Ready(None)
+            Poll::Ready(None)
         } else {
             self.done = true;
             // Return a single row with "OK" message
             let row = vec![Some(ScalarValue::String("Constraint created/dropped".into()))];
-            std::task::Poll::Ready(Some(Ok(row)))
+            Poll::Ready(Some(Ok(row)))
         }
     }
 }

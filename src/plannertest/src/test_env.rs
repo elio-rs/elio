@@ -7,7 +7,7 @@ use elio_catalog::FunctionCatalog;
 use elio_catalog::error::CatalogError;
 use elio_common::{LabelId, PropertyKeyId, TokenId, TokenKind};
 use elio_cypher::plan_context::PlanContext;
-use elio_cypher::session::{IndexHint, PlannerSession};
+use elio_cypher::session::{self, IndexHint, PlanLevel, PlannerSession};
 use elio_expr::func::FUNCTION_REGISTRY;
 use elio_parser::ast;
 use itertools::Itertools;
@@ -94,17 +94,22 @@ pub struct MockPlannerSession {
 
 impl MockPlannerSession {
     pub fn parse(self: &Arc<Self>, cypher: &str) -> anyhow::Result<ast::Statement> {
-        let ast = elio_cypher::session::parse_statement(cypher)?;
+        let ast = session::parse_statement(cypher)?;
         Ok(ast)
     }
 
     pub fn bind_query(self: &Arc<Self>, ast: &ast::RegularQuery) -> anyhow::Result<String> {
-        let ir = elio_cypher::session::bind_query(self.clone(), ast)?;
+        let ir = session::bind_query(self.clone(), ast)?;
         Ok(ir.explain())
     }
 
     pub fn plan_query(self: &Arc<Self>, ast: &ast::RegularQuery) -> anyhow::Result<String> {
-        let plan = elio_cypher::session::plan_query(self.clone(), ast)?;
+        let plan = session::plan_query(self.clone(), ast, PlanLevel::Plan)?;
+        Ok(plan.explain())
+    }
+
+    pub fn optimize_query(self: &Arc<Self>, ast: &ast::RegularQuery) -> anyhow::Result<String> {
+        let plan = session::plan_query(self.clone(), ast, PlanLevel::Optimize)?;
         Ok(plan.explain())
     }
 
@@ -250,6 +255,29 @@ impl TestEnv {
         }
         Ok(())
     }
+
+    pub fn task_optimize(
+        &self,
+        result: &mut String,
+        cypher: &str,
+        task: &str,
+        _opts: &TaskOption,
+    ) -> anyhow::Result<()> {
+        let session = Arc::new(self.new_session());
+        let stmts = cypher.trim().split(';').collect_vec();
+        for stmt in stmts {
+            let ast = session.parse(stmt)?;
+            match ast {
+                ast::Statement::Query(regular_query) => {
+                    let plan = session.optimize_query(&regular_query)?;
+                    result.push_str(&plan);
+                    result.push('\n');
+                }
+                _ => return Err(Error::msg(format!("invalid cypher{} and task{}", stmt, task))),
+            }
+        }
+        Ok(())
+    }
 }
 
 // TODO(pgao): task options
@@ -275,6 +303,10 @@ impl sqlplannertest::PlannerTestRunner for TestEnv {
                 self.task_plan(&mut result, &test_case.sql, task, &TaskOption::default())?;
             } else if task == "bind" {
                 self.task_bind(&mut result, &test_case.sql, task, &TaskOption::default())?;
+            } else if task == "optimize" {
+                self.task_optimize(&mut result, &test_case.sql, task, &TaskOption::default())?;
+            } else {
+                return Err(Error::msg(format!("invalid task{}", task)));
             }
         }
         Ok(result)

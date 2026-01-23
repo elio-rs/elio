@@ -10,6 +10,7 @@ use elio_parser::parser::cypher_parser;
 use crate::binder::query::bind_root_query;
 use crate::error::PlanError;
 use crate::ir::query::IrQueryRoot;
+use crate::optimizer::optimize_query;
 use crate::plan_context::PlanContext;
 use crate::planner::{RootPlan, plan_root};
 
@@ -57,11 +58,27 @@ pub fn parse_statement(stmt: &str) -> Result<ast::Statement, PlanError> {
     cypher_parser::statement(stmt).map_err(PlanError::parse_error)
 }
 
-pub fn plan_query(ctx: Arc<dyn PlannerSession>, query: &ast::RegularQuery) -> Result<RootPlan, PlanError> {
+#[derive(Clone, Copy)]
+pub enum PlanLevel {
+    Plan,
+    Optimize,
+}
+
+pub fn plan_query(
+    ctx: Arc<dyn PlannerSession>,
+    query: &ast::RegularQuery,
+    level: PlanLevel,
+) -> Result<RootPlan, PlanError> {
     // bind
     let ir = bind_root_query(ctx.clone(), query)?;
     // plan
-    let plan = plan_root(ctx, &ir)?;
+    let plan_ctx = ctx.clone().derive_plan_context();
+    let plan = plan_root(&plan_ctx, &ir)?;
+    if matches!(level, PlanLevel::Plan) {
+        return Ok(plan);
+    }
+    // optimize
+    let plan = optimize_query(&plan_ctx, plan)?;
     Ok(plan)
 }
 

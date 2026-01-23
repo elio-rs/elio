@@ -56,6 +56,22 @@ impl FilterExprs {
     pub fn diff(&self, other: &Self) -> Self {
         Self::from_iter(self.exprs.iter().filter(|expr| !other.exprs.contains(expr)).cloned())
     }
+
+    pub fn map_exprs<F>(self, f: F) -> Self
+    where
+        F: FnMut(Expr) -> Expr,
+    {
+        Self::from_iter(self.exprs.into_iter().map(f))
+    }
+
+    pub fn visit_exprs<F>(&self, mut f: F)
+    where
+        F: FnMut(&Expr),
+    {
+        for expr in self.exprs.iter() {
+            f(expr);
+        }
+    }
 }
 
 impl From<FilterExprs> for Expr {

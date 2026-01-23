@@ -32,9 +32,7 @@ impl Expand {
 impl PlanNode for Expand {
     type Inner = ExpandInner;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
-    }
+    crate::impl_plan_inner!();
 
     fn xmlnode(&self) -> XmlNode<'_> {
         let fields = vec![

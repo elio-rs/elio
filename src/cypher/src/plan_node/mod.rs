@@ -99,6 +99,8 @@ pub trait PlanNode {
 
     fn inner(&self) -> &Self::Inner;
 
+    fn into_inner(self) -> Self::Inner;
+
     fn inputs(&self) -> Vec<&PlanExpr> {
         self.inner().inputs()
     }
@@ -219,3 +221,182 @@ impl_plan_expr_dispatch!(
     BlackHole,
     ProduceResult
 );
+
+#[macro_export]
+macro_rules! impl_plan_inner {
+    () => {
+        fn inner(&self) -> &Self::Inner {
+            &self.inner
+        }
+
+        fn into_inner(self) -> Self::Inner {
+            self.inner
+        }
+    };
+}
+
+impl PlanExpr {
+    /// Apply a mapper to all direct child plan nodes and rebuild this node.
+    pub fn map_children<F>(self, mut f: F) -> PlanExpr
+    where
+        F: FnMut(PlanExpr) -> PlanExpr,
+    {
+        self.map_children_result::<_, ()>(|p| Ok(f(p))).expect("infallible")
+    }
+
+    /// Like `map_children` but allows the mapper to return a `Result`.
+    pub fn map_children_result<F, E>(self, mut f: F) -> Result<PlanExpr, E>
+    where
+        F: FnMut(PlanExpr) -> Result<PlanExpr, E>,
+    {
+        match self {
+            PlanExpr::AllNodeScan(plan) => {
+                let AllNodeScanInner {
+                    variable,
+                    arguments,
+                    ctx,
+                } = plan.into_inner();
+                let arguments = match arguments {
+                    Some(arg) => Some(Box::new(f(*arg)?)),
+                    None => None,
+                };
+                Ok(AllNodeScan::new(AllNodeScanInner::new(variable, arguments, ctx)).into())
+            }
+            PlanExpr::NodeIndexSeek(plan) => {
+                let NodeIndexSeekInner {
+                    variable,
+                    label,
+                    constraint_name,
+                    prop_tokens,
+                    prop_values,
+                    ctx,
+                    arguments,
+                } = plan.into_inner();
+                let arguments = match arguments {
+                    Some(arg) => Some(Box::new(f(*arg)?)),
+                    None => None,
+                };
+                Ok(NodeIndexSeek::new(NodeIndexSeekInner::new(
+                    variable,
+                    label,
+                    constraint_name,
+                    prop_tokens,
+                    prop_values,
+                    ctx,
+                    arguments,
+                ))
+                .into())
+            }
+            PlanExpr::GetProperty(plan) => {
+                let GetPropertyInner { input, entities } = plan.into_inner();
+                let input = Box::new(f(*input)?);
+                Ok(GetProperty::new(GetPropertyInner { input, entities }).into())
+            }
+            PlanExpr::Expand(plan) => {
+                let ExpandInner {
+                    input,
+                    from,
+                    to,
+                    rel,
+                    direction,
+                    types,
+                    kind,
+                } = plan.into_inner();
+                let input = Box::new(f(*input)?);
+                Ok(Expand::new(ExpandInner {
+                    input,
+                    from,
+                    to,
+                    rel,
+                    direction,
+                    types,
+                    kind,
+                })
+                .into())
+            }
+            PlanExpr::VarExpand(plan) => {
+                let VarExpandInner {
+                    input,
+                    from,
+                    to,
+                    rel_pattern,
+                    node_filter,
+                    rel_filter,
+                    kind,
+                    path_mode,
+                } = plan.into_inner();
+                let input = Box::new(f(*input)?);
+                Ok(VarExpand::new(VarExpandInner {
+                    input,
+                    from,
+                    to,
+                    rel_pattern,
+                    node_filter,
+                    rel_filter,
+                    kind,
+                    path_mode,
+                })
+                .into())
+            }
+            PlanExpr::Apply(plan) => {
+                let ApplyInner { left, right } = plan.into_inner();
+                let left = Box::new(f(*left)?);
+                let right = Box::new(f(*right)?);
+                Ok(Apply::new(ApplyInner { left, right }).into())
+            }
+            PlanExpr::Argument(plan) => Ok(PlanExpr::Argument(plan)),
+            PlanExpr::Unit(plan) => Ok(PlanExpr::Unit(plan)),
+            PlanExpr::ProduceResult(plan) => {
+                let ProduceResultInner { input, return_columns } = plan.into_inner();
+                let input = Box::new(f(*input)?);
+                Ok(ProduceResult::new(ProduceResultInner { input, return_columns }).into())
+            }
+            PlanExpr::CreateNode(plan) => {
+                let CreateNodeInner { input, nodes } = plan.into_inner();
+                let input = Box::new(f(*input)?);
+                Ok(CreateNode::new(CreateNodeInner { input, nodes }).into())
+            }
+            PlanExpr::CreateRel(plan) => {
+                let CreateRelInner { input, rels } = plan.into_inner();
+                let input = Box::new(f(*input)?);
+                Ok(CreateRel::new(CreateRelInner { input, rels }).into())
+            }
+            PlanExpr::Load(plan) => Ok(PlanExpr::Load(plan)),
+            PlanExpr::CrossProduct(plan) => {
+                let CrossProductInner { left, right } = plan.into_inner();
+                let left = Box::new(f(*left)?);
+                let right = Box::new(f(*right)?);
+                Ok(PlanExpr::CrossProduct(CrossProduct::new(CrossProductInner {
+                    left,
+                    right,
+                })))
+            }
+            PlanExpr::Project(plan) => {
+                let ProjectInner { input, projections } = plan.into_inner();
+                let input = Box::new(f(*input)?);
+                Ok(Project::new(ProjectInner { input, projections }).into())
+            }
+            PlanExpr::Sort(plan) => {
+                let SortInner { input, items } = plan.into_inner();
+                let input = Box::new(f(*input)?);
+                Ok(Sort::new(SortInner { input, items }).into())
+            }
+            PlanExpr::Filter(plan) => {
+                let FilterInner { input, condition } = plan.into_inner();
+                let input = Box::new(f(*input)?);
+                Ok(Filter::new(FilterInner { input, condition }).into())
+            }
+            PlanExpr::Pagination(plan) => {
+                let PaginationInner { input, offset, limit } = plan.into_inner();
+                let input = Box::new(f(*input)?);
+                Ok(Pagination::new(PaginationInner { input, offset, limit }).into())
+            }
+            PlanExpr::Empty(plan) => Ok(PlanExpr::Empty(plan)),
+            PlanExpr::BlackHole(plan) => {
+                let BlackHoleInner { input } = plan.into_inner();
+                let input = Box::new(f(*input)?);
+                Ok(BlackHole::new(BlackHoleInner { input }).into())
+            }
+        }
+    }
+}

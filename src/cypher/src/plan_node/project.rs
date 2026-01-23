@@ -19,9 +19,7 @@ impl Project {
 impl PlanNode for Project {
     type Inner = ProjectInner;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
-    }
+    crate::impl_plan_inner!();
 
     fn xmlnode(&self) -> XmlNode<'_> {
         let fields = vec![(
@@ -65,6 +63,16 @@ impl ProjectInner {
         F: Fn(&(VariableName, Expr)) -> bool,
     {
         self.projections.retain(f);
+    }
+
+    pub fn map_exprs<F>(&mut self, mut f: F)
+    where
+        F: FnMut(Expr) -> Expr,
+    {
+        for (_, expr) in self.projections.iter_mut() {
+            let current = std::mem::replace(expr, Expr::boolean(true));
+            *expr = f(current);
+        }
     }
 }
 

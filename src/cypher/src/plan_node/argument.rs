@@ -21,9 +21,7 @@ impl Argument {
 impl PlanNode for Argument {
     type Inner = ArgumentInner;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
-    }
+    crate::impl_plan_inner!();
 
     fn xmlnode(&self) -> XmlNode<'_> {
         let fields = vec![(

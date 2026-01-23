@@ -23,9 +23,7 @@ impl BlackHole {
 impl PlanNode for BlackHole {
     type Inner = BlackHoleInner;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
-    }
+    crate::impl_plan_inner!();
 
     fn xmlnode(&self) -> XmlNode<'_> {
         XmlNode::simple_record("BlackHole", vec![], vec![Pretty::Record(self.inner.input.xmlnode())])

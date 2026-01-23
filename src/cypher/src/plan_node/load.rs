@@ -48,9 +48,7 @@ impl InnerNode for LoadInner {
 impl PlanNode for Load {
     type Inner = LoadInner;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
-    }
+    crate::impl_plan_inner!();
 
     fn xmlnode(&self) -> XmlNode<'_> {
         XmlNode::simple_record(
