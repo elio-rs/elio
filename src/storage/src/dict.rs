@@ -3,8 +3,8 @@ use std::sync::{Arc, Mutex};
 
 use elio_common::{NodeId, RelationshipId};
 
-use crate::cf_meta;
 use crate::error::GraphStoreError;
+use crate::{KvEngine, cf_meta};
 
 // Number of ids to allocate from rocksdb
 const ID_BATCH_SIZE: u64 = 1000;
@@ -16,7 +16,7 @@ pub struct IdStore {
 }
 
 impl IdStore {
-    pub fn new(db: Arc<rocksdb::TransactionDB>) -> Result<Self, GraphStoreError> {
+    pub fn new(db: Arc<KvEngine>) -> Result<Self, GraphStoreError> {
         let node_id = IdGenerator::new(db.clone(), (*cf_meta::MAX_NODE_ID_KEY).into(), cf_meta::CF_NAME.into())?;
         let rel_id = IdGenerator::new(db.clone(), (*cf_meta::MAX_REL_ID_KEY).into(), cf_meta::CF_NAME.into())?;
         Ok(Self { node_id, rel_id })
@@ -52,7 +52,7 @@ pub struct IdGenerator {
     // key and cf in rocksdb store
     key: Arc<[u8]>,
     cf_name: Arc<str>,
-    db: Arc<rocksdb::TransactionDB>,
+    db: Arc<KvEngine>,
 
     // refil from rocksdb lock
     // only one write can access db
@@ -60,7 +60,7 @@ pub struct IdGenerator {
 }
 
 impl IdGenerator {
-    pub fn new(db: Arc<rocksdb::TransactionDB>, key: Arc<[u8]>, cf_name: Arc<str>) -> Result<Self, GraphStoreError> {
+    pub fn new(db: Arc<KvEngine>, key: Arc<[u8]>, cf_name: Arc<str>) -> Result<Self, GraphStoreError> {
         // initialize current and max from db.
         // SAFETY
         //   cf_handle is safe because we check it in open.

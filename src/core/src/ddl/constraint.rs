@@ -11,7 +11,7 @@ use elio_common::mapb::IndexKeyCodec;
 use elio_exec::error::ExecError;
 use elio_parser::ast;
 use elio_storage::constraint::{ConstraintKind, ConstraintMeta, EntityType};
-use elio_storage::graph::GraphStore;
+use elio_storage::graph::{GraphStore, TransactionMode};
 use elio_storage::transaction::NodeScanOptions;
 
 use crate::error::Error;
@@ -25,7 +25,7 @@ use crate::error::Error;
 /// 4. Builds the unique index for existing data
 /// 5. Stores the constraint metadata
 pub fn create_constraint(store: &Arc<GraphStore>, constraint: &ast::CreateConstraint) -> Result<(), Error> {
-    let tx = store.transaction();
+    let tx = store.transaction(TransactionMode::ReadWrite);
 
     // 1. Check if constraint already exists
     if tx.constraint_exists(&constraint.name)? {
@@ -185,7 +185,7 @@ fn extract_property_values(
 
 /// Execute DROP CONSTRAINT statement
 pub fn drop_constraint(store: &Arc<GraphStore>, constraint: &ast::DropConstraint) -> Result<(), Error> {
-    let tx = store.transaction();
+    let tx = store.transaction(TransactionMode::ReadWrite);
 
     // Check if constraint exists
     let meta = tx.get_constraint(&constraint.name)?;

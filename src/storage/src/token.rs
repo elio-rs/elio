@@ -4,12 +4,12 @@ use std::sync::{Arc, RwLock};
 
 use elio_common::{LabelId, PropertyKeyId, RelationshipTypeId, TokenId, TokenKind};
 
-use crate::cf_meta;
 use crate::codec::TokenCodec;
 use crate::error::GraphStoreError;
+use crate::{KvEngine, cf_meta};
 
 pub struct TokenStore {
-    db: Arc<rocksdb::TransactionDB>,
+    db: Arc<KvEngine>,
     // in memory cache
     next_label_id: AtomicU16,
     next_reltype_id: AtomicU16,
@@ -24,7 +24,7 @@ pub struct TokenStore {
 }
 
 impl TokenStore {
-    pub fn new(db: Arc<rocksdb::TransactionDB>) -> Result<Self, GraphStoreError> {
+    pub fn new(db: Arc<KvEngine>) -> Result<Self, GraphStoreError> {
         let mut store = Self {
             db,
             next_label_id: AtomicU16::new(0),
