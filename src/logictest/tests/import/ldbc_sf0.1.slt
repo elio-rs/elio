@@ -1,0 +1,233 @@
+# import ldbc snb sf 0.1
+
+# Node
+
+query A
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/person_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+CREATE (:Person {id: toInteger(row.id), firstName: row.firstName, lastName: row.lastName, gender: row.gender, birthday: date(row.birthday), creationDate: datetime(row.creationDate), locationIP: row.locationIP, browserUsed: row.browserUsed});
+----
+
+query A
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/forum_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+CREATE (:Forum {id: toInteger(row.id), title: row.title, creationDate: datetime(row.creationDate)});
+----
+
+query A
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/post_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+CREATE (:Post {id: toInteger(row.id), imageFile: row.imageFile, creationDate: datetime(row.creationDate), locationIP: row.locationIP, browserUsed: row.browserUsed, language: row.language, content: row.content, length: toInteger(row.length)});
+----
+
+query A
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/comment_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+CREATE (:Comment {id: toInteger(row.id), creationDate: datetime(row.creationDate), locationIP: row.locationIP, browserUsed: row.browserUsed, content: row.content, length: toInteger(row.length)});
+----
+
+
+query A
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/static/tag_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+CREATE (:Tag {id: toInteger(row.id), name: row.name, url: row.url});
+----
+
+
+query A
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/static/tagclass_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+CREATE (:TagClass {id: toInteger(row.id), name: row.name, url: row.url});
+----
+
+
+query A
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/static/place_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+CREATE (:Place {id: toInteger(row.id), name: row.name, url: row.url, type: row.type});
+----
+
+
+query A
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/static/organisation_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+CREATE (:Organisation {id: toInteger(row.id), type: row.type, name: row.name, url: row.url});
+----
+
+
+# Node key constraints
+
+query A
+CREATE CONSTRAINT pk_person FOR (n:Person) REQUIRE n.id IS NODE KEY;
+----
+'Constraint created/dropped'
+
+query A
+CREATE CONSTRAINT pk_forum FOR (n:Forum) REQUIRE n.id IS NODE KEY;
+----
+'Constraint created/dropped'
+
+query A
+CREATE CONSTRAINT pk_post FOR (n:Post) REQUIRE n.id IS NODE KEY;
+----
+'Constraint created/dropped'
+
+query A
+CREATE CONSTRAINT pk_comment FOR (n:Comment) REQUIRE n.id IS NODE KEY;
+----
+'Constraint created/dropped'
+
+query A
+CREATE CONSTRAINT pk_tag FOR (n:Tag) REQUIRE n.id IS NODE KEY;
+----
+'Constraint created/dropped'
+
+query A
+CREATE CONSTRAINT pk_tagclass FOR (n:TagClass) REQUIRE n.id IS NODE KEY;
+----
+'Constraint created/dropped'
+
+query A
+CREATE CONSTRAINT pk_place FOR (n:Place) REQUIRE n.id IS NODE KEY;
+----
+'Constraint created/dropped'
+
+query A
+CREATE CONSTRAINT pk_organisation FOR (n:Organisation) REQUIRE n.id IS NODE KEY;
+----
+'Constraint created/dropped'
+
+# Relationships
+query AAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/forum_containerOf_post_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+MATCH (f:Forum {id: toInteger(row.`Forum.id`)}), (p:Post {id: toInteger(row.`Post.id`)})
+CREATE (f)-[:CONTAINER_OF]->(p);
+----
+
+query AAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/comment_hasCreator_person_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+MATCH (c:Comment {id: toInteger(row.`Comment.id`)}), (p:Person {id: toInteger(row.`Person.id`)})
+CREATE (c)-[:COMMENT_HAS_CREATOR]->(p);
+----
+
+query AAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/post_hasCreator_person_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+MATCH (p:Post {id: toInteger(row.`Post.id`)}), (a:Person {id: toInteger(row.`Person.id`)})
+CREATE (p)-[:POST_HAS_CREATOR]->(a);
+----
+
+query AAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/person_hasInterest_tag_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+MATCH (p:Person {id: toInteger(row.`Person.id`)}), (t:Tag {id: toInteger(row.`Tag.id`)})
+CREATE (p)-[:HAS_INTEREST]->(t);
+----
+
+query AAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/forum_hasMember_person_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+MATCH (f:Forum {id: toInteger(row.`Forum.id`)}), (p:Person {id: toInteger(row.`Person.id`)})
+CREATE (f)-[:HAS_MEMBER {joinDate: datetime(row.joinDate)}]->(p);
+----
+
+query AAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/forum_hasModerator_person_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+MATCH (f:Forum {id: toInteger(row.`Forum.id`)}), (p:Person {id: toInteger(row.`Person.id`)})
+CREATE (f)-[:HAS_MODERATOR]->(p);
+----
+
+query AAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/comment_hasTag_tag_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+MATCH (c:Comment {id: toInteger(row.`Comment.id`)}), (t:Tag {id: toInteger(row.`Tag.id`)})
+CREATE (c)-[:COMMENT_HAS_TAG]->(t);
+----
+
+query AAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/forum_hasTag_tag_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+MATCH (f:Forum {id: toInteger(row.`Forum.id`)}), (t:Tag {id: toInteger(row.`Tag.id`)})
+CREATE (f)-[:FORUM_HAS_TAG]->(t);
+----
+
+query AAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/post_hasTag_tag_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+MATCH (p:Post {id: toInteger(row.`Post.id`)}), (t:Tag {id: toInteger(row.`Tag.id`)})
+CREATE (p)-[:POST_HAS_TAG]->(t);
+----
+
+query AAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/static/tag_hasType_tagclass_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+MATCH (t:Tag {id: toInteger(row.`Tag.id`)}), (tc:TagClass {id: toInteger(row.`TagClass.id`)})
+CREATE (t)-[:HAS_TYPE]->(tc);
+----
+
+query AAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/comment_isLocatedIn_place_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+MATCH (c:Comment {id: toInteger(row.`Comment.id`)}), (p:Place {id: toInteger(row.`Place.id`)})
+CREATE (c)-[:COMMENT_IS_LOCATED_IN]->(p);
+----
+
+query AAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/static/organisation_isLocatedIn_place_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+MATCH (o:Organisation {id: toInteger(row.`Organisation.id`)}), (p:Place {id: toInteger(row.`Place.id`)})
+CREATE (o)-[:ORGANISATION_IS_LOCATED_IN]->(p);
+----
+
+query AAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/person_isLocatedIn_place_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+MATCH (p:Person {id: toInteger(row.`Person.id`)}), (l:Place {id: toInteger(row.`Place.id`)})
+CREATE (p)-[:PERSON_IS_LOCATED_IN]->(l);
+----
+
+query AAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/post_isLocatedIn_place_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+MATCH (p:Post {id: toInteger(row.`Post.id`)}), (l:Place {id: toInteger(row.`Place.id`)})
+CREATE (p)-[:POST_IS_LOCATED_IN]->(l);
+----
+
+query AAAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/static/place_isPartOf_place_0_0.csv' OPTIONS {header: false, delimiter: '|'} AS row
+WITH toInteger(row[0]) AS childPlaceId, toInteger(row[1]) AS parentPlaceId
+MATCH (child:Place {id: childPlaceId}), (parent:Place {id: parentPlaceId})
+CREATE (child)-[:IS_PART_OF]->(parent);
+----
+
+query AAAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/static/tagclass_isSubclassOf_tagclass_0_0.csv' OPTIONS {header: false, delimiter: '|'} AS row
+WITH toInteger(row[0]) AS childId, toInteger(row[1]) AS parentId
+MATCH (child:TagClass {id: childId}), (parent:TagClass {id: parentId})
+CREATE (child)-[:IS_SUBCLASS_OF]->(parent);
+----
+
+query AAAAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/person_knows_person_0_0.csv' OPTIONS {header: false, delimiter: '|'} AS row
+WITH toInteger(row[0]) AS personId, toInteger(row[1]) AS friendId, datetime(row[2]) AS creationDate
+MATCH (p1:Person {id: personId}), (p2:Person {id: friendId})
+CREATE (p1)-[:KNOWS {creationDate: creationDate}]->(p2);
+----
+
+query AAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/person_likes_comment_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+MATCH (p:Person {id: toInteger(row.`Person.id`)}), (c:Comment {id: toInteger(row.`Comment.id`)})
+CREATE (p)-[:LIKES_COMMENT {creationDate: datetime(row.creationDate)}]->(c);
+----
+
+query AAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/person_likes_post_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+MATCH (p:Person {id: toInteger(row.`Person.id`)}), (post:Post {id: toInteger(row.`Post.id`)})
+CREATE (p)-[:LIKES_POST {creationDate: datetime(row.creationDate)}]->(post);
+----
+
+query AAAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/comment_replyOf_comment_0_0.csv' OPTIONS {header: false, delimiter: '|'} AS row
+WITH toInteger(row[0]) AS childId, toInteger(row[1]) AS parentId
+MATCH (child:Comment {id: childId}), (parent:Comment {id: parentId})
+CREATE (child)-[:REPLY_OF_COMMENT]->(parent);
+----
+
+query AAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/comment_replyOf_post_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+MATCH (c:Comment {id: toInteger(row.`Comment.id`)}), (p:Post {id: toInteger(row.`Post.id`)})
+CREATE (c)-[:REPLY_OF_POST]->(p);
+----
+
+query AAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/person_studyAt_organisation_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+MATCH (p:Person {id: toInteger(row.`Person.id`)}), (o:Organisation {id: toInteger(row.`Organisation.id`)})
+CREATE (p)-[:STUDY_AT {classYear: toInteger(row.classYear)}]->(o);
+----
+
+query AAA
+LOAD CSV FROM '../../dataset/ldbc_sf0.1/dynamic/person_workAt_organisation_0_0.csv' OPTIONS {header: true, delimiter: '|'} AS row
+MATCH (p:Person {id: toInteger(row.`Person.id`)}), (o:Organisation {id: toInteger(row.`Organisation.id`)})
+CREATE (p)-[:WORK_AT {workFrom: toInteger(row.workFrom)}]->(o);
+----

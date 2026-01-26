@@ -39,6 +39,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          submodules: recursive
      
       # Install the Rust toolchain
       - name: 'Install rust-toolchain.toml'
