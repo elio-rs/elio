@@ -85,8 +85,6 @@ fn print_table(columns: &[String], rows: &[Vec<String>]) {
         return;
     }
 
-    // Build table using tabled
-    // Create a builder for dynamic columns
     let mut builder = tabled::builder::Builder::new();
 
     // Add header
