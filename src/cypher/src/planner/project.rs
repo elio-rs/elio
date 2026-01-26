@@ -165,8 +165,8 @@ fn plan_pagination(
 ) -> Result<Box<PlanExpr>, PlanError> {
     let inner = PaginationInner {
         input: root,
-        offset: offset.unwrap_or(0),
-        limit: limit.unwrap_or(-1),
+        offset: *offset,
+        limit: *limit,
     };
     Ok(crate::plan_node::Pagination::new(inner).into())
 }

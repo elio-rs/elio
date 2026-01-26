@@ -341,8 +341,9 @@ pub fn bind_pagination(
             data: Some(ScalarValue::Integer(i)),
             ..
         }) = expr
+            && i >= 0
         {
-            pagination.offset = Some(i);
+            pagination.offset = i as u64;
         } else {
             return Err(SemanticError::invalid_pagination_offset_type(&skip.to_string()).into());
         }
@@ -357,8 +358,9 @@ pub fn bind_pagination(
             data: Some(ScalarValue::Integer(i)),
             ..
         }) = expr
+            && i >= 0
         {
-            pagination.limit = Some(i);
+            pagination.limit = i as u64;
         } else {
             return Err(SemanticError::invalid_pagination_limit_type(&limit.to_string()).into());
         }

@@ -111,19 +111,27 @@ impl Projection {
     }
 }
 
-#[derive(Default)]
 pub struct Pagination {
-    pub offset: Option<i64>,
-    pub limit: Option<i64>,
+    pub offset: u64,
+    pub limit: u64,
+}
+
+impl std::default::Default for Pagination {
+    fn default() -> Self {
+        Self {
+            offset: 0,
+            limit: u64::MAX,
+        }
+    }
 }
 
 impl std::fmt::Display for Pagination {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Some(off) = self.offset {
-            write!(f, "offset: {}", off)?;
+        if self.offset != 0 {
+            write!(f, "offset: {}", self.offset)?;
         }
-        if let Some(lim) = self.limit {
-            write!(f, " limit: {}", lim)?;
+        if self.limit != u64::MAX {
+            write!(f, " limit: {}", self.limit)?;
         }
         Ok(())
     }
@@ -131,7 +139,7 @@ impl std::fmt::Display for Pagination {
 
 impl Pagination {
     pub fn is_empty(&self) -> bool {
-        self.offset.is_none() && self.limit.is_none()
+        self.offset == 0 && self.limit == u64::MAX
     }
 }
 
