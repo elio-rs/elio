@@ -33,9 +33,8 @@ impl PlanNode for Pagination {
 #[derive(Debug, Clone)]
 pub struct PaginationInner {
     pub input: Box<PlanExpr>,
-    pub offset: i64,
-    // -1 means all records should be returned
-    pub limit: i64,
+    pub offset: u64,
+    pub limit: u64,
 }
 
 impl InnerNode for PaginationInner {

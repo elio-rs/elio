@@ -20,6 +20,7 @@ use crate::executor::expand::ExpandExecutor;
 use crate::executor::filter::FilterExecutor;
 use crate::executor::load_csv::LoadCsvExecutor;
 use crate::executor::node_index_seek::NodeIndexSeekExecutor;
+use crate::executor::pagination::PaginationExecutor;
 use crate::executor::produce_result::ProduceResultExecutor;
 use crate::executor::project::ProjectExecutor;
 use crate::executor::unit::UnitExecutor;
@@ -107,7 +108,7 @@ fn build_node(ctx: &mut ExecutorBuildContext, node: &PlanExpr) -> Result<SharedE
         PlanExpr::Project(project) => build_project(ctx, project, inputs),
         PlanExpr::Sort(_sort) => todo!(),
         PlanExpr::Filter(filter) => build_filter(ctx, filter, inputs),
-        PlanExpr::Pagination(_pagination) => todo!(),
+        PlanExpr::Pagination(pagination) => build_pagination(ctx, pagination, inputs),
         PlanExpr::Empty(_empty) => todo!(),
         PlanExpr::BlackHole(black_hole) => build_black_hole(ctx, black_hole, inputs),
     }
@@ -645,6 +646,23 @@ fn build_filter(
         input,
         filter: expr,
         schema: node.schema().clone(),
+    }
+    .into_shared())
+}
+
+fn build_pagination(
+    _ctx: &mut ExecutorBuildContext,
+    pagination: &plan_node::Pagination,
+    inputs: Vec<SharedExecutor>,
+) -> Result<SharedExecutor, BuildError> {
+    assert_eq!(inputs.len(), 1);
+    let [input]: [SharedExecutor; 1] = inputs.try_into().unwrap();
+
+    Ok(PaginationExecutor {
+        input,
+        offset: pagination.inner().offset,
+        limit: pagination.inner().limit,
+        schema: pagination.schema().clone(),
     }
     .into_shared())
 }

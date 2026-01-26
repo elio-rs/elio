@@ -21,6 +21,7 @@ pub mod expand;
 pub mod filter;
 pub mod load_csv;
 pub mod node_index_seek;
+pub mod pagination;
 pub mod produce_result;
 pub mod project;
 pub mod relscan;

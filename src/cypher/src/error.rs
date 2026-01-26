@@ -114,12 +114,18 @@ impl SemanticError {
     }
 
     pub fn invalid_pagination_offset_type(ctx: &str) -> Self {
-        let msg = format!("Pagination offset must be an integer in {}", ctx);
+        let msg = format!(
+            "Pagination offset must be an integer greater than or equal to 0 in {}",
+            ctx
+        );
         Self::new(msg)
     }
 
     pub fn invalid_pagination_limit_type(ctx: &str) -> Self {
-        let msg = format!("Pagination limit must be an integer in {}", ctx);
+        let msg = format!(
+            "Pagination limit must be an integer greater than or equal to 0 in {}",
+            ctx
+        );
         Self::new(msg)
     }
 
