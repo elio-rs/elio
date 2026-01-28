@@ -19,6 +19,7 @@ pub mod create_rel;
 pub mod cross_product;
 pub mod expand;
 pub mod filter;
+pub mod hash_aggregate;
 pub mod load_csv;
 pub mod node_index_seek;
 pub mod pagination;

@@ -12,7 +12,7 @@ pub mod temporal;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
-use crate::func::sig::{FuncDef, FuncImpl};
+use crate::scalar::sig::{FuncDef, FuncImpl};
 
 // Global Function Registry
 pub struct FunctionRegistry {

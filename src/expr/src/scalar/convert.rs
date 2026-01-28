@@ -15,7 +15,7 @@ use expr_macros::cypher_func;
 
 use crate::define_function;
 use crate::error::EvalError;
-use crate::func::FunctionRegistry;
+use crate::scalar::FunctionRegistry;
 
 #[cypher_func(batch_name = "boolean_to_boolean_batch", sig = "(bool) -> bool")]
 fn boolean_to_boolean(b: bool) -> bool {

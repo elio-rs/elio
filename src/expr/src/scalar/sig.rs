@@ -1,6 +1,6 @@
 use elio_common::data_type::DataType;
 
-use crate::impl_::func_call::FunctionImpl;
+use crate::impl_::scalar_call::FunctionImpl;
 
 /// Function definition
 #[derive(Clone, Debug)]
@@ -196,15 +196,15 @@ impl FuncImplReturn {
 #[macro_export]
 macro_rules! func_impl_arg {
     ({ exact $dt:ident }) => {
-        $crate::func::sig::FuncImplArg::Exact(DataType::$dt)
+        $crate::scalar::sig::FuncImplArg::Exact(DataType::$dt)
     };
 
     ({ anyof $($dt:ident)|+ }) => {
-        $crate::func::sig::FuncImplArg::Union(vec![$(DataType::$dt),+])
+        $crate::scalar::sig::FuncImplArg::Union(vec![$(DataType::$dt),+])
     };
 
     ({ anylist }) => {
-        $crate::func::sig::FuncImplArg::AnyList
+        $crate::scalar::sig::FuncImplArg::AnyList
     };
 }
 
@@ -221,14 +221,14 @@ macro_rules! define_function {
      ],
      is_agg: $is_agg:expr
     ) => {{
-        $crate::func::sig::FuncDef{
+        $crate::scalar::sig::FuncDef{
             name: $name.to_string(),
             impls: vec![
                 $({
-                    use $crate::func::sig::{FuncImplReturn};
+                    use $crate::scalar::sig::{FuncImplReturn};
                     use elio_common::data_type::DataType;
 
-                    $crate::func::sig::FuncImpl::new(
+                    $crate::scalar::sig::FuncImpl::new(
                         $name,
                         vec![$($crate::func_impl_arg!($arg_type)),*],
                         FuncImplReturn::Exact(DataType::$ret_type),

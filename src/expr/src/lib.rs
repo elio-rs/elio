@@ -1,7 +1,8 @@
 //! Physical expressions
+pub mod agg;
 pub mod error;
-pub mod func;
 pub mod impl_;
+pub mod scalar;
 
 // the following function should be defined in cypher
 // compile an planner expr to executable expr

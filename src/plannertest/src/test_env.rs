@@ -8,7 +8,7 @@ use elio_catalog::error::CatalogError;
 use elio_common::{LabelId, PropertyKeyId, TokenId, TokenKind};
 use elio_cypher::plan_context::PlanContext;
 use elio_cypher::session::{self, IndexHint, PlanLevel, PlannerSession};
-use elio_expr::func::FUNCTION_REGISTRY;
+use elio_expr::scalar::FUNCTION_REGISTRY;
 use elio_parser::ast;
 use itertools::Itertools;
 use sqlplannertest::ParsedTestCase;

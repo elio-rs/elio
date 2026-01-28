@@ -9,8 +9,8 @@ use elio_common::data_type::DataType;
 use elio_common::scalar::{ListValueRef, ScalarRef, ScalarVTable};
 
 use crate::error::EvalError;
-use crate::func::FunctionRegistry;
-use crate::func::sig::{FuncDef, FuncImpl, FuncImplArg, FuncImplReturn};
+use crate::scalar::FunctionRegistry;
+use crate::scalar::sig::{FuncDef, FuncImpl, FuncImplArg, FuncImplReturn};
 
 /// list_index(list, index) -> element
 /// Returns the element at the given index (0-based).

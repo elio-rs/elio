@@ -49,7 +49,7 @@ use expr_macros::cypher_func;
 
 use crate::define_function;
 use crate::error::EvalError;
-use crate::func::FunctionRegistry;
+use crate::scalar::FunctionRegistry;
 
 #[cypher_func(batch_name = "date_batch", sig = "(any) -> any")]
 fn date(arg: ScalarRef<'_>) -> Result<ScalarValue, EvalError> {

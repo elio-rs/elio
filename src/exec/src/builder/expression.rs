@@ -2,16 +2,16 @@ use elio_common::data_type::DataType;
 use elio_common::schema::{Name2ColumnMap, Schema};
 use elio_cypher::expr;
 use elio_cypher::expr::{Constant, CreateList, CreateStruct, Expr, ExprNode, PropertyAccess, VariableRef};
-use elio_expr::func::FUNCTION_REGISTRY;
 use elio_expr::impl_::constant::ConstantExpr;
 use elio_expr::impl_::create_list::CreateListExpr;
 use elio_expr::impl_::create_struct::CreateStructExpr;
 use elio_expr::impl_::field_access::FieldAccessExpr;
-use elio_expr::impl_::func_call::FuncCallExpr;
 use elio_expr::impl_::label::HasLabelExpr;
 use elio_expr::impl_::project_path::ProjectPathExpr;
+use elio_expr::impl_::scalar_call::ScalarCallExpr;
 use elio_expr::impl_::variable_ref::VariableRefExpr;
 use elio_expr::impl_::{Expression, SharedExpression};
+use elio_expr::scalar::FUNCTION_REGISTRY;
 
 use crate::builder::{BuildError, ExecutorBuildContext};
 
@@ -80,7 +80,7 @@ fn build_func_call(ctx: &BuildExprContext<'_>, func_call: &expr::FuncCall) -> Re
 
     let func_impl = FUNCTION_REGISTRY.get_func_impl(&func_call.func_id);
 
-    Ok(FuncCallExpr {
+    Ok(ScalarCallExpr {
         inputs: args,
         func: func_impl.func,
         typ: func_call.typ(),

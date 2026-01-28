@@ -1,5 +1,5 @@
 use elio_common::data_type::DataType;
-use elio_expr::func::FUNCTION_REGISTRY;
+use elio_expr::scalar::FUNCTION_REGISTRY;
 
 use crate::expr::{Expr, ExprNode};
 

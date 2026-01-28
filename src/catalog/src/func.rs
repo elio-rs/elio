@@ -1,4 +1,4 @@
-use elio_expr::func::sig::FuncDef;
+use elio_expr::scalar::sig::FuncDef;
 
 #[derive(Clone, Debug)]
 pub struct FunctionCatalog {
