@@ -4,17 +4,20 @@ use crate::expr::{Expr, ExprNode};
 
 #[derive(Debug, Hash, Clone, Eq, PartialEq)]
 pub struct AggCall {
-    // TODO(pgao): should be registered name
+    /// function name
     pub func: String,
+    /// function implementation id
+    pub func_id: String,
     pub args: Vec<Expr>,
     pub distinct: bool,
     typ: DataType,
 }
 
 impl AggCall {
-    pub fn new_unchecked(func: String, args: Vec<Expr>, distinct: bool, typ: DataType) -> Self {
+    pub fn new_unchecked(func: String, func_id: String, args: Vec<Expr>, distinct: bool, typ: DataType) -> Self {
         Self {
             func,
+            func_id,
             args,
             distinct,
             typ,

@@ -235,10 +235,14 @@ impl Expr {
             Expr::AggCall(call) => {
                 let typ = call.typ();
                 let AggCall {
-                    func, args, distinct, ..
+                    func,
+                    func_id,
+                    args,
+                    distinct,
+                    ..
                 } = call;
                 let args = args.into_iter().map(&mut f).collect();
-                Expr::AggCall(AggCall::new_unchecked(func, args, distinct, typ))
+                Expr::AggCall(AggCall::new_unchecked(func, func_id, args, distinct, typ))
             }
             Expr::HasLabel(has_label) => {
                 let entity = f(*has_label.entity);

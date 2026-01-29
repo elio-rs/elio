@@ -1,6 +1,8 @@
 use elio_common::data_type::DataType;
+use enum_as_inner::EnumAsInner;
 
-use crate::impl_::scalar_call::FunctionImpl;
+use crate::impl_::agg_call::AggInvocation;
+use crate::impl_::scalar_call::ScalarInvocation;
 
 /// Function definition
 #[derive(Clone, Debug)]
@@ -20,17 +22,33 @@ pub struct FuncImpl {
     pub args: Vec<FuncImplArg>,
     pub ret: FuncImplReturn,
     // function pointer which is invoked when the function is called
-    pub func: FunctionImpl,
+    pub func_invoke: FuncInvoke,
+}
+
+#[derive(Clone, Debug, EnumAsInner)]
+pub enum FuncInvoke {
+    Scalar(ScalarInvocation),
+    Agg(AggInvocation),
 }
 
 impl FuncImpl {
-    pub fn new(name: &str, args: Vec<FuncImplArg>, ret: FuncImplReturn, func: FunctionImpl) -> Self {
+    pub fn new_scalar(name: &str, args: Vec<FuncImplArg>, ret: FuncImplReturn, func: ScalarInvocation) -> Self {
         let signature_id = Self::compute_signature(name, &args);
         Self {
             func_id: signature_id,
             args,
             ret,
-            func,
+            func_invoke: FuncInvoke::Scalar(func),
+        }
+    }
+
+    pub fn new_agg(name: &str, args: Vec<FuncImplArg>, ret: FuncImplReturn, func: AggInvocation) -> Self {
+        let signature_id = Self::compute_signature(name, &args);
+        Self {
+            func_id: signature_id,
+            args,
+            ret,
+            func_invoke: FuncInvoke::Agg(func),
         }
     }
 
@@ -228,7 +246,7 @@ macro_rules! define_function {
                     use $crate::scalar::sig::{FuncImplReturn};
                     use elio_common::data_type::DataType;
 
-                    $crate::scalar::sig::FuncImpl::new(
+                    $crate::scalar::sig::FuncImpl::new_scalar(
                         $name,
                         vec![$($crate::func_impl_arg!($arg_type)),*],
                         FuncImplReturn::Exact(DataType::$ret_type),

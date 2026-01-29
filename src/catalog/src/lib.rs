@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use elio_expr::scalar::FUNCTION_REGISTRY;
+use elio_expr::FUNCTION_REGISTRY;
 use elio_storage::token::TokenStore;
 
 pub mod error;

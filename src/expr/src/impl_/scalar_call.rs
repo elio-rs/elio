@@ -7,13 +7,13 @@ use crate::error::EvalError;
 use crate::impl_::{EvalCtx, Expression, SharedExpression};
 
 // used to invoke the function call
-pub type FunctionImpl = fn(&[ArrayRef], vis: &BitVec, len: usize) -> Result<ArrayImpl, EvalError>;
+pub type ScalarInvocation = fn(&[ArrayRef], vis: &BitVec, len: usize) -> Result<ArrayImpl, EvalError>;
 
 // scalar function call expression
 #[derive(Debug)]
 pub struct ScalarCallExpr {
     pub inputs: Vec<SharedExpression>,
-    pub func: FunctionImpl,
+    pub func: ScalarInvocation,
     pub typ: DataType,
 }
 

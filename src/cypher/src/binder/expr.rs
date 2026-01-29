@@ -288,7 +288,7 @@ fn bind_func_call(
     let args = coerce_null_args(args, &coerced_types);
 
     if is_agg {
-        let agg = AggCall::new_unchecked(name.to_string(), args, distinct, typ);
+        let agg = AggCall::new_unchecked(name.to_string(), func_impl.func_id, args, distinct, typ);
         Ok(agg.into())
     } else {
         if distinct {

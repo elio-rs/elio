@@ -1,23 +1,16 @@
+use std::sync::Arc;
+
 use downcast_rs::{DowncastSend, impl_downcast};
-use elio_common::data_type::DataType;
 use elio_common::scalar::{Datum, DatumRef};
 
-use crate::impl_::{Expression, SharedExpression};
+use crate::error::EvalError;
 
-// agg function call expression
-#[derive(Debug)]
-pub struct AggCallExpr {
-    pub func: String,
-    pub args: Vec<SharedExpression>,
-    pub typ: DataType,
-}
-
-// call aggregate with distinct inputs
-pub struct DistinctAggCallExpr {}
+// TODO(pgao): should be refactored
+pub type AggInvocation = fn(args: &[Datum]) -> Result<Arc<dyn AggFuncImpl>, EvalError>;
 
 pub trait AggFuncImpl: Send + Sync + 'static {
     fn create_state(&self) -> Box<dyn AggFuncState>;
-    fn update_state(&self, state: &mut Box<dyn AggFuncState>, row: &[DatumRef]);
+    fn update_state(&self, state: &mut Box<dyn AggFuncState>, row: &[DatumRef]) -> Result<(), EvalError>;
     fn extract_value(&self, state: &mut Box<dyn AggFuncState>) -> Datum;
 }
 
