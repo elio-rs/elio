@@ -9,7 +9,7 @@ use elio_catalog::error::CatalogError;
 use elio_common::array::chunk::DataChunk;
 use elio_common::scalar::{Row, ScalarValue};
 use elio_common::{LabelId, PropertyKeyId, TokenId, TokenKind};
-use elio_cypher::plan_context::PlanContext;
+use elio_cypher::planner::PlannerContext;
 use elio_cypher::session::{IndexHint, PlanLevel, PlannerSession, parse_statement, plan_query};
 use elio_exec::error::ExecError;
 use elio_exec::task::{ExecContext, create_task};
@@ -36,8 +36,8 @@ impl Session {
 
 // for Planner
 impl PlannerSession for Session {
-    fn derive_plan_context(self: Arc<Self>) -> Arc<PlanContext> {
-        Arc::new(PlanContext::new(self))
+    fn derive_planner_context(self: Arc<Self>) -> PlannerContext {
+        PlannerContext::new(self)
     }
 
     fn get_or_create_token(&self, token: &str, kind: TokenKind) -> Result<TokenId, CatalogError> {

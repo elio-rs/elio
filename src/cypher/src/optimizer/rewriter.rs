@@ -21,6 +21,7 @@ pub trait PlanRewriter {
             PlanExpr::CreateRel(p) => self.rewrite_create_rel(p),
             PlanExpr::Load(p) => self.rewrite_load(p),
             PlanExpr::CrossProduct(p) => self.rewrite_cross_product(p),
+            PlanExpr::Aggregate(p) => self.rewrite_aggregate(p),
             PlanExpr::Project(p) => self.rewrite_project(p),
             PlanExpr::Sort(p) => self.rewrite_sort(p),
             PlanExpr::Filter(p) => self.rewrite_filter(p),
@@ -84,6 +85,10 @@ pub trait PlanRewriter {
 
     fn rewrite_cross_product(&mut self, plan: CrossProduct) -> PlanExpr {
         self.rewrite_children(PlanExpr::CrossProduct(plan))
+    }
+
+    fn rewrite_aggregate(&mut self, plan: Aggregate) -> PlanExpr {
+        self.rewrite_children(PlanExpr::Aggregate(plan))
     }
 
     fn rewrite_project(&mut self, plan: Project) -> PlanExpr {

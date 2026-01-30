@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use elio_catalog::FunctionCatalog;
 use elio_catalog::error::CatalogError;
 use elio_common::{LabelId, PropertyKeyId, TokenId, TokenKind};
-use elio_cypher::plan_context::PlanContext;
+use elio_cypher::planner::PlannerContext;
 use elio_cypher::session::{self, IndexHint, PlanLevel, PlannerSession};
 use elio_expr::FUNCTION_REGISTRY;
 use elio_parser::ast;
@@ -155,8 +155,8 @@ impl MockPlannerSession {
 }
 
 impl PlannerSession for MockPlannerSession {
-    fn derive_plan_context(self: Arc<Self>) -> Arc<PlanContext> {
-        Arc::new(PlanContext::new(self))
+    fn derive_planner_context(self: Arc<Self>) -> PlannerContext {
+        PlannerContext::new(self)
     }
 
     fn get_or_create_token(&self, token: &str, kind: TokenKind) -> Result<TokenId, CatalogError> {

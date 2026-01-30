@@ -10,7 +10,9 @@ use crate::ir::order::SortItem;
 use crate::ir::query_project::{
     AggregateProjection, DistinctProjection, Pagination, Projection, QueryProjection, RegularProjection, Unwind,
 };
-use crate::plan_node::{Filter, FilterInner, PaginationInner, PlanExpr, Project, ProjectInner, Sort, SortInner};
+use crate::plan_node::{
+    Aggregate, AggregateInner, Filter, FilterInner, PaginationInner, PlanExpr, Project, ProjectInner, Sort, SortInner,
+};
 use crate::planner::PlannerContext;
 
 pub fn plan_query_projection(
@@ -63,9 +65,9 @@ fn plan_project(
 }
 
 fn plan_aggregate(
-    _ctx: &mut PlannerContext,
-    _root: Box<PlanExpr>,
-    _project @ AggregateProjection {
+    ctx: &mut PlannerContext,
+    root: Box<PlanExpr>,
+    AggregateProjection {
         group_by,
         aggregate,
         order_by,
@@ -73,7 +75,26 @@ fn plan_aggregate(
         filter,
     }: &AggregateProjection,
 ) -> Result<Box<PlanExpr>, PlanError> {
-    Err(PlanError::not_supported("aggregate clause not implemented yet."))
+    let inner = AggregateInner {
+        input: root,
+        group_by: group_by.iter().map(|(k, v)| (k.clone(), v.clone())).collect_vec(),
+        aggregate: aggregate.iter().map(|(k, v)| (k.clone(), v.clone())).collect_vec(),
+    };
+    let mut root: Box<PlanExpr> = Aggregate::new(inner).into();
+
+    if !filter.is_true() {
+        root = plan_selection(ctx, root, filter)?;
+    }
+
+    if !order_by.is_empty() {
+        root = plan_sort(ctx, root, order_by)?;
+    }
+
+    if !pagination.is_empty() {
+        root = plan_pagination(ctx, root, pagination)?;
+    }
+
+    Ok(root)
 }
 
 fn plan_distinct(

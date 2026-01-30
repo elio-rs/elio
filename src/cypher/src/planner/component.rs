@@ -150,7 +150,7 @@ impl<'a> TraversalSolver<'a> {
         arguments: &IndexSet<Variable>,
     ) -> Option<(PlanExpr, FilterExprs)> {
         // Find index candidates for this node
-        let candidate = find_index_candidates(&ctx.ctx, arguments, filter, node_var)?;
+        let candidate = find_index_candidates(ctx, arguments, filter, node_var)?;
 
         let arguments = if !arguments.is_empty() {
             Some(
