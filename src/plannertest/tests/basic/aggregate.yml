@@ -1,0 +1,30 @@
+- sql: |
+    MATCH (a)--(b) RETURN a, SUM(b)
+  desc: aggregate sum
+  tasks: 
+    - bind
+    - plan
+- sql: |
+    MATCH (a)--(b) RETURN a, SUM(b.age)
+  desc: aggregate sum
+  tasks: 
+    - bind
+    - plan
+- sql: |
+    MATCH (a)--(b) RETURN a, SUM(b.age + 1)
+  desc: aggregate sum with expression
+  tasks: 
+    - bind
+    - plan
+- sql: |
+    MATCH (a)--(b) RETURN a, SUM(b.age) + 1
+  desc: aggregate sum then project
+  tasks: 
+    - bind
+    - plan
+- sql: |
+    MATCH (a)--(b) RETURN a.age + 1, SUM(b.age)
+  desc: aggregate sum then project
+  tasks: 
+    - bind
+    - plan

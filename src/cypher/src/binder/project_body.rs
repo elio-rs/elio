@@ -1,265 +1,481 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use elio_catalog::FunctionCatalog;
 use elio_common::scalar::ScalarValue;
 use elio_common::schema::Variable;
+use elio_common::variable::VariableName;
 use elio_parser::ast::{self, ReturnItem};
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 
 use crate::binder::BindContext;
 use crate::binder::builder::IrSingleQueryBuilder;
-use crate::binder::expr::bind_expr;
+use crate::binder::expr::{bind_expr, bind_where};
 use crate::binder::query::ClauseKind;
 use crate::binder::scope::{Scope, ScopeItem};
 use crate::error::{PlanError, SemanticError};
-use crate::expr::{Constant, Expr, ExprNode, FilterExprs, VariableRef};
+use crate::expr::{Constant, Expr, ExprNode, ExprRewriter, FilterExprs, VariableRef};
 use crate::ir::order::SortItem;
 use crate::ir::query_project::{
     AggregateProjection, DistinctProjection, Pagination, Projection, QueryProjection, RegularProjection,
 };
+use crate::variable::VariableGenerator;
 
 pub enum BoundReturnItems {
     Project(Vec<(Variable, Expr)>),
     Aggregate(),
 }
 
+pub fn expand_star_expression(scope: &Scope, return_items: &ast::ReturnItems) -> Result<Vec<ReturnItem>, PlanError> {
+    if return_items.projection_kind.include_existing() {
+        let mut new_return_items = return_items.items.clone();
+        for item in scope.symbol_items() {
+            if new_return_items.iter().any(|x| match (&x.alias, &item.symbol) {
+                (Some(a), Some(b)) => a.eq(b),
+                _ => false,
+            }) {
+                continue;
+            } else {
+                new_return_items.push(ReturnItem {
+                    expr: Box::new(ast::Expr::new_variable(item.symbol.clone().unwrap())),
+                    alias: Some(item.symbol.clone().unwrap()),
+                });
+            }
+        }
+        Ok(new_return_items)
+    } else {
+        Ok(return_items.items.clone())
+    }
+}
+
+// 1. extract top level aggregate
+// 4. Bind include existing: Variable -> Expr, by in scope, existing will be put into group_by
+// 2. Bind GroupBy arguments: varaible -> Expr. by in scope
+// 3. Bind Agg arguments: variable -> Expr, by in scope
+// 5. Bind post_agg arguments: variable -> Expr by agg out scope
+// 5. pre_agg = group_by_args(include existings) + agg_args
+// 6. agg: group_by + agg(agg_args)
+// 7. post_agg =
+//
+//
+// # pre_agg:
+//  - in_scope: input scope of whole clause
+//  - out_scope:
+//     - symbols should be appear at final output
+//     - symbols/exprs acts as args of group_by and agg
+//  - action: Proj
+//     - symbol -> Expr
+// # agg:
+//  - in_scope: out scope of pre_agg_proj
+//  - out_scope:
+//     - symbols should be appear at final output
+//     - group_by symbols and agg result symbols
+//  - action: Agg
+//     - symbol -> Expr
+// # post_agg
+//  - in_scope: out scope of agg
+//  - out_scope:
+//     - symbols should be appear at final output
+//     - extra_project output symbols
+//  - action: Proj
+//     - symbol -> Expr
 pub fn bind_return_items(
     bctx: &BindContext,
     builder: &mut IrSingleQueryBuilder,
     scope: Scope,
     distinct: bool,
     for_clause: &ClauseKind,
-    _return_items @ ast::ReturnItems { projection_kind, items }: &ast::ReturnItems,
+    return_items: &ast::ReturnItems,
+    order_by: Option<&ast::OrderBy>,
+    skip: Option<&ast::Expr>,
+    limit: Option<&ast::Expr>,
+    where_: Option<&ast::Expr>,
 ) -> Result<Scope, PlanError> {
-    let mut group_by = vec![];
-    let mut existing = vec![];
-    let mut agg = vec![];
-    let mut post_proj = vec![];
+    let return_items_str = return_items.to_string();
+    let return_items = expand_star_expression(&scope, return_items)?;
+    if return_items.is_empty() {
+        return Err(SemanticError::at_least_one_return_item(&return_items_str).into());
+    }
+    let contains_agg_or_distinct = distinct || return_items.iter().any(|item| contains_agg(bctx, &item.expr));
 
-    for item in items {
+    // the scope rule is different
+    // #1 contains agg or distinct
+    //   in this case, order by and limit can only reference the projected results.
+    // #2 does not contain agg or distinct
+    //   in this case, order by and limit are able to reference input + project symbols.
+
+    if contains_agg_or_distinct {
+        bind_group_by_and_agg(
+            bctx,
+            builder,
+            scope,
+            distinct,
+            for_clause,
+            &return_items,
+            order_by,
+            skip,
+            limit,
+            where_,
+        )
+    } else {
+        bind_normal_projection(
+            bctx,
+            builder,
+            scope,
+            for_clause,
+            &return_items,
+            order_by,
+            skip,
+            limit,
+            where_,
+        )
+    }
+}
+
+// in this case
+// the order by/pagination/where_ clause only works on the output of aggregation
+// and the output scope is only the output of post-aggregation projection
+fn bind_group_by_and_agg(
+    bctx: &BindContext,
+    builder: &mut IrSingleQueryBuilder,
+    scope: Scope,
+    distinct: bool,
+    for_clause: &ClauseKind,
+    return_items: &Vec<ReturnItem>,
+    order_by: Option<&ast::OrderBy>,
+    skip: Option<&ast::Expr>,
+    limit: Option<&ast::Expr>,
+    where_: Option<&ast::Expr>,
+) -> Result<Scope, PlanError> {
+    let mut group_keys = vec![];
+    // contains aggregate expressions
+    let mut aggs = vec![];
+
+    for item in return_items.iter() {
         let args = extract_top_level_aggregate(bctx, &item.expr)?;
         if args.is_empty() {
-            group_by.push(item);
+            group_keys.push(item);
         } else {
-            post_proj.push(item);
-            agg.push(args);
+            aggs.push(item);
         }
     }
 
-    // WITH clause must be aliased if it contains an non-variable or function call expression
-    if matches!(for_clause, ClauseKind::With) {
-        for item in items.iter() {
-            if item.alias.is_none() && !item.expr.is_variable() {
-                return Err(SemanticError::return_item_must_be_aliased(&item.to_string(), "WITH").into());
-            }
-        }
-    }
-
-    // expand star
-    if projection_kind.include_existing() {
-        for in_item in scope.symbol_items() {
-            if group_by
-                .iter()
-                .chain(post_proj.iter())
-                .any(|ReturnItem { alias, .. }| match (alias, &in_item.symbol) {
-                    (Some(new), Some(existing)) => new.eq(existing),
-                    _ => false,
-                })
-            {
-                // overwrite the existing item
-                continue;
-            } else {
-                // add symbol to existing
-                existing.push((
-                    in_item.variable.clone(),
-                    in_item.symbol.clone().unwrap(),
-                    in_item.as_expr(),
-                ));
-            }
-        }
-    }
-
-    let (mut agg_in_scope, group_by_expr) = {
-        // regular projection or distinct or before aggregation
-        // TODO(pgao): if there's no projection, the scope should be inscope
-        // for the case WITH * [WHERE]
+    let (group_exprs, mut out_scope) = {
+        let mut group_exprs = IndexMap::new();
         let mut out_scope = Scope::empty();
-        let mut projections = IndexMap::new();
+
         let clause = format!("{} Clause", for_clause);
         let ectx = bctx.derive_expr_context(&scope, &clause);
-        for ReturnItem { expr, alias } in group_by {
-            let bound_expr = bind_expr(&ectx, &bctx.outer_scopes, expr)?;
-            let symbol = alias.clone().unwrap_or(expr.to_string());
+        for item in group_keys.iter() {
+            let bound_expr = bind_expr(&ectx, &bctx.outer_scopes, &item.expr)?;
+            let symbol = item.alias.clone().unwrap_or(item.expr.to_string());
             let var_name = bctx.variable_generator.named(&symbol);
             let item = ScopeItem {
                 symbol: Some(symbol.to_string()),
                 variable: var_name.clone(),
-                expr: HashSet::from_iter(vec![*expr.clone()]),
+                expr: HashSet::from_iter(vec![*item.expr.clone()]),
                 typ: bound_expr.typ(),
                 bound_expr: None,
             };
             out_scope.add_item(item);
-            projections.insert(var_name, bound_expr);
+            group_exprs.insert(var_name, bound_expr);
         }
 
-        // add existing to out scope and projections
-        for (var, symbol, expr) in existing.iter() {
-            let item = ScopeItem {
-                symbol: Some(symbol.to_string()),
-                variable: var.clone(),
-                expr: Default::default(),
-                typ: expr.typ(),
-                bound_expr: None,
-            };
-            out_scope.add_item(item);
-            projections.insert(var.clone(), expr.clone());
-        }
-
-        (out_scope, projections)
+        (group_exprs, out_scope)
     };
 
-    if group_by_expr.is_empty() {
-        // TODO(pgao): we should have an bind context here
-        return Err(SemanticError::at_least_one_return_item("").into());
-    }
+    if aggs.is_empty() {
+        // does not contain agg, this is a distinct only projection
+        assert!(distinct);
 
-    if post_proj.is_empty() {
-        let query_project = {
-            if distinct {
-                let proj = DistinctProjection {
-                    group_by: group_by_expr,
-                    order_by: Default::default(),
-                    pagination: Default::default(),
-                    filter: FilterExprs::empty(),
-                };
-                let proj = Projection::Distinct(proj);
-                QueryProjection::Project(proj)
-            } else {
-                let proj = Projection::Regular(RegularProjection {
-                    items: group_by_expr,
-                    order_by: Default::default(),
-                    pagination: Default::default(),
-                    filter: FilterExprs::empty(),
-                });
-                QueryProjection::Project(proj)
-            }
-        };
-        builder.tail_mut().unwrap().with_projection(query_project);
-        return Ok(agg_in_scope);
-    }
-
-    // handle aggreegation
-    // MATCH (a)--(b) WITH *, a.name AS col1, SUM(a.age + b.age)/COUNT(b) AS b
-    // in_scope = [*]
-    // agg_in_scope = [*, a.name AS col1, a.age + b.age AS col2, b]
-    // agg_out_scope = [*, col1, SUM(col2), COUNT(b)]
-    // project_out_scope = [*, col1, SUM(col2)/COUNT(b) AS b]
-
-    let post_proj_scope = agg_in_scope.clone();
-    let ectx = bctx.derive_expr_context(&scope, "Aggregation");
-    // bind agg args in agg_in_scope
-    let agg_args = agg
-        .iter()
-        .flat_map(|expr| {
-            let mut ret_args = vec![];
-            for e in expr.iter() {
-                if let ast::Expr::FunctionCall { args, .. } = e {
-                    ret_args.extend(args);
-                }
-            }
-            ret_args
-        })
-        .collect_vec();
-
-    for arg in agg_args {
-        let bound_expr = bind_expr(&ectx, &bctx.outer_scopes, arg)?;
-        let item = if let Expr::VariableRef(VariableRef { name, .. }) = &bound_expr {
-            ScopeItem {
-                symbol: None,
-                variable: name.clone(),
-                expr: HashSet::from_iter(vec![arg.clone()]),
-                typ: bound_expr.typ(),
-                bound_expr: None,
-            }
+        let order_by_expr = if let Some(order_by) = order_by {
+            bind_order_by(bctx, &scope, order_by)?
         } else {
-            // create another variable
-            let var_name = bctx.variable_generator.unnamed();
-            ScopeItem {
-                symbol: None,
-                variable: var_name,
-                expr: HashSet::from_iter(vec![arg.clone()]),
-                typ: bound_expr.typ(),
-                bound_expr: None,
-            }
+            Default::default()
         };
-        if agg_in_scope.resolve_variable(&item.variable).is_none() {
-            agg_in_scope.add_item(item);
-        }
-    }
 
-    // bind aggregate, works on agg_in_scope
-    let mut agg_expr = IndexMap::default();
+        let pagination = bind_pagination(bctx, &scope, skip, limit)?;
 
-    let ectx = bctx.derive_expr_context(&agg_in_scope, "Aggregation");
-    for item in agg.iter().flatten() {
-        let bound_expr = bind_expr(&ectx, &bctx.outer_scopes, item)?;
-        let var_name = bctx.variable_generator.unnamed();
-        agg_expr.insert(var_name, bound_expr);
-    }
+        let filter = if let Some(where_) = where_ {
+            bind_where(bctx, &scope, where_)?
+        } else {
+            FilterExprs::empty()
+        };
 
-    // add projection to builder
-    {
-        let agg_proj = AggregateProjection {
-            group_by: group_by_expr.clone(),
-            aggregate: agg_expr,
-            order_by: Default::default(),
-            pagination: Default::default(),
-            filter: Default::default(),
+        let proj = DistinctProjection {
+            group_by: group_exprs,
+            order_by: order_by_expr,
+            pagination,
+            filter,
         };
         builder
             .tail_mut()
             .unwrap()
-            .with_projection(QueryProjection::Project(Projection::Aggregate(agg_proj)));
+            .with_projection(QueryProjection::Project(Projection::Distinct(proj)));
+        return Ok(out_scope);
     }
 
-    // post projection
-    let mut out_scope = post_proj_scope.clone();
-    {
-        let mut projs = group_by_expr.clone();
-        let ectx = bctx.derive_expr_context(&post_proj_scope, "Aggregation");
-        for item in post_proj {
-            let expr = bind_expr(&ectx, &bctx.outer_scopes, &item.expr)?;
+    // aggregation projection
+    let agg_exprs = {
+        let mut agg_exprs = IndexMap::new();
+        let clause = format!("{} Clause", for_clause);
+        let ectx = bctx.derive_expr_context(&scope, &clause);
+        for item in aggs {
+            let bound_expr = bind_expr(&ectx, &bctx.outer_scopes, &item.expr)?;
             let symbol = item.alias.clone().unwrap_or(item.expr.to_string());
             let var_name = bctx.variable_generator.named(&symbol);
-            let typ = expr.typ();
-
-            projs.insert(var_name.clone(), expr);
-            out_scope.add_item(ScopeItem {
-                symbol: Some(symbol),
-                variable: var_name,
+            let item = ScopeItem {
+                symbol: Some(symbol.to_string()),
+                variable: var_name.clone(),
                 expr: HashSet::from_iter(vec![*item.expr.clone()]),
-                typ,
+                typ: bound_expr.typ(),
                 bound_expr: None,
-            });
+            };
+            out_scope.add_item(item);
+            agg_exprs.insert(var_name, bound_expr);
         }
-        // add new part
-        // TODO(pgao): we should add the imported variables to the tail
-        builder.new_tail(Default::default());
-        builder
-            .tail_mut()
-            .unwrap()
-            .with_projection(QueryProjection::Project(Projection::Regular(RegularProjection {
-                items: projs,
-                order_by: Default::default(),
-                pagination: Default::default(),
-                filter: FilterExprs::empty(),
-            })));
+        agg_exprs
+    };
+
+    // split agg_exprs into two parts:
+    // 1. pure_agg expressions
+    // 2. final projection
+    // 3 * (SUM(a.age) + 1)
+    let mut aggregate_map = IndexMap::default();
+    let mut dedup = HashMap::default();
+    let mut post_projection = IndexMap::new();
+
+    for (var_name, expr) in agg_exprs.iter() {
+        let mut extractor = AggExtractor::new(
+            bctx.variable_generator.as_ref(),
+            &mut aggregate_map,
+            &mut dedup,
+            Some(var_name.clone()),
+        );
+        let rewritten = extractor.rewrite(expr.clone());
+        post_projection.insert(var_name.clone(), rewritten);
     }
+
+    let order_by_expr = if let Some(order_by) = order_by {
+        bind_order_by(bctx, &scope, order_by)?
+    } else {
+        Default::default()
+    };
+
+    let pagination = bind_pagination(bctx, &scope, skip, limit)?;
+
+    let filter = if let Some(where_) = where_ {
+        bind_where(bctx, &scope, where_)?
+    } else {
+        FilterExprs::empty()
+    };
+
+    let proj = AggregateProjection {
+        group_by: group_exprs,
+        aggregate: aggregate_map,
+        post_projection,
+        order_by: order_by_expr,
+        pagination,
+        filter,
+    };
+
+    builder
+        .tail_mut()
+        .unwrap()
+        .with_projection(QueryProjection::Project(Projection::Aggregate(proj)));
+    Ok(out_scope)
+}
+
+// in this case, the order by/pagination/where_ clause works on the input + output of projection
+// but the output will only be return_items
+fn bind_normal_projection(
+    bctx: &BindContext,
+    builder: &mut IrSingleQueryBuilder,
+    scope: Scope,
+    for_clause: &ClauseKind,
+    return_items: &Vec<ReturnItem>,
+    order_by: Option<&ast::OrderBy>,
+    skip: Option<&ast::Expr>,
+    limit: Option<&ast::Expr>,
+    where_: Option<&ast::Expr>,
+) -> Result<Scope, PlanError> {
+    let mut out_scope = Scope::empty();
+    let mut final_output = IndexSet::new();
+    let clause = format!("{} Clause", for_clause);
+    let ectx = bctx.derive_expr_context(&scope, &clause);
+    let mut proj_exprs = IndexMap::new();
+
+    for ReturnItem { expr, alias } in return_items.iter() {
+        let bound_expr = bind_expr(&ectx, &bctx.outer_scopes, expr)?;
+        let symbol = alias.clone().unwrap_or(expr.to_string());
+        let var_name = bctx.variable_generator.named(&symbol);
+        let item = ScopeItem {
+            symbol: Some(symbol.to_string()),
+            variable: var_name.clone(),
+            expr: HashSet::from_iter(vec![*expr.clone()]),
+            typ: bound_expr.typ(),
+            bound_expr: None,
+        };
+        out_scope.add_item(item);
+        proj_exprs.insert(var_name.clone(), bound_expr);
+        final_output.insert(var_name);
+    }
+
+    // add input_scope to out_scope in order to bind orderby/where_/paginaition clause
+    for item in scope.symbol_items() {
+        let input_alias = item.symbol.as_ref().unwrap();
+        if out_scope.resolve_symbol(input_alias).is_some() {
+            // let output override the input symbol
+            continue;
+        }
+        out_scope.add_item(item.clone());
+    }
+
+    let order_by_expr = if let Some(order_by) = order_by {
+        bind_order_by(bctx, &out_scope, order_by)?
+    } else {
+        Default::default()
+    };
+
+    let pagination = bind_pagination(bctx, &out_scope, skip, limit)?;
+
+    let filter = if let Some(where_) = where_ {
+        bind_where(bctx, &out_scope, where_)?
+    } else {
+        FilterExprs::empty()
+    };
+
+    // let output scope only contains the final output variables
+    out_scope.retain(|item| final_output.contains(&item.variable));
+
+    let proj = RegularProjection {
+        items: proj_exprs,
+        order_by: order_by_expr,
+        pagination,
+        filter,
+        output: final_output,
+    };
+
+    builder
+        .tail_mut()
+        .unwrap()
+        .with_projection(QueryProjection::Project(Projection::Regular(proj)));
 
     Ok(out_scope)
 }
 
+fn contains_agg(bctx: &BindContext, expr: &ast::Expr) -> bool {
+    match expr {
+        ast::Expr::Literal { .. } => false,
+        ast::Expr::Variable { .. } => false,
+        ast::Expr::Parameter { .. } => false,
+        ast::Expr::MapExpression { values, .. } => values.iter().any(|x| contains_agg(bctx, x)),
+        ast::Expr::PropertyAccess { map, .. } => contains_agg(bctx, map),
+        ast::Expr::ListExpression { items } => items.iter().any(|x| contains_agg(bctx, x)),
+        ast::Expr::ListSlice { list, .. } => contains_agg(bctx, list),
+        ast::Expr::ListIndex { list, .. } => contains_agg(bctx, list),
+        ast::Expr::Unary { oprand, .. } => contains_agg(bctx, oprand),
+        ast::Expr::Binary { left, right, .. } => contains_agg(bctx, left) || contains_agg(bctx, right),
+        ast::Expr::FunctionCall { args, .. } => args.iter().any(|x| contains_agg(bctx, x)),
+    }
+}
+
+/// Rewrites `Expr::AggCall` into `VariableRef`, collecting the lifted aggregates.
+/// - Deduplicates identical aggregate calls.
+/// - If the whole expression is a single agg and an alias is provided, uses that alias; otherwise generates an
+///   anonymous variable.
+struct AggExtractor<'a> {
+    var_gen: &'a VariableGenerator,
+    agg_map: &'a mut IndexMap<VariableName, Expr>,
+    dedup: &'a mut HashMap<Expr, VariableName>,
+    alias_hint: Option<VariableName>,
+    at_root: bool,
+}
+
+impl<'a> AggExtractor<'a> {
+    fn new(
+        var_gen: &'a VariableGenerator,
+        agg_map: &'a mut IndexMap<VariableName, Expr>,
+        dedup: &'a mut HashMap<Expr, VariableName>,
+        alias_hint: Option<VariableName>,
+    ) -> Self {
+        Self {
+            var_gen,
+            agg_map,
+            dedup,
+            alias_hint,
+            at_root: true,
+        }
+    }
+}
+
+impl<'a> ExprRewriter for AggExtractor<'a> {
+    fn rewrite_agg_call(&mut self, expr: crate::expr::AggCall) -> Expr {
+        // children already rewritten inside map_children if called via rewrite_children
+        let typ = expr.typ();
+        let agg_expr = Expr::AggCall(expr.clone());
+        if let Some(var) = self.dedup.get(&agg_expr) {
+            return Expr::VariableRef(VariableRef::new_unchecked(var.clone(), typ));
+        }
+
+        let is_root = self.at_root;
+        self.at_root = false;
+        let var_name = if is_root {
+            self.alias_hint.clone().unwrap_or_else(|| self.var_gen.unnamed())
+        } else {
+            self.var_gen.unnamed()
+        };
+
+        self.agg_map.insert(var_name.clone(), agg_expr.clone());
+        self.dedup.insert(agg_expr, var_name.clone());
+        Expr::VariableRef(VariableRef::new_unchecked(var_name, typ))
+    }
+
+    fn rewrite_func_call(&mut self, expr: crate::expr::FuncCall) -> Expr {
+        self.at_root = false;
+        self.rewrite_children(Expr::FuncCall(expr))
+    }
+
+    fn rewrite_property_access(&mut self, expr: crate::expr::PropertyAccess) -> Expr {
+        self.at_root = false;
+        self.rewrite_children(Expr::PropertyAccess(expr))
+    }
+
+    fn rewrite_create_struct(&mut self, expr: crate::expr::CreateStruct) -> Expr {
+        self.at_root = false;
+        self.rewrite_children(Expr::CreateStruct(expr))
+    }
+
+    fn rewrite_create_list(&mut self, expr: crate::expr::CreateList) -> Expr {
+        self.at_root = false;
+        self.rewrite_children(Expr::CreateList(expr))
+    }
+
+    fn rewrite_has_label(&mut self, expr: crate::expr::HasLabel) -> Expr {
+        self.at_root = false;
+        self.rewrite_children(Expr::HasLabel(expr))
+    }
+
+    fn rewrite_project_path(&mut self, expr: crate::expr::ProjectPath) -> Expr {
+        self.at_root = false;
+        Expr::ProjectPath(expr)
+    }
+
+    fn rewrite_variable_ref(&mut self, expr: VariableRef) -> Expr {
+        self.at_root = false;
+        Expr::VariableRef(expr)
+    }
+
+    fn rewrite_constant(&mut self, expr: Constant) -> Expr {
+        self.at_root = false;
+        Expr::Constant(expr)
+    }
+}
+
+// input: SUM(a.age + b)/COUNT(b)
+// output: [SUM(a.age + b), COUNT(b)]
+// input: SUM(a.age + b)
+// output:
 fn extract_top_level_aggregate(bctx: &BindContext, expr: &ast::Expr) -> Result<Vec<ast::Expr>, PlanError> {
     let mut aggs = vec![];
     match expr {
@@ -298,13 +514,13 @@ fn resolve_function(bctx: &BindContext, name: &str) -> Result<FunctionCatalog, P
 
 pub fn bind_order_by(
     bctx: &BindContext,
-    builder: &mut IrSingleQueryBuilder,
     scope: &Scope,
-    _order_by @ ast::OrderBy { items }: &ast::OrderBy,
-) -> Result<(), PlanError> {
+    order_by @ ast::OrderBy { items }: &ast::OrderBy,
+) -> Result<Vec<SortItem>, PlanError> {
     let mut bound_items = vec![];
+    let order_by_str = order_by.to_string();
 
-    let ectx = bctx.derive_expr_context(scope, "OrderBy");
+    let ectx = bctx.derive_expr_context(scope, &order_by_str);
     ectx.sema_flags.reject_aggregate();
     ectx.sema_flags.reject_outer_reference();
 
@@ -315,21 +531,15 @@ pub fn bind_order_by(
             direction: item.direction,
         });
     }
-
-    builder
-        .tail_mut()
-        .unwrap()
-        .update_projection(|p| p.set_order_by(bound_items));
-    Ok(())
+    Ok(bound_items)
 }
 
 pub fn bind_pagination(
     bctx: &BindContext,
-    builder: &mut IrSingleQueryBuilder,
     scope: &Scope,
     skip: Option<&ast::Expr>,
     limit: Option<&ast::Expr>,
-) -> Result<(), PlanError> {
+) -> Result<Pagination, PlanError> {
     let mut pagination = Pagination::default();
 
     if let Some(skip) = skip {
@@ -366,9 +576,5 @@ pub fn bind_pagination(
         }
     }
 
-    builder
-        .tail_mut()
-        .unwrap()
-        .update_projection(|p| p.set_pagination(pagination));
-    Ok(())
+    Ok(pagination)
 }

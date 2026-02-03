@@ -36,11 +36,12 @@ pub fn plan_query_projection(
 fn plan_project(
     ctx: &mut PlannerContext,
     root: Box<PlanExpr>,
-    _project @ RegularProjection {
+    project @ RegularProjection {
         items,
         order_by,
         pagination,
         filter,
+        output,
     }: &RegularProjection,
 ) -> Result<Box<PlanExpr>, PlanError> {
     let inner = ProjectInner {
@@ -61,26 +62,46 @@ fn plan_project(
         root = plan_pagination(ctx, root, pagination)?;
     }
 
+    if let Some(extra_proj) = project.extra_project() {
+        let inner = ProjectInner {
+            input: root,
+            projections: extra_proj.iter().map(|(k, v)| (k.clone(), v.clone())).collect_vec(),
+        };
+        root = Project::new(inner).into();
+    }
+
     Ok(root)
 }
 
 fn plan_aggregate(
     ctx: &mut PlannerContext,
     root: Box<PlanExpr>,
-    AggregateProjection {
+    agg_proj @ AggregateProjection {
         group_by,
         aggregate,
+        post_projection: _,
         order_by,
         pagination,
         filter,
     }: &AggregateProjection,
 ) -> Result<Box<PlanExpr>, PlanError> {
+    // TODO(pgao): pre-aggregation projection
+
     let inner = AggregateInner {
         input: root,
         group_by: group_by.iter().map(|(k, v)| (k.clone(), v.clone())).collect_vec(),
         aggregate: aggregate.iter().map(|(k, v)| (k.clone(), v.clone())).collect_vec(),
     };
     let mut root: Box<PlanExpr> = Aggregate::new(inner).into();
+
+    // post-aggregation projection
+    if let Some(extra_proj) = agg_proj.extra_project() {
+        let inner = ProjectInner {
+            input: root,
+            projections: extra_proj.iter().map(|(k, v)| (k.clone(), v.clone())).collect_vec(),
+        };
+        root = Project::new(inner).into();
+    }
 
     if !filter.is_true() {
         root = plan_selection(ctx, root, filter)?;

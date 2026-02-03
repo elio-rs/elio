@@ -43,7 +43,7 @@ impl Catalog {
     }
 
     pub fn get_function_by_name(&self, name: &str) -> Option<&FunctionCatalog> {
-        self.functions.get(name)
+        self.functions.get(&name.trim().to_lowercase())
     }
 }
 

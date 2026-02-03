@@ -636,17 +636,16 @@ fn build_aggregate(
     node: &plan_node::Aggregate,
     inputs: Vec<SharedExecutor>,
 ) -> Result<SharedExecutor, BuildError> {
-    // Aggregate is unary
     assert_eq!(inputs.len(), 1);
     let [input]: [SharedExecutor; 1] = inputs.try_into().unwrap();
 
     let input_schema = input.schema();
-    let name2col = input_schema.name_to_col_map();
+    let input_name2col = input_schema.name_to_col_map();
 
     // group key column indexes
     let mut group_idx = Vec::with_capacity(node.inner().group_by.len());
     for (_var, expr) in node.inner().group_by.iter() {
-        let idx = resolve_col_ref(&name2col, expr, "group key")?;
+        let idx = resolve_col_ref(&input_name2col, expr, "group key")?;
         group_idx.push(idx);
     }
 
@@ -667,7 +666,7 @@ fn build_aggregate(
                 Backtrace::capture(),
             ));
         };
-
+        // TODO(pgao): support distinct
         if *distinct {
             return Err(BuildError::MalformedPlan(
                 "DISTINCT aggregate not supported yet".to_string(),
@@ -677,10 +676,11 @@ fn build_aggregate(
 
         let arg_idx: Vec<usize> = args
             .iter()
-            .map(|a| resolve_col_ref(&name2col, a, "aggregate argument"))
+            .map(|a| resolve_col_ref(&input_name2col, a, "aggregate argument"))
             .collect::<Result<_, _>>()?;
         agg_args.push(arg_idx);
 
+        // TODO(pgao): get function from catalogs, not from FUNCTION_REGISTRY
         let func_impl = FUNCTION_REGISTRY.get_func_impl(func_id);
         // TODO(pgao): avoid this match here.
         let FuncInvoke::Agg(invoker) = &func_impl.func_invoke else {

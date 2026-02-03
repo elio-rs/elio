@@ -156,7 +156,14 @@ impl Expr {
                     func_call.args.iter().map(|a| a.pretty()).collect::<Vec<_>>().join(", ")
                 )
             }
-            Expr::AggCall(_agg_call) => todo!(),
+            Expr::AggCall(agg_call) => {
+                format!(
+                    "{}({}{})",
+                    agg_call.func,
+                    if agg_call.distinct { "DISTINCT " } else { "" },
+                    agg_call.args.iter().map(|a| a.pretty()).collect::<Vec<_>>().join(", ")
+                )
+            }
             Expr::Subquery(_subquery) => todo!(),
             Expr::HasLabel(has_label) => {
                 format!("{}:{}", has_label.entity.pretty(), has_label.label_or_rel)

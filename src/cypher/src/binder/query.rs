@@ -7,10 +7,9 @@ use indexmap::IndexMap;
 use crate::binder::BindContext;
 use crate::binder::builder::IrSingleQueryBuilder;
 use crate::binder::create::bind_create;
-use crate::binder::expr::bind_where;
 use crate::binder::load::bind_load;
 use crate::binder::match_::bind_match;
-use crate::binder::project_body::{bind_order_by, bind_pagination, bind_return_items};
+use crate::binder::project_body::bind_return_items;
 use crate::binder::scope::Scope;
 use crate::error::{PlanError, SemanticError};
 use crate::ir::query::{IrQuery, IrQueryRoot, IrSingleQuery};
@@ -125,18 +124,18 @@ fn bind_with(
     // remove anonymous variables in in_scope
     in_scope.remove_anonymous();
     // bind projection
-    let mut scope = bind_return_items(bctx, builder, in_scope, *distinct, &ClauseKind::With, return_items)?;
-    // bind order by
-    if let Some(order_by) = order_by {
-        bind_order_by(bctx, builder, &scope, order_by)?;
-    }
-    // bind pagination
-    bind_pagination(bctx, builder, &scope, skip.as_deref(), limit.as_deref())?;
-    // bind where_
-    if let Some(where_) = where_ {
-        let filter = bind_where(bctx, &scope, where_)?;
-        builder.tail_mut().unwrap().update_projection(|p| p.set_filter(filter));
-    }
+    let mut scope = bind_return_items(
+        bctx,
+        builder,
+        in_scope,
+        *distinct,
+        &ClauseKind::With,
+        return_items,
+        order_by.as_ref(),
+        skip.as_deref(),
+        limit.as_deref(),
+        where_.as_deref(),
+    )?;
     scope.remove_anonymous();
     // start a new part
     builder.new_tail(scope.items.iter().map(|item| item.as_variable()).collect());
@@ -158,13 +157,18 @@ fn bind_return(
     // remove anonymous variables in in_scope
     in_scope.remove_anonymous();
     // bind projection
-    let mut scope = bind_return_items(bctx, builder, in_scope, *distinct, &ClauseKind::Return, return_items)?;
-    // bind order by
-    if let Some(order_by) = order_by {
-        bind_order_by(bctx, builder, &scope, order_by)?;
-    }
-    // bind pagination
-    bind_pagination(bctx, builder, &scope, skip.as_deref(), limit.as_deref())?;
+    let mut scope = bind_return_items(
+        bctx,
+        builder,
+        in_scope,
+        *distinct,
+        &ClauseKind::Return,
+        return_items,
+        order_by.as_ref(),
+        skip.as_deref(),
+        limit.as_deref(),
+        None,
+    )?;
     scope.remove_anonymous();
     Ok(scope)
 }

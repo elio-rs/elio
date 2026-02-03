@@ -170,7 +170,7 @@ impl PlannerSession for MockPlannerSession {
     }
 
     fn get_function_by_name(&self, name: &str) -> Option<&FunctionCatalog> {
-        self.catalog.functions.get(name)
+        self.catalog.functions.get(&name.trim().to_lowercase())
     }
 
     fn get_token_id(&self, token: &str, kind: TokenKind) -> Option<TokenId> {

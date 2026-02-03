@@ -44,7 +44,7 @@ impl ProduceResultInner {
                 name: var.clone(),
                 typ: input_schema
                     .column_by_name(var)
-                    .expect("column in return list must exist in input schema")
+                    .unwrap_or_else(|| panic!("column {var} in return list must exist in input schema"))
                     .typ
                     .materialize(),
             });
