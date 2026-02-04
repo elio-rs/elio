@@ -39,10 +39,10 @@ RootIR { names: [n] }
   ├─mutating_patterns
   │ └─CreatePattern { nodes: [(n@0):Person create_map{name: 'Alice', age: 30}], rels: [] }
   └─projection
-    └─Project { items: [n@1 AS n@0] }
+    └─Project { items: [n@0 AS n@0] }
 RootPlan { names: [n] }
-└─ProduceResult { return_columns: n@1 }
-  └─Project { exprs: [n@1 AS n@0] }
+└─ProduceResult { return_columns: n@0 }
+  └─Project { exprs: [n@0 AS n@0] }
     └─CreateNode { items: [CreateNodeItem { variable: n@0, labels: [Person], properties: create_map{name: 'Alice', age: 30} }] }
       └─Unit
 */

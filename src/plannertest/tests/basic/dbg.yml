@@ -1,0 +1,5 @@
+- sql: |
+    MATCH (a)--(b) RETURN a, SUM(b)
+  desc: aggregate sum
+  tasks: 
+    - bind

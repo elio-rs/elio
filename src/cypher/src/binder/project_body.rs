@@ -96,7 +96,17 @@ pub fn bind_return_items(
     if return_items.is_empty() {
         return Err(SemanticError::at_least_one_return_item(&return_items_str).into());
     }
-    let contains_agg_or_distinct = distinct || return_items.iter().any(|item| contains_agg(bctx, &item.expr));
+
+    let contains_agg_or_distinct = distinct || {
+        let mut found_agg = false;
+        for item in return_items.iter() {
+            if contains_agg(bctx, &item.expr)? {
+                found_agg = true;
+                break;
+            }
+        }
+        found_agg
+    };
 
     // the scope rule is different
     // #1 contains agg or distinct
@@ -150,13 +160,13 @@ fn bind_group_by_and_agg(
     let mut group_keys = vec![];
     // contains aggregate expressions
     let mut aggs = vec![];
+    let mut post_projection = IndexMap::new();
 
     for item in return_items.iter() {
-        let args = extract_top_level_aggregate(bctx, &item.expr)?;
-        if args.is_empty() {
-            group_keys.push(item);
-        } else {
+        if contains_agg(bctx, &item.expr)? {
             aggs.push(item);
+        } else {
+            group_keys.push(item);
         }
     }
 
@@ -167,18 +177,27 @@ fn bind_group_by_and_agg(
         let clause = format!("{} Clause", for_clause);
         let ectx = bctx.derive_expr_context(&scope, &clause);
         for item in group_keys.iter() {
-            let bound_expr = bind_expr(&ectx, &bctx.outer_scopes, &item.expr)?;
             let symbol = item.alias.clone().unwrap_or(item.expr.to_string());
-            let var_name = bctx.variable_generator.named(&symbol);
+            let bound_expr = bind_expr(&ectx, &bctx.outer_scopes, &item.expr)?;
+            let bound_var_name = if let Some(var_ref) = bound_expr.as_variable_ref() {
+                var_ref.name.clone()
+            } else {
+                bctx.variable_generator.named(&symbol)
+            };
             let item = ScopeItem {
                 symbol: Some(symbol.to_string()),
-                variable: var_name.clone(),
+                variable: bound_var_name.clone(),
                 expr: HashSet::from_iter(vec![*item.expr.clone()]),
                 typ: bound_expr.typ(),
                 bound_expr: None,
             };
+            let ref_bound_var = Expr::from_variable(&Variable {
+                name: bound_var_name.clone(),
+                typ: bound_expr.typ(),
+            });
             out_scope.add_item(item);
-            group_exprs.insert(var_name, bound_expr);
+            group_exprs.insert(bound_var_name.clone(), bound_expr);
+            post_projection.insert(bound_var_name, ref_bound_var);
         }
 
         (group_exprs, out_scope)
@@ -221,18 +240,22 @@ fn bind_group_by_and_agg(
         let clause = format!("{} Clause", for_clause);
         let ectx = bctx.derive_expr_context(&scope, &clause);
         for item in aggs {
-            let bound_expr = bind_expr(&ectx, &bctx.outer_scopes, &item.expr)?;
             let symbol = item.alias.clone().unwrap_or(item.expr.to_string());
-            let var_name = bctx.variable_generator.named(&symbol);
+            let bound_expr = bind_expr(&ectx, &bctx.outer_scopes, &item.expr)?;
+            let bound_var_name = if let Some(var_ref) = bound_expr.as_variable_ref() {
+                var_ref.name.clone()
+            } else {
+                bctx.variable_generator.named(&symbol)
+            };
             let item = ScopeItem {
                 symbol: Some(symbol.to_string()),
-                variable: var_name.clone(),
+                variable: bound_var_name.clone(),
                 expr: HashSet::from_iter(vec![*item.expr.clone()]),
                 typ: bound_expr.typ(),
                 bound_expr: None,
             };
             out_scope.add_item(item);
-            agg_exprs.insert(var_name, bound_expr);
+            agg_exprs.insert(bound_var_name, bound_expr);
         }
         agg_exprs
     };
@@ -243,7 +266,6 @@ fn bind_group_by_and_agg(
     // 3 * (SUM(a.age) + 1)
     let mut aggregate_map = IndexMap::default();
     let mut dedup = HashMap::default();
-    let mut post_projection = IndexMap::new();
 
     for (var_name, expr) in agg_exprs.iter() {
         let mut extractor = AggExtractor::new(
@@ -306,19 +328,23 @@ fn bind_normal_projection(
     let mut proj_exprs = IndexMap::new();
 
     for ReturnItem { expr, alias } in return_items.iter() {
-        let bound_expr = bind_expr(&ectx, &bctx.outer_scopes, expr)?;
         let symbol = alias.clone().unwrap_or(expr.to_string());
-        let var_name = bctx.variable_generator.named(&symbol);
+        let bound_expr = bind_expr(&ectx, &bctx.outer_scopes, expr)?;
+        let bound_var_name = if let Some(var_ref) = bound_expr.as_variable_ref() {
+            var_ref.name.clone()
+        } else {
+            bctx.variable_generator.named(&symbol)
+        };
         let item = ScopeItem {
             symbol: Some(symbol.to_string()),
-            variable: var_name.clone(),
+            variable: bound_var_name.clone(),
             expr: HashSet::from_iter(vec![*expr.clone()]),
             typ: bound_expr.typ(),
             bound_expr: None,
         };
         out_scope.add_item(item);
-        proj_exprs.insert(var_name.clone(), bound_expr);
-        final_output.insert(var_name);
+        proj_exprs.insert(bound_var_name.clone(), bound_expr);
+        final_output.insert(bound_var_name);
     }
 
     // add input_scope to out_scope in order to bind orderby/where_/paginaition clause
@@ -364,22 +390,49 @@ fn bind_normal_projection(
     Ok(out_scope)
 }
 
-fn contains_agg(bctx: &BindContext, expr: &ast::Expr) -> bool {
-    match expr {
+fn contains_agg(bctx: &BindContext, expr: &ast::Expr) -> Result<bool, PlanError> {
+    let res = match expr {
         ast::Expr::Literal { .. } => false,
         ast::Expr::Variable { .. } => false,
         ast::Expr::Parameter { .. } => false,
-        ast::Expr::MapExpression { values, .. } => values.iter().any(|x| contains_agg(bctx, x)),
-        ast::Expr::PropertyAccess { map, .. } => contains_agg(bctx, map),
-        ast::Expr::ListExpression { items } => items.iter().any(|x| contains_agg(bctx, x)),
-        ast::Expr::ListSlice { list, .. } => contains_agg(bctx, list),
-        ast::Expr::ListIndex { list, .. } => contains_agg(bctx, list),
-        ast::Expr::Unary { oprand, .. } => contains_agg(bctx, oprand),
-        ast::Expr::Binary { left, right, .. } => contains_agg(bctx, left) || contains_agg(bctx, right),
-        ast::Expr::FunctionCall { args, .. } => args.iter().any(|x| contains_agg(bctx, x)),
-    }
+        ast::Expr::MapExpression { values, .. } => {
+            for value in values.iter() {
+                if contains_agg(bctx, value)? {
+                    return Ok(true);
+                }
+            }
+            false
+        }
+        ast::Expr::PropertyAccess { map, .. } => contains_agg(bctx, map)?,
+        ast::Expr::ListExpression { items } => {
+            for item in items.iter() {
+                if contains_agg(bctx, item)? {
+                    return Ok(true);
+                }
+            }
+            false
+        }
+        ast::Expr::ListSlice { list, .. } => contains_agg(bctx, list)?,
+        ast::Expr::ListIndex { list, .. } => contains_agg(bctx, list)?,
+        ast::Expr::Unary { oprand, .. } => contains_agg(bctx, oprand)?,
+        ast::Expr::Binary { left, right, .. } => contains_agg(bctx, left)? || contains_agg(bctx, right)?,
+        ast::Expr::FunctionCall { args, name, .. } => {
+            let resolved_func = bctx
+                .resolve_function(name)
+                .ok_or_else(|| PlanError::from(SemanticError::unknown_function(name, "")))?;
+            if resolved_func.is_agg {
+                return Ok(true);
+            }
+            for arg in args.iter() {
+                if contains_agg(bctx, arg)? {
+                    return Ok(true);
+                }
+            }
+            false
+        }
+    };
+    Ok(res)
 }
-
 /// Rewrites `Expr::AggCall` into `VariableRef`, collecting the lifted aggregates.
 /// - Deduplicates identical aggregate calls.
 /// - If the whole expression is a single agg and an alias is provided, uses that alias; otherwise generates an
