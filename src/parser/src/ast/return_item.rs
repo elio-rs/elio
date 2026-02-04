@@ -36,7 +36,7 @@ impl ProjectionKind {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ReturnItem {
     pub expr: Box<Expr>,
     pub alias: Option<String>,

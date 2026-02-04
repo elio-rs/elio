@@ -9,7 +9,7 @@ use expr_macros::cypher_func;
 
 use crate::define_function;
 use crate::error::EvalError;
-use crate::func::FunctionRegistry;
+use crate::scalar::FunctionRegistry;
 
 #[cypher_func(batch_name = "any_unary_add_batch", sig = "(any) -> any")]
 fn any_unary_add(arg: ScalarRef<'_>) -> Result<ScalarValue, EvalError> {

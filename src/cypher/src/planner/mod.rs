@@ -10,6 +10,7 @@ use crate::ir::query::{IrQuery, IrQueryRoot, IrSingleQueryPart};
 use crate::plan_context::PlanContext;
 use crate::plan_node::{PlanExpr, ProduceResult, ProduceResultInner};
 use crate::planner::single_query::plan_single_query;
+use crate::session::PlannerSession;
 
 mod component;
 mod create;
@@ -23,7 +24,22 @@ mod tail;
 // planner temporaray state
 pub struct PlannerContext {
     ctx: Arc<PlanContext>,
+    sess: Arc<dyn PlannerSession>,
     _config: PlannerConfig,
+}
+
+impl PlannerContext {
+    pub fn new(sess: Arc<dyn PlannerSession>) -> Self {
+        Self {
+            ctx: Arc::new(PlanContext::default()),
+            sess,
+            _config: Default::default(),
+        }
+    }
+
+    pub fn session(&self) -> &Arc<dyn PlannerSession> {
+        &self.sess
+    }
 }
 
 #[derive(Default)]
@@ -58,17 +74,17 @@ impl RootPlan {
 }
 
 pub fn plan_root(
-    plan_ctx: &Arc<PlanContext>,
+    ctx: &mut PlannerContext,
     _root @ IrQueryRoot {
         inner,
         output_names: names,
     }: &IrQueryRoot,
 ) -> Result<RootPlan, PlanError> {
-    let mut ctx = PlannerContext {
-        ctx: plan_ctx.clone(),
-        // generate from session context
-        _config: Default::default(),
-    };
+    // let mut ctx = PlannerContext {
+    //     ctx: plan_ctx.clone(),
+    //     // generate from session context
+    //     _config: Default::default(),
+    // };
 
     let IrQuery { queries, union_all: _ } = inner;
     assert!(!queries.is_empty());
@@ -76,7 +92,7 @@ pub fn plan_root(
         return Err(PlanError::not_supported("Union all is not supported yet".to_string()));
     }
 
-    let plan = plan_single_query(&mut ctx, &queries[0])?;
+    let plan = plan_single_query(ctx, &queries[0])?;
 
     // plan produce result
     let plan = {

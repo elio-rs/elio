@@ -14,7 +14,7 @@ use elio_common::array::*;
 
 use crate::define_function;
 use crate::error::EvalError;
-use crate::func::FunctionRegistry;
+use crate::scalar::FunctionRegistry;
 
 // if either one of the input is null, return null
 fn bool_and_batch(args: &[ArrayRef], _vis: &BitVec, _len: usize) -> Result<ArrayImpl, EvalError> {

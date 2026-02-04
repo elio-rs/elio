@@ -3,8 +3,8 @@ MATCH (n:User {id: '123'}) RETURN n
 
 /*
 RootPlan { names: [n] }
-└─ProduceResult { return_columns: n@1 }
-  └─Project { exprs: [n@1 AS n@0] }
+└─ProduceResult { return_columns: n@0 }
+  └─Project { exprs: [n@0 AS n@0] }
     └─Filter { condition: n@0:User AND eq(n@0.id, '123') }
       └─AllNodeScan { variable: n@0 }
 */
@@ -21,8 +21,8 @@ MATCH (p:Person {email: 'alice@example.com'}) RETURN p
 
 /*
 RootPlan { names: [p] }
-└─ProduceResult { return_columns: p@1 }
-  └─Project { exprs: [p@1 AS p@0] }
+└─ProduceResult { return_columns: p@0 }
+  └─Project { exprs: [p@0 AS p@0] }
     └─NodeIndexSeek { variable: p@0, label: ResolvedIrToken(Person, 0), constraint: person_email_unique, properties: [ResolvedIrToken(email, 1) = 'alice@example.com'] }
 */
 
@@ -31,8 +31,8 @@ MATCH (p:Person {email: 'alice@example.com', name: 'Alice'}) RETURN p
 
 /*
 RootPlan { names: [p] }
-└─ProduceResult { return_columns: p@1 }
-  └─Project { exprs: [p@1 AS p@0] }
+└─ProduceResult { return_columns: p@0 }
+  └─Project { exprs: [p@0 AS p@0] }
     └─Filter { condition: eq(p@0.name, 'Alice') }
       └─NodeIndexSeek { variable: p@0, label: ResolvedIrToken(Person, 0), constraint: person_email_unique, properties: [ResolvedIrToken(email, 1) = 'alice@example.com'] }
 */

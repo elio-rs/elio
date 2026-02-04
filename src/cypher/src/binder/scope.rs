@@ -92,6 +92,10 @@ impl Scope {
         self.items.retain(|x| !x.is_anonymous());
     }
 
+    pub fn retain(&mut self, condition: impl Fn(&ScopeItem) -> bool) {
+        self.items.retain(|x| condition(x));
+    }
+
     pub fn product(self, other: Self) -> Self {
         let mut items = self.items;
         items.extend(other.items);

@@ -3,15 +3,13 @@
 //! This module analyzes filters and determines if a unique index can be used
 //! to directly lookup nodes instead of scanning all nodes.
 
-use std::sync::Arc;
-
 use elio_common::schema::Variable;
 use elio_common::variable::VariableName;
 use elio_common::{IrToken, ResolvedIrToken};
 use indexmap::IndexSet;
 
 use crate::expr::{Expr, FilterExprs, HasLabel};
-use crate::plan_context::PlanContext;
+use crate::planner::PlannerContext;
 use crate::session::IndexHint;
 
 /// Information extracted from a filter that can potentially use an index
@@ -29,7 +27,7 @@ pub struct IndexCandidate {
 
 /// Analyze the filter to find index candidates
 pub fn find_index_candidates(
-    ctx: &Arc<PlanContext>,
+    ctx: &PlannerContext,
     arguments: &IndexSet<Variable>, // some variables in filter may be already sovled by the arguments
     filter: &FilterExprs,
     node_var: &Variable,
@@ -57,7 +55,7 @@ pub fn find_index_candidates(
 // find if there's an index match on the given predicate combination
 // TODO(pgao): handle unique index with multiple properties.
 fn find_index_match(
-    ctx: &Arc<PlanContext>,
+    ctx: &PlannerContext,
     label: &ResolvedIrToken,
     prop: &SargablePropPredicate,
 ) -> Option<IndexCandidate> {

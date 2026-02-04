@@ -11,6 +11,7 @@ use crate::expr::{Expr, ExprNode};
 use crate::plan_context::PlanContext;
 use crate::plan_node::plan_base::{PlanBase, PlanNodeId};
 
+pub mod aggregate;
 pub mod all_node_scan;
 pub mod apply;
 pub mod argument;
@@ -31,6 +32,7 @@ pub mod project;
 pub mod sort;
 pub mod unit;
 pub mod var_expand;
+pub use aggregate::*;
 pub use all_node_scan::*;
 pub use apply::*;
 pub use argument::*;
@@ -76,6 +78,7 @@ pub enum PlanExpr {
     // relational
     Load(Load),
     CrossProduct(CrossProduct),
+    Aggregate(Aggregate),
     Project(Project),
     Sort(Sort),
     Filter(Filter),
@@ -156,6 +159,7 @@ impl_plan_node_common!(CreateNode, CreateNodeInner);
 impl_plan_node_common!(CreateRel, CreateRelInner);
 impl_plan_node_common!(Load, LoadInner);
 impl_plan_node_common!(Project, ProjectInner);
+impl_plan_node_common!(Aggregate, AggregateInner);
 impl_plan_node_common!(Sort, SortInner);
 impl_plan_node_common!(Filter, FilterInner);
 impl_plan_node_common!(Pagination, PaginationInner);
@@ -213,6 +217,7 @@ impl_plan_expr_dispatch!(
     CreateRel,
     Load,
     CrossProduct,
+    Aggregate,
     Project,
     Sort,
     Filter,
@@ -370,6 +375,20 @@ impl PlanExpr {
                     left,
                     right,
                 })))
+            }
+            PlanExpr::Aggregate(plan) => {
+                let AggregateInner {
+                    input,
+                    group_by,
+                    aggregate,
+                } = plan.into_inner();
+                let input = Box::new(f(*input)?);
+                Ok(Aggregate::new(AggregateInner {
+                    input,
+                    group_by,
+                    aggregate,
+                })
+                .into())
             }
             PlanExpr::Project(plan) => {
                 let ProjectInner { input, projections } = plan.into_inner();

@@ -15,7 +15,7 @@ use expr_macros::cypher_func;
 
 use crate::define_function;
 use crate::error::EvalError;
-use crate::func::FunctionRegistry;
+use crate::scalar::FunctionRegistry;
 
 #[cypher_func(batch_name = "boolean_to_boolean_batch", sig = "(bool) -> bool")]
 fn boolean_to_boolean(b: bool) -> bool {
@@ -113,7 +113,7 @@ fn any_to_string(arg: ScalarRef<'_>) -> Option<ScalarValue> {
 
 pub(crate) fn register(registry: &mut FunctionRegistry) {
     let to_boolean = define_function!(
-        name: "toBoolean",
+        name: &"toBoolean".to_lowercase(),
         impls: [
             {args: [{exact Bool}], ret: Bool, func: boolean_to_boolean_batch},
             {args: [{exact Any}], ret: Bool, func: any_to_boolean_batch}
@@ -123,7 +123,7 @@ pub(crate) fn register(registry: &mut FunctionRegistry) {
     registry.insert(to_boolean);
 
     let to_integer = define_function!(
-        name: "toInteger",
+        name: &"toInteger".to_lowercase(),
         impls: [
             {args: [{exact Bool}], ret: Any, func: boolean_to_integer_batch},
             {args: [{exact Any}], ret: Any, func: any_to_integer_batch}
@@ -133,7 +133,7 @@ pub(crate) fn register(registry: &mut FunctionRegistry) {
     registry.insert(to_integer);
 
     let to_float = define_function!(
-        name: "toFloat",
+        name: &"toFloat".to_lowercase(),
         impls: [
             {args: [{exact Bool}], ret: Any, func: boolean_to_float_batch},
             {args: [{exact Any}], ret: Any, func: any_to_float_batch}
@@ -143,7 +143,7 @@ pub(crate) fn register(registry: &mut FunctionRegistry) {
     registry.insert(to_float);
 
     let to_string = define_function!(
-        name: "toString",
+        name: &"toString".to_lowercase(),
         impls: [
             {args: [{exact Bool}], ret: Any, func: boolean_to_string_batch},
             {args: [{exact Any}], ret: Any, func: any_to_string_batch}

@@ -1,8 +1,6 @@
-use std::sync::Arc;
-
 use crate::error::PlanError;
-use crate::plan_context::PlanContext;
 use crate::plan_node::PlanExpr;
+use crate::planner::PlannerContext;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RewriteOrder {
@@ -11,7 +9,7 @@ pub enum RewriteOrder {
 }
 
 pub struct RuleContext<'a> {
-    pub plan_ctx: &'a Arc<PlanContext>,
+    pub plan_ctx: &'a mut PlannerContext,
 }
 
 pub trait OptimizationRule: Send + Sync {

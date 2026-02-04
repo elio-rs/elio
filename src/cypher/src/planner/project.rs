@@ -2,15 +2,18 @@ use std::collections::HashSet;
 
 use elio_common::order::ColumnOrder;
 use elio_common::schema::Schema;
+use indexmap::IndexMap;
 use itertools::Itertools;
 
 use crate::error::PlanError;
-use crate::expr::FilterExprs;
+use crate::expr::{AggCall, Expr, ExprNode, FilterExprs};
 use crate::ir::order::SortItem;
 use crate::ir::query_project::{
     AggregateProjection, DistinctProjection, Pagination, Projection, QueryProjection, RegularProjection, Unwind,
 };
-use crate::plan_node::{Filter, FilterInner, PaginationInner, PlanExpr, Project, ProjectInner, Sort, SortInner};
+use crate::plan_node::{
+    Aggregate, AggregateInner, Filter, FilterInner, PaginationInner, PlanExpr, Project, ProjectInner, Sort, SortInner,
+};
 use crate::planner::PlannerContext;
 
 pub fn plan_query_projection(
@@ -34,11 +37,12 @@ pub fn plan_query_projection(
 fn plan_project(
     ctx: &mut PlannerContext,
     root: Box<PlanExpr>,
-    _project @ RegularProjection {
+    project @ RegularProjection {
         items,
         order_by,
         pagination,
         filter,
+        output,
     }: &RegularProjection,
 ) -> Result<Box<PlanExpr>, PlanError> {
     let inner = ProjectInner {
@@ -59,21 +63,112 @@ fn plan_project(
         root = plan_pagination(ctx, root, pagination)?;
     }
 
+    if let Some(extra_proj) = project.extra_project() {
+        let inner = ProjectInner {
+            input: root,
+            projections: extra_proj.iter().map(|(k, v)| (k.clone(), v.clone())).collect_vec(),
+        };
+        root = Project::new(inner).into();
+    }
+
     Ok(root)
 }
 
 fn plan_aggregate(
-    _ctx: &mut PlannerContext,
-    _root: Box<PlanExpr>,
-    _project @ AggregateProjection {
+    ctx: &mut PlannerContext,
+    mut root: Box<PlanExpr>,
+    agg_proj @ AggregateProjection {
         group_by,
         aggregate,
+        post_projection: _,
         order_by,
         pagination,
         filter,
     }: &AggregateProjection,
 ) -> Result<Box<PlanExpr>, PlanError> {
-    Err(PlanError::not_supported("aggregate clause not implemented yet."))
+    // pre-aggregation projection
+    let mut group_exprs = vec![];
+    let mut agg_exprs = vec![];
+    if agg_proj.needs_pre_agg_proj() {
+        let mut pre_agg_proj = IndexMap::new();
+        for (var, expr) in group_by.iter() {
+            // if expr is varref or constant, let it pass through
+            if expr.as_variable_ref().is_some() || expr.as_constant().is_some() {
+                pre_agg_proj.insert(var.clone(), expr.clone());
+            } else {
+                let proj_var = ctx.ctx.var_gen().unnamed();
+                let proj_var_ref = Expr::new_variable_ref(proj_var.clone(), expr.typ().clone());
+                pre_agg_proj.insert(proj_var.clone(), expr.clone());
+                group_exprs.push((var.clone(), proj_var_ref));
+            }
+        }
+
+        for (var, expr) in aggregate.iter() {
+            let agg_call = expr.as_agg_call().unwrap();
+            let typ = agg_call.typ();
+            let mut new_children = vec![];
+            for child in expr.children() {
+                if let Some(child_var) = child.as_variable_ref() {
+                    pre_agg_proj.insert(child_var.name.clone(), child.clone());
+                    new_children.push(child.clone());
+                } else {
+                    let proj_var = ctx.ctx.var_gen().unnamed();
+                    pre_agg_proj.insert(proj_var.clone(), child.clone());
+                    new_children.push(Expr::new_variable_ref(proj_var, child.typ().clone()));
+                }
+            }
+            agg_exprs.push((
+                var.clone(),
+                Expr::AggCall(AggCall::new_unchecked(
+                    agg_call.func.clone(),
+                    agg_call.func_id.clone(),
+                    new_children,
+                    agg_call.distinct,
+                    typ,
+                )),
+            ));
+        }
+
+        let inner = ProjectInner {
+            input: root,
+            projections: pre_agg_proj.iter().map(|(k, v)| (k.clone(), v.clone())).collect_vec(),
+        };
+        root = Project::new(inner).into();
+    } else {
+        group_exprs = group_by.iter().map(|(k, v)| (k.clone(), v.clone())).collect_vec();
+        agg_exprs = aggregate.iter().map(|(k, v)| (k.clone(), v.clone())).collect_vec();
+    }
+
+    // aggregate
+    let inner = AggregateInner {
+        input: root,
+        group_by: group_by.iter().map(|(k, v)| (k.clone(), v.clone())).collect_vec(),
+        aggregate: aggregate.iter().map(|(k, v)| (k.clone(), v.clone())).collect_vec(),
+    };
+    let mut root: Box<PlanExpr> = Aggregate::new(inner).into();
+
+    // post-aggregation projection
+    if let Some(extra_proj) = agg_proj.extra_project() {
+        let inner = ProjectInner {
+            input: root,
+            projections: extra_proj.iter().map(|(k, v)| (k.clone(), v.clone())).collect_vec(),
+        };
+        root = Project::new(inner).into();
+    }
+
+    if !filter.is_true() {
+        root = plan_selection(ctx, root, filter)?;
+    }
+
+    if !order_by.is_empty() {
+        root = plan_sort(ctx, root, order_by)?;
+    }
+
+    if !pagination.is_empty() {
+        root = plan_pagination(ctx, root, pagination)?;
+    }
+
+    Ok(root)
 }
 
 fn plan_distinct(

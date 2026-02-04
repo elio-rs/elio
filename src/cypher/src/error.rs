@@ -65,6 +65,14 @@ impl SemanticError {
         Self::new(msg)
     }
 
+    pub fn agg_columns_contains_implicit_grouping_expression(expr: &str) -> Self {
+        let msg = format!(
+            "Aggregation columns cannot contain implicit grouping expressions in {}",
+            expr
+        );
+        Self::new(msg)
+    }
+
     pub fn distinct_not_allowed(expr: &str) -> Self {
         let msg = format!("DISTINCT is not allowed in expression {}", expr);
         Self::new(msg)

@@ -8,13 +8,14 @@ use elio_common::{TokenId, TokenKind};
 
 use crate::error::EvalError;
 
+pub mod agg_call;
 pub mod constant;
 pub mod create_list;
 pub mod create_struct;
 pub mod field_access;
-pub mod func_call;
 pub mod label;
 pub mod project_path;
+pub mod scalar_call;
 pub mod variable_ref;
 
 pub trait EvalCtx {

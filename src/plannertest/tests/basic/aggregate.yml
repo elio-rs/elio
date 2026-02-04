@@ -1,0 +1,48 @@
+- sql: |
+    MATCH (a)--(b) RETURN a, SUM(b)
+  desc: aggregate sum
+  tasks: 
+    - bind
+    - plan
+- sql: |
+    MATCH (a)--(b) RETURN a, SUM(b.age)
+  desc: aggregate sum with pre projection
+  tasks: 
+    - bind
+    - plan
+- sql: |
+    MATCH (a)--(b) RETURN a, SUM(b.age + 1)
+  desc: aggregate sum with pre projection
+  tasks: 
+    - bind
+    - plan
+- sql: |
+    MATCH (a)--(b) RETURN a, SUM(b.age) + 1
+  desc: aggregate with pre and post projeciton
+  tasks: 
+    - bind
+    - plan
+- sql: |
+    MATCH (a)--(b) RETURN a.age + 1, SUM(b.age)
+  desc: aggregate with pre and post projeciton
+  tasks: 
+    - bind
+    - plan
+- sql: |
+    MATCH (a)--(b) RETURN DISTINCT a, SUM(b)
+  desc: aggregate with invalid distinct
+  tasks: 
+    - bind
+    - plan
+- sql: |
+    MATCH (a)--(b) RETURN DISTINCT a, b
+  desc: distinct agg
+  tasks: 
+    - bind
+    - plan
+- sql: |
+    MATCH (a)--(b) RETURN DISTINCT a, a.age + b.age 
+  desc: distinct agg with pre projection
+  tasks: 
+    - bind
+    - plan

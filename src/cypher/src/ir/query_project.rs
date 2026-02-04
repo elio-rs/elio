@@ -4,10 +4,10 @@ use elio_common::data_type::DataType;
 use elio_common::schema::Variable;
 use elio_common::variable::VariableName;
 use enum_as_inner::EnumAsInner;
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use pretty_xmlish::{Pretty, XmlNode};
 
-use crate::expr::{Expr, FilterExprs};
+use crate::expr::{Expr, ExprNode, FilterExprs};
 use crate::ir::order::SortItem;
 use crate::pretty_utils::{pretty_order_items, pretty_project_items};
 
@@ -167,13 +167,47 @@ pub struct RegularProjection {
     pub order_by: Vec<SortItem>,
     pub pagination: Pagination,
     pub filter: FilterExprs,
-    // pub imported_variable: HashSet<Variable>,
+    // final output varaibles
+    // TODO(pgao): maybe we should just put an extra_project here
+    pub output: IndexSet<VariableName>,
 }
 
 impl RegularProjection {
+    // true on items contains variable not in output
+    pub fn needs_extra_proj(&self) -> bool {
+        self.items.iter().any(|(name, _)| !self.output.contains(name))
+    }
+
+    pub fn extra_project(&self) -> Option<IndexMap<VariableName, Expr>> {
+        if !self.needs_extra_proj() {
+            return None;
+        }
+        let mut extra_proj = IndexMap::new();
+        for out_item in self.output.iter() {
+            if let Some(expr) = self.items.get(out_item) {
+                extra_proj.insert(
+                    out_item.clone(),
+                    Expr::from_variable(&Variable {
+                        name: out_item.clone(),
+                        typ: expr.typ(),
+                    }),
+                );
+            } else {
+                unreachable!()
+            }
+        }
+        Some(extra_proj)
+    }
+
     pub fn xmlnode(&self) -> XmlNode<'_> {
         let mut fields = vec![];
         fields.push(("items", pretty_project_items(self.items.iter())));
+        if self.needs_extra_proj() {
+            fields.push((
+                "output",
+                Pretty::Array(self.output.iter().map(Pretty::display).collect()),
+            ));
+        }
         add_common_projection_fields(&mut fields, &self.order_by, &self.pagination, &self.filter);
 
         XmlNode::simple_record("Project", fields, vec![])
@@ -183,14 +217,49 @@ impl RegularProjection {
 pub struct AggregateProjection {
     pub group_by: IndexMap<VariableName, Expr>,
     pub aggregate: IndexMap<VariableName, Expr>,
+    /// post-aggregation projection (built from return items)
+    pub post_projection: IndexMap<VariableName, Expr>,
     pub order_by: Vec<SortItem>,
     pub pagination: Pagination,
     pub filter: FilterExprs,
-    // TODO(pgao): others
-    // pub imported_variables: HashSet<Variable>,
 }
 
 impl AggregateProjection {
+    /// true if the group key and aggregate inputs are not field reference or constant
+    pub fn needs_pre_agg_proj(&self) -> bool {
+        for expr in self
+            .group_by
+            .iter()
+            .chain(self.aggregate.iter())
+            .flat_map(|(_, expr)| expr.children())
+        {
+            match expr {
+                Expr::VariableRef(_) => continue,
+                Expr::Constant(_) => continue,
+                _ => return true,
+            }
+        }
+        false
+    }
+
+    // true on post_projection are not just pass through variables
+    pub fn needs_extra_proj(&self) -> bool {
+        for (k, v) in self.post_projection.iter() {
+            match (k, v.as_variable_ref()) {
+                (k, Some(v)) if k == &v.name => continue,
+                _ => return true,
+            }
+        }
+        false
+    }
+
+    pub fn extra_project(&self) -> Option<IndexMap<VariableName, Expr>> {
+        if !self.needs_extra_proj() {
+            return None;
+        }
+        Some(self.post_projection.clone())
+    }
+
     pub fn xmlnode(&self) -> XmlNode<'_> {
         let mut fields = vec![];
         if !self.group_by.is_empty() {
@@ -199,6 +268,9 @@ impl AggregateProjection {
         if !self.aggregate.is_empty() {
             fields.push(("aggregate", pretty_project_items(self.aggregate.iter())));
         };
+        if !self.post_projection.is_empty() {
+            fields.push(("post_projection", pretty_project_items(self.post_projection.iter())));
+        }
         add_common_projection_fields(&mut fields, &self.order_by, &self.pagination, &self.filter);
 
         XmlNode::simple_record("Aggregate", fields, vec![])
@@ -210,7 +282,6 @@ pub struct DistinctProjection {
     pub order_by: Vec<SortItem>,
     pub pagination: Pagination,
     pub filter: FilterExprs,
-    // pub imported_variables: HashSet<Variable>,
 }
 
 impl DistinctProjection {

@@ -11,8 +11,7 @@ use crate::binder::query::bind_root_query;
 use crate::error::PlanError;
 use crate::ir::query::IrQueryRoot;
 use crate::optimizer::optimize_query;
-use crate::plan_context::PlanContext;
-use crate::planner::{RootPlan, plan_root};
+use crate::planner::{PlannerContext, RootPlan, plan_root};
 
 /// Index hint for query optimization
 #[derive(Debug, Clone)]
@@ -28,7 +27,7 @@ pub struct IndexHint {
 /// SessionContext for Cypher Planner
 pub trait PlannerSession: Debug + Send + Sync {
     // send notification
-    fn derive_plan_context(self: Arc<Self>) -> Arc<PlanContext>;
+    fn derive_planner_context(self: Arc<Self>) -> PlannerContext;
     // catalog
     fn get_or_create_token(&self, token: &str, kind: TokenKind) -> Result<TokenId, CatalogError>;
     fn get_function_by_name(&self, name: &str) -> Option<&FunctionCatalog>;
@@ -72,13 +71,13 @@ pub fn plan_query(
     // bind
     let ir = bind_root_query(ctx.clone(), query)?;
     // plan
-    let plan_ctx = ctx.clone().derive_plan_context();
-    let plan = plan_root(&plan_ctx, &ir)?;
+    let mut planner_ctx = ctx.clone().derive_planner_context();
+    let plan = plan_root(&mut planner_ctx, &ir)?;
     if matches!(level, PlanLevel::Plan) {
         return Ok(plan);
     }
     // optimize
-    let plan = optimize_query(&plan_ctx, plan)?;
+    let plan = optimize_query(&mut planner_ctx, plan)?;
     Ok(plan)
 }
 

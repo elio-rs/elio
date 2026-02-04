@@ -1,6 +1,7 @@
 use elio_common::IrToken;
 use elio_common::data_type::DataType;
 use elio_common::schema::Variable;
+use elio_common::variable::VariableName;
 use enum_as_inner::EnumAsInner;
 
 pub mod agg_call;
@@ -96,6 +97,11 @@ impl Expr {
     }
 
     #[inline]
+    pub fn new_variable_ref(name: VariableName, typ: DataType) -> Self {
+        Expr::VariableRef(VariableRef::new_unchecked(name, typ))
+    }
+
+    #[inline]
     pub fn from_variable(var: &Variable) -> Self {
         Expr::VariableRef(VariableRef::new_unchecked(var.name.clone(), var.typ.clone()))
     }
@@ -156,7 +162,14 @@ impl Expr {
                     func_call.args.iter().map(|a| a.pretty()).collect::<Vec<_>>().join(", ")
                 )
             }
-            Expr::AggCall(_agg_call) => todo!(),
+            Expr::AggCall(agg_call) => {
+                format!(
+                    "{}({}{})",
+                    agg_call.func,
+                    if agg_call.distinct { "DISTINCT " } else { "" },
+                    agg_call.args.iter().map(|a| a.pretty()).collect::<Vec<_>>().join(", ")
+                )
+            }
             Expr::Subquery(_subquery) => todo!(),
             Expr::HasLabel(has_label) => {
                 format!("{}:{}", has_label.entity.pretty(), has_label.label_or_rel)
@@ -235,10 +248,14 @@ impl Expr {
             Expr::AggCall(call) => {
                 let typ = call.typ();
                 let AggCall {
-                    func, args, distinct, ..
+                    func,
+                    func_id,
+                    args,
+                    distinct,
+                    ..
                 } = call;
                 let args = args.into_iter().map(&mut f).collect();
-                Expr::AggCall(AggCall::new_unchecked(func, args, distinct, typ))
+                Expr::AggCall(AggCall::new_unchecked(func, func_id, args, distinct, typ))
             }
             Expr::HasLabel(has_label) => {
                 let entity = f(*has_label.entity);

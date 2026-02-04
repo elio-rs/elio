@@ -14,7 +14,7 @@ use elio_common::scalar::*;
 
 use crate::define_function;
 use crate::error::EvalError;
-use crate::func::FunctionRegistry;
+use crate::scalar::FunctionRegistry;
 
 // Tenary Logic
 // if lhs and rhs is not comparable, then return NULL

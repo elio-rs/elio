@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use elio_common::{IrToken, TokenKind};
-use elio_expr::func::sig::FuncDef;
+use elio_expr::scalar::sig::FuncDef;
 
 use crate::binder::expr::ExprContext;
 use crate::binder::scope::Scope;

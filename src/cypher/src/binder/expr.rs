@@ -4,7 +4,7 @@ use std::sync::Arc;
 use elio_catalog::FunctionCatalog;
 use elio_common::data_type::{DataType, F64};
 use elio_common::{IrToken, TokenKind};
-use elio_expr::func::sig::FuncImpl;
+use elio_expr::scalar::sig::FuncImpl;
 use elio_parser::ast;
 use itertools::Itertools;
 use ordered_float::Float;
@@ -288,7 +288,7 @@ fn bind_func_call(
     let args = coerce_null_args(args, &coerced_types);
 
     if is_agg {
-        let agg = AggCall::new_unchecked(name.to_string(), args, distinct, typ);
+        let agg = AggCall::new_unchecked(name.to_string(), func_impl.func_id, args, distinct, typ);
         Ok(agg.into())
     } else {
         if distinct {

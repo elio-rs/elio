@@ -1,12 +1,16 @@
 use std::backtrace::Backtrace;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use elio_common::schema::{Name2ColumnMap, Schema};
 use elio_common::variable::VariableName;
+use elio_cypher::expr::{AggCall, Expr, VariableRef};
 use elio_cypher::ir::query_project::LoadFormat;
 use elio_cypher::plan_node::{self, CreateNode, PlanExpr, PlanNode, Project};
 use elio_cypher::planner::RootPlan;
+use elio_expr::FUNCTION_REGISTRY;
 use elio_expr::impl_::SharedExpression;
+use elio_expr::scalar::sig::FuncInvoke;
 
 use crate::builder::expression::{BuildExprContext, build_expression};
 use crate::executor::all_node_scan::AllNodeScanExectuor;
@@ -18,6 +22,7 @@ use crate::executor::create_rel::{CreateRelExectuor, CreateRelItem};
 use crate::executor::cross_product::CrossProductExecutor;
 use crate::executor::expand::ExpandExecutor;
 use crate::executor::filter::FilterExecutor;
+use crate::executor::hash_aggregate::HashAggregateExecutor;
 use crate::executor::load_csv::LoadCsvExecutor;
 use crate::executor::node_index_seek::NodeIndexSeekExecutor;
 use crate::executor::pagination::PaginationExecutor;
@@ -105,6 +110,7 @@ fn build_node(ctx: &mut ExecutorBuildContext, node: &PlanExpr) -> Result<SharedE
         PlanExpr::CreateRel(create_rel) => build_create_rel(ctx, create_rel, inputs),
         PlanExpr::Load(load) => build_load(ctx, load, inputs),
         PlanExpr::CrossProduct(cross_product) => build_cross_product(ctx, cross_product, inputs),
+        PlanExpr::Aggregate(aggregate) => build_aggregate(ctx, aggregate, inputs),
         PlanExpr::Project(project) => build_project(ctx, project, inputs),
         PlanExpr::Sort(_sort) => todo!(),
         PlanExpr::Filter(filter) => build_filter(ctx, filter, inputs),
@@ -623,6 +629,128 @@ fn build_project(
         schema: node.schema().clone(),
     }
     .into_shared())
+}
+
+fn build_aggregate(
+    _ctx: &mut ExecutorBuildContext,
+    node: &plan_node::Aggregate,
+    inputs: Vec<SharedExecutor>,
+) -> Result<SharedExecutor, BuildError> {
+    assert_eq!(inputs.len(), 1);
+    let [input]: [SharedExecutor; 1] = inputs.try_into().unwrap();
+
+    let input_schema = input.schema();
+    let input_name2col = input_schema.name_to_col_map();
+
+    // group key column indexes
+    let mut group_idx = Vec::with_capacity(node.inner().group_by.len());
+    for (_var, expr) in node.inner().group_by.iter() {
+        let idx = resolve_col_ref(&input_name2col, expr, "group key")?;
+        group_idx.push(idx);
+    }
+
+    // agg args column indexes and agg impls
+    let mut agg_args: Vec<Vec<usize>> = Vec::with_capacity(node.inner().aggregate.len());
+    let mut aggs = Vec::with_capacity(node.inner().aggregate.len());
+
+    for (_var, expr) in node.inner().aggregate.iter() {
+        let Expr::AggCall(AggCall {
+            func_id,
+            args,
+            distinct,
+            ..
+        }) = expr
+        else {
+            return Err(BuildError::MalformedPlan(
+                "aggregate item must be an aggregate call".to_string(),
+                Backtrace::capture(),
+            ));
+        };
+        // TODO(pgao): support distinct
+        if *distinct {
+            return Err(BuildError::MalformedPlan(
+                "DISTINCT aggregate not supported yet".to_string(),
+                Backtrace::capture(),
+            ));
+        }
+
+        let arg_idx: Vec<usize> = args
+            .iter()
+            .map(|a| resolve_col_ref(&input_name2col, a, "aggregate argument"))
+            .collect::<Result<_, _>>()?;
+        agg_args.push(arg_idx);
+
+        // TODO(pgao): get function from catalogs, not from FUNCTION_REGISTRY
+        let func_impl = FUNCTION_REGISTRY.get_func_impl(func_id);
+        // TODO(pgao): avoid this match here.
+        let FuncInvoke::Agg(invoker) = &func_impl.func_invoke else {
+            return Err(BuildError::MalformedPlan(
+                format!("function {} is not an aggregate", func_id),
+                Backtrace::capture(),
+            ));
+        };
+        let agg_impl = invoker(&[]).map_err(|e| {
+            BuildError::MalformedPlan(
+                format!("init aggregate {} failed: {}", func_id, e),
+                Backtrace::capture(),
+            )
+        })?;
+        aggs.push(agg_impl);
+    }
+
+    // output mapping follows logical schema order (could interleave group/agg).
+    let group_pos: HashMap<_, _> = node
+        .inner()
+        .group_by
+        .iter()
+        .enumerate()
+        .map(|(i, (v, _))| (v.clone(), i))
+        .collect();
+    let agg_pos: HashMap<_, _> = node
+        .inner()
+        .aggregate
+        .iter()
+        .enumerate()
+        .map(|(i, (v, _))| (v.clone(), i))
+        .collect();
+
+    let mut output_mapping = Vec::with_capacity(node.schema().columns().len());
+    for col in node.schema().columns() {
+        if let Some(idx) = group_pos.get(&col.name) {
+            output_mapping.push(OutputColumnSource::Left(*idx));
+        } else if let Some(idx) = agg_pos.get(&col.name) {
+            output_mapping.push(OutputColumnSource::Right(*idx));
+        } else {
+            return Err(BuildError::MalformedPlan(
+                format!("column {} not found in group_by or aggregate", col.name),
+                Backtrace::capture(),
+            ));
+        }
+    }
+
+    Ok(HashAggregateExecutor {
+        input,
+        group_by: group_idx,
+        agg_args,
+        output_mapping,
+        aggs,
+        schema: node.schema().clone(),
+    }
+    .into_shared())
+}
+
+fn resolve_col_ref(name2col: &Name2ColumnMap, expr: &Expr, ctx: &str) -> Result<usize, BuildError> {
+    if let Expr::VariableRef(VariableRef { name, .. }) = expr {
+        name2col
+            .get(name)
+            .copied()
+            .ok_or_else(|| BuildError::variable_not_found(name.clone()))
+    } else {
+        Err(BuildError::MalformedPlan(
+            format!("{} must be a column reference, got {:?}", ctx, expr),
+            Backtrace::capture(),
+        ))
+    }
 }
 
 fn build_filter(

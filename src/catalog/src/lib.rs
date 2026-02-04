@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use elio_expr::func::FUNCTION_REGISTRY;
+use elio_expr::FUNCTION_REGISTRY;
 use elio_storage::token::TokenStore;
 
 pub mod error;
@@ -43,7 +43,7 @@ impl Catalog {
     }
 
     pub fn get_function_by_name(&self, name: &str) -> Option<&FunctionCatalog> {
-        self.functions.get(name)
+        self.functions.get(&name.trim().to_lowercase())
     }
 }
 

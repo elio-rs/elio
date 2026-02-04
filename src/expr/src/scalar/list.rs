@@ -9,8 +9,8 @@ use elio_common::data_type::DataType;
 use elio_common::scalar::{ListValueRef, ScalarRef, ScalarVTable};
 
 use crate::error::EvalError;
-use crate::func::FunctionRegistry;
-use crate::func::sig::{FuncDef, FuncImpl, FuncImplArg, FuncImplReturn};
+use crate::scalar::FunctionRegistry;
+use crate::scalar::sig::{FuncDef, FuncImpl, FuncImplArg, FuncImplReturn};
 
 /// list_index(list, index) -> element
 /// Returns the element at the given index (0-based).
@@ -217,25 +217,25 @@ pub(crate) fn register(registry: &mut FunctionRegistry) {
     let list_index_def = FuncDef {
         name: "list_index".to_string(),
         impls: vec![
-            FuncImpl::new(
+            FuncImpl::new_scalar(
                 "list_index",
                 vec![FuncImplArg::AnyList, FuncImplArg::Exact(DataType::Integer)],
                 FuncImplReturn::ListElement(0),
                 list_index_batch,
             ),
-            FuncImpl::new(
+            FuncImpl::new_scalar(
                 "list_index",
                 vec![FuncImplArg::AnyList, FuncImplArg::Exact(DataType::Any)],
                 FuncImplReturn::ListElement(0),
                 list_index_batch,
             ),
-            FuncImpl::new(
+            FuncImpl::new_scalar(
                 "list_index",
                 vec![FuncImplArg::Exact(DataType::Any), FuncImplArg::Exact(DataType::Integer)],
                 FuncImplReturn::ListElement(0),
                 any_list_index_batch,
             ),
-            FuncImpl::new(
+            FuncImpl::new_scalar(
                 "list_index",
                 vec![FuncImplArg::Exact(DataType::Any), FuncImplArg::Exact(DataType::Any)],
                 FuncImplReturn::ListElement(0),
@@ -250,7 +250,7 @@ pub(crate) fn register(registry: &mut FunctionRegistry) {
     let list_slice_def = FuncDef {
         name: "list_slice".to_string(),
         impls: vec![
-            FuncImpl::new(
+            FuncImpl::new_scalar(
                 "list_slice",
                 vec![
                     FuncImplArg::AnyList,
@@ -260,7 +260,7 @@ pub(crate) fn register(registry: &mut FunctionRegistry) {
                 FuncImplReturn::SameAsArg(0),
                 list_slice_batch,
             ),
-            FuncImpl::new(
+            FuncImpl::new_scalar(
                 "list_slice",
                 vec![
                     FuncImplArg::AnyList,

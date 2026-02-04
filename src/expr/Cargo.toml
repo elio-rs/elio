@@ -6,8 +6,11 @@ edition.workspace = true
 [dependencies]
 bitvec = { workspace = true }
 chrono = { workspace = true }
+downcast-rs = { workspace = true }
 elio_common = { workspace = true }
 elio_parser = { workspace = true }
+enum-as-inner = { workspace = true }
 expr_macros = { path = "./macros" }
 itertools = { workspace = true }
+ordered-float = { workspace = true }
 thiserror = { workspace = true }

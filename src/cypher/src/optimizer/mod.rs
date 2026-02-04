@@ -10,9 +10,8 @@ pub use crate::optimizer::rewriter::*;
 pub use crate::optimizer::rule::{OptimizationRule, RewriteOrder, RuleContext};
 pub use crate::optimizer::rules::*;
 pub use crate::optimizer::visitor::*;
-use crate::plan_context::PlanContext;
 use crate::plan_node::PlanExpr;
-use crate::planner::RootPlan;
+use crate::planner::{PlannerContext, RootPlan};
 
 #[derive(Clone, Debug)]
 pub enum RulePassKind {
@@ -81,7 +80,7 @@ impl RuleBasedOptimizer {
     }
 }
 
-pub fn optimize_query(plan_ctx: &Arc<PlanContext>, root_plan: RootPlan) -> Result<RootPlan, PlanError> {
+pub fn optimize_query(plan_ctx: &mut PlannerContext, root_plan: RootPlan) -> Result<RootPlan, PlanError> {
     let passes = logical_rule_passes();
     let RootPlan { plan, names } = root_plan;
     let mut plan = *plan;
