@@ -225,6 +225,23 @@ pub struct AggregateProjection {
 }
 
 impl AggregateProjection {
+    /// true if the group key and aggregate inputs are not field reference or constant
+    pub fn needs_pre_agg_proj(&self) -> bool {
+        for expr in self
+            .group_by
+            .iter()
+            .chain(self.aggregate.iter())
+            .flat_map(|(_, expr)| expr.children())
+        {
+            match expr {
+                Expr::VariableRef(_) => continue,
+                Expr::Constant(_) => continue,
+                _ => return true,
+            }
+        }
+        false
+    }
+
     // true on post_projection are not just pass through variables
     pub fn needs_extra_proj(&self) -> bool {
         for (k, v) in self.post_projection.iter() {

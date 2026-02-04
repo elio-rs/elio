@@ -1,6 +1,7 @@
 use elio_common::IrToken;
 use elio_common::data_type::DataType;
 use elio_common::schema::Variable;
+use elio_common::variable::VariableName;
 use enum_as_inner::EnumAsInner;
 
 pub mod agg_call;
@@ -93,6 +94,11 @@ impl Expr {
     #[inline]
     pub fn boxed(self) -> Box<Expr> {
         Box::new(self)
+    }
+
+    #[inline]
+    pub fn new_variable_ref(name: VariableName, typ: DataType) -> Self {
+        Expr::VariableRef(VariableRef::new_unchecked(name, typ))
     }
 
     #[inline]
