@@ -12,7 +12,8 @@ use crate::ir::query_project::{
     AggregateProjection, DistinctProjection, Pagination, Projection, QueryProjection, RegularProjection, Unwind,
 };
 use crate::plan_node::{
-    Aggregate, AggregateInner, Filter, FilterInner, PaginationInner, PlanExpr, Project, ProjectInner, Sort, SortInner,
+    Aggregate, AggregateInner, Distinct, DistinctInner, Filter, FilterInner, PaginationInner, PlanExpr, Project,
+    ProjectInner, Sort, SortInner,
 };
 use crate::planner::PlannerContext;
 
@@ -42,7 +43,7 @@ fn plan_project(
         order_by,
         pagination,
         filter,
-        output,
+        output: _,
     }: &RegularProjection,
 ) -> Result<Box<PlanExpr>, PlanError> {
     let inner = ProjectInner {
@@ -172,8 +173,8 @@ fn plan_aggregate(
 }
 
 fn plan_distinct(
-    _ctx: &mut PlannerContext,
-    _root: Box<PlanExpr>,
+    ctx: &mut PlannerContext,
+    root: Box<PlanExpr>,
     _project @ DistinctProjection {
         group_by,
         order_by,
@@ -181,7 +182,25 @@ fn plan_distinct(
         filter,
     }: &DistinctProjection,
 ) -> Result<Box<PlanExpr>, PlanError> {
-    Err(PlanError::not_supported("distinct clause not implemented yet."))
+    let inner = DistinctInner {
+        input: root,
+        group_exprs: group_by.iter().map(|(k, v)| (k.clone(), v.clone())).collect_vec(),
+    };
+    let mut root: Box<PlanExpr> = Distinct::new(inner).into();
+
+    if !filter.is_true() {
+        root = plan_selection(ctx, root, filter)?;
+    }
+
+    if !order_by.is_empty() {
+        root = plan_sort(ctx, root, order_by)?;
+    }
+
+    if !pagination.is_empty() {
+        root = plan_pagination(ctx, root, pagination)?;
+    }
+
+    Ok(root)
 }
 
 fn plan_unwind(

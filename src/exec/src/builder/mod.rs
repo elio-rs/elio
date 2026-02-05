@@ -20,6 +20,7 @@ use crate::executor::black_hole::BlackHoleExecutor;
 use crate::executor::create_node::{CreateNodeExectuor, CreateNodeItem};
 use crate::executor::create_rel::{CreateRelExectuor, CreateRelItem};
 use crate::executor::cross_product::CrossProductExecutor;
+use crate::executor::distinct::DistinctExecutor;
 use crate::executor::expand::ExpandExecutor;
 use crate::executor::filter::FilterExecutor;
 use crate::executor::hash_aggregate::HashAggregateExecutor;
@@ -111,6 +112,7 @@ fn build_node(ctx: &mut ExecutorBuildContext, node: &PlanExpr) -> Result<SharedE
         PlanExpr::Load(load) => build_load(ctx, load, inputs),
         PlanExpr::CrossProduct(cross_product) => build_cross_product(ctx, cross_product, inputs),
         PlanExpr::Aggregate(aggregate) => build_aggregate(ctx, aggregate, inputs),
+        PlanExpr::Distinct(distinct) => build_distinct(ctx, distinct, inputs),
         PlanExpr::Project(project) => build_project(ctx, project, inputs),
         PlanExpr::Sort(_sort) => todo!(),
         PlanExpr::Filter(filter) => build_filter(ctx, filter, inputs),
@@ -734,6 +736,32 @@ fn build_aggregate(
         agg_args,
         output_mapping,
         aggs,
+        schema: node.schema().clone(),
+    }
+    .into_shared())
+}
+
+fn build_distinct(
+    ctx: &mut ExecutorBuildContext,
+    node: &plan_node::Distinct,
+    inputs: Vec<SharedExecutor>,
+) -> Result<SharedExecutor, BuildError> {
+    assert_eq!(inputs.len(), 1);
+    let [input]: [SharedExecutor; 1] = inputs.try_into().unwrap();
+
+    let input_schema = input.schema().clone();
+    let ectx = BuildExprContext::new(&input_schema, ctx);
+
+    let group_exprs = node
+        .inner()
+        .group_exprs
+        .iter()
+        .map(|(_, expr)| build_expression(&ectx, expr))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(DistinctExecutor {
+        input,
+        group_exprs,
         schema: node.schema().clone(),
     }
     .into_shared())

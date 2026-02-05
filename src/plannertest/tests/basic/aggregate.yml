@@ -42,7 +42,7 @@
     - plan
 - sql: |
     MATCH (a)--(b) RETURN DISTINCT a, a.age + b.age 
-  desc: distinct agg with pre projection
+  desc: distinct agg
   tasks: 
     - bind
     - plan

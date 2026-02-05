@@ -79,6 +79,7 @@ pub fn expand_star_expression(scope: &Scope, return_items: &ast::ReturnItems) ->
 //     - extra_project output symbols
 //  - action: Proj
 //     - symbol -> Expr
+#[allow(clippy::too_many_arguments)]
 pub fn bind_return_items(
     bctx: &BindContext,
     builder: &mut IrSingleQueryBuilder,
@@ -145,13 +146,14 @@ pub fn bind_return_items(
 // in this case
 // the order by/pagination/where_ clause only works on the output of aggregation
 // and the output scope is only the output of post-aggregation projection
+#[allow(clippy::too_many_arguments)]
 fn bind_group_by_and_agg(
     bctx: &BindContext,
     builder: &mut IrSingleQueryBuilder,
     scope: Scope,
     distinct: bool,
     for_clause: &ClauseKind,
-    return_items: &Vec<ReturnItem>,
+    return_items: &[ReturnItem],
     order_by: Option<&ast::OrderBy>,
     skip: Option<&ast::Expr>,
     limit: Option<&ast::Expr>,
@@ -310,12 +312,13 @@ fn bind_group_by_and_agg(
 
 // in this case, the order by/pagination/where_ clause works on the input + output of projection
 // but the output will only be return_items
+#[allow(clippy::too_many_arguments)]
 fn bind_normal_projection(
     bctx: &BindContext,
     builder: &mut IrSingleQueryBuilder,
     scope: Scope,
     for_clause: &ClauseKind,
-    return_items: &Vec<ReturnItem>,
+    return_items: &[ReturnItem],
     order_by: Option<&ast::OrderBy>,
     skip: Option<&ast::Expr>,
     limit: Option<&ast::Expr>,

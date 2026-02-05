@@ -109,15 +109,33 @@ RootPlan { names: [a, SUM(b)] }
 MATCH (a)--(b) RETURN DISTINCT a, b
 
 /*
-Error
-distinct clause not implemented yet.
+RootIR { names: [a, b] }
+└─IrSingleQueryPart
+  ├─match_pattern
+  │ └─QueryGraph { nodes: [a@0, b@1], rels: [(a@0)<-[anon@2:]->(b@1)] }
+  └─projection
+    └─Distinct { group_by: [a@0 AS a@0, b@1 AS b@1] }
+RootPlan { names: [a, b] }
+└─ProduceResult { return_columns: a@0,b@1 }
+  └─Distinct { group_exprs: [a@0 AS a@0, b@1 AS b@1] }
+    └─ExpandAll { from: a@0, to: b@1, rel: anon@2, direction: -, types: [] }
+      └─AllNodeScan { variable: a@0 }
 */
 
--- distinct agg with pre projection
+-- distinct agg
 MATCH (a)--(b) RETURN DISTINCT a, a.age + b.age 
 
 /*
-Error
-distinct clause not implemented yet.
+RootIR { names: [a, (a.age) + (b.age)] }
+└─IrSingleQueryPart
+  ├─match_pattern
+  │ └─QueryGraph { nodes: [a@0, b@1], rels: [(a@0)<-[anon@2:]->(b@1)] }
+  └─projection
+    └─Distinct { group_by: [a@0 AS a@0, aagebage@3 AS add(a@0.age, b@1.age)] }
+RootPlan { names: [a, (a.age) + (b.age)] }
+└─ProduceResult { return_columns: a@0,aagebage@3 }
+  └─Distinct { group_exprs: [a@0 AS a@0, aagebage@3 AS add(a@0.age, b@1.age)] }
+    └─ExpandAll { from: a@0, to: b@1, rel: anon@2, direction: -, types: [] }
+      └─AllNodeScan { variable: a@0 }
 */
 

@@ -1,5 +1,5 @@
 use async_stream::try_stream;
-use elio_expr::impl_::Expression;
+use elio_expr::impl_::SharedExpression;
 use futures::StreamExt;
 
 use super::*;
@@ -7,7 +7,7 @@ use super::*;
 #[derive(Debug)]
 pub struct ProjectExecutor {
     pub(crate) input: SharedExecutor,
-    pub(crate) exprs: Vec<Arc<dyn Expression>>,
+    pub(crate) exprs: Vec<SharedExpression>,
     pub(crate) schema: Arc<Schema>,
 }
 
