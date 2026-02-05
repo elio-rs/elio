@@ -139,3 +139,38 @@ RootPlan { names: [a, (a.age) + (b.age)] }
       └─AllNodeScan { variable: a@0 }
 */
 
+-- global sum
+MATCH (a)--(b) RETURN SUM(a)
+
+/*
+RootIR { names: [SUM(a)] }
+└─IrSingleQueryPart
+  ├─match_pattern
+  │ └─QueryGraph { nodes: [a@0, b@1], rels: [(a@0)<-[anon@2:]->(b@1)] }
+  └─projection
+    └─Aggregate { aggregate: [SUMa@3 AS sum(a@0)], post_projection: [SUMa@3 AS SUMa@3] }
+RootPlan { names: [SUM(a)] }
+└─ProduceResult { return_columns: SUMa@3 }
+  └─Aggregate { aggregate: [SUMa@3 AS sum(a@0)] }
+    └─ExpandAll { from: a@0, to: b@1, rel: anon@2, direction: -, types: [] }
+      └─AllNodeScan { variable: a@0 }
+*/
+
+-- global sum with pre projection
+MATCH (a)--(b) RETURN SUM(a.age)
+
+/*
+RootIR { names: [SUM(a.age)] }
+└─IrSingleQueryPart
+  ├─match_pattern
+  │ └─QueryGraph { nodes: [a@0, b@1], rels: [(a@0)<-[anon@2:]->(b@1)] }
+  └─projection
+    └─Aggregate { aggregate: [SUMaage@3 AS sum(a@0.age)], post_projection: [SUMaage@3 AS SUMaage@3] }
+RootPlan { names: [SUM(a.age)] }
+└─ProduceResult { return_columns: SUMaage@3 }
+  └─Aggregate { aggregate: [SUMaage@3 AS sum(a@0.age)] }
+    └─Project { exprs: [anon@0 AS a@0.age] }
+      └─ExpandAll { from: a@0, to: b@1, rel: anon@2, direction: -, types: [] }
+        └─AllNodeScan { variable: a@0 }
+*/
+
