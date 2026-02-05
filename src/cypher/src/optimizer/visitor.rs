@@ -25,6 +25,7 @@ pub trait PlanVisitor<C = ()> {
             PlanExpr::Load(p) => self.visit_load(p, ctx),
             PlanExpr::CrossProduct(p) => self.visit_cross_product(p, ctx),
             PlanExpr::Aggregate(p) => self.visit_aggregate(p, ctx),
+            PlanExpr::Distinct(p) => self.visit_distinct(p, ctx),
             PlanExpr::Project(p) => self.visit_project(p, ctx),
             PlanExpr::Sort(p) => self.visit_sort(p, ctx),
             PlanExpr::Filter(p) => self.visit_filter(p, ctx),
@@ -95,6 +96,10 @@ pub trait PlanVisitor<C = ()> {
 
     fn visit_aggregate(&mut self, plan: &Aggregate, ctx: &C) -> Self::Output {
         self.visit_children(&PlanExpr::Aggregate(plan.clone()), ctx)
+    }
+
+    fn visit_distinct(&mut self, plan: &Distinct, ctx: &C) -> Self::Output {
+        self.visit_children(&PlanExpr::Distinct(plan.clone()), ctx)
     }
 
     fn visit_project(&mut self, plan: &Project, ctx: &C) -> Self::Output {

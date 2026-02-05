@@ -154,6 +154,11 @@ impl DataChunkBuilder {
         }
     }
 
+    pub fn new_from_schema(schema: &Schema, capacity: usize) -> Self {
+        let types = schema.columns().iter().map(|c| c.typ.physical_type());
+        Self::new(types, capacity)
+    }
+
     pub fn append_row(&mut self, row: Vec<Option<ScalarRef<'_>>>) -> Option<DataChunk> {
         assert_eq!(row.len(), self.columns.len());
         for (col, item) in self.columns.iter_mut().zip_eq(row) {

@@ -19,6 +19,7 @@ pub mod black_hole;
 pub mod create_node;
 pub mod create_rel;
 pub mod cross_product;
+pub mod distinct;
 pub mod empty;
 pub mod expand;
 pub mod filter;
@@ -40,6 +41,7 @@ pub use black_hole::*;
 pub use create_node::*;
 pub use create_rel::*;
 pub use cross_product::*;
+pub use distinct::*;
 pub use empty::*;
 pub use expand::*;
 pub use filter::*;
@@ -79,6 +81,7 @@ pub enum PlanExpr {
     Load(Load),
     CrossProduct(CrossProduct),
     Aggregate(Aggregate),
+    Distinct(Distinct),
     Project(Project),
     Sort(Sort),
     Filter(Filter),
@@ -160,6 +163,7 @@ impl_plan_node_common!(CreateRel, CreateRelInner);
 impl_plan_node_common!(Load, LoadInner);
 impl_plan_node_common!(Project, ProjectInner);
 impl_plan_node_common!(Aggregate, AggregateInner);
+impl_plan_node_common!(Distinct, DistinctInner);
 impl_plan_node_common!(Sort, SortInner);
 impl_plan_node_common!(Filter, FilterInner);
 impl_plan_node_common!(Pagination, PaginationInner);
@@ -218,6 +222,7 @@ impl_plan_expr_dispatch!(
     Load,
     CrossProduct,
     Aggregate,
+    Distinct,
     Project,
     Sort,
     Filter,
@@ -389,6 +394,11 @@ impl PlanExpr {
                     aggregate,
                 })
                 .into())
+            }
+            PlanExpr::Distinct(plan) => {
+                let DistinctInner { input, group_exprs } = plan.into_inner();
+                let input = Box::new(f(*input)?);
+                Ok(Distinct::new(DistinctInner { input, group_exprs }).into())
             }
             PlanExpr::Project(plan) => {
                 let ProjectInner { input, projections } = plan.into_inner();

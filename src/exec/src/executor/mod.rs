@@ -17,6 +17,7 @@ pub mod constraint;
 pub mod create_node;
 pub mod create_rel;
 pub mod cross_product;
+pub mod distinct;
 pub mod expand;
 pub mod filter;
 pub mod hash_aggregate;
