@@ -5,6 +5,7 @@ use std::sync::Arc;
 use async_stream::try_stream;
 use educe::Educe;
 use elio_common::array::{DataChunk, DataChunkBuilder};
+use elio_common::scalar::Row;
 use elio_common::schema::Schema;
 use elio_expr::impl_::SharedExpression;
 use futures::StreamExt;
@@ -21,6 +22,22 @@ pub struct DistinctExecutor {
     pub(crate) schema: Arc<Schema>,
 }
 
+#[derive(Default)]
+struct DistinctState {
+    // TODO(pgao): use hashbrown raw table
+    seen: HashSet<Row>,
+}
+
+impl DistinctState {
+    pub fn contains(&self, row: &Row) -> bool {
+        self.seen.contains(row)
+    }
+
+    pub fn insert(&mut self, row: Row) {
+        self.seen.insert(row);
+    }
+}
+
 impl Executor for DistinctExecutor {
     fn open(&self, ctx: Arc<crate::task::TaskExecContext>) -> Result<super::DataChunkStream, crate::error::ExecError> {
         let input = self.input.clone();
@@ -31,6 +48,7 @@ impl Executor for DistinctExecutor {
             let input_stream = input.open(ctx.clone())?;
 
             let mut chunk_builder = DataChunkBuilder::new_from_schema(&schema, CHUNK_SIZE);
+            let mut state = DistinctState::default();
             let eval_ctx = ctx.derive_eval_ctx();
 
             for await chunk in input_stream {
@@ -38,10 +56,6 @@ impl Executor for DistinctExecutor {
                 if chunk.visible_row_len() == 0 {
                     continue;
                 }
-
-                // distict state: set of seen group keys
-                // TODO(pgao): use hashbrow raw set
-                let mut seen = HashSet::new();
 
                 // evaluate group_exprs
                 let mut group_cols = vec![];
@@ -52,12 +66,11 @@ impl Executor for DistinctExecutor {
 
                 let group_chunk = DataChunk::new(group_cols, chunk.visibility().clone());
                 for row_ref in group_chunk.iter() {
-
-                    let row = row_ref.iter().map(|x| x.unwrap().to_owned_scalar()).collect_vec();
-                    if seen.contains(&row) {
+                    let row = row_ref.iter().map(|x| x.map(|x| x.to_owned_scalar())).collect_vec();
+                    if state.contains(&row) {
                         continue;
                     }
-                    seen.insert(row);
+                    state.insert(row);
                     if let Some(out_chunk) = chunk_builder.append_row(row_ref) {
                         yield out_chunk;
                     }

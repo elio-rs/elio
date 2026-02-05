@@ -7,6 +7,7 @@ use async_stream::try_stream;
 use educe::Educe;
 use elio_common::array::chunk::{DataChunk, DataChunkBuilder};
 use elio_common::scalar::{Datum, DatumRef};
+use elio_expr::error::EvalError;
 use elio_expr::impl_::agg_call::{AggFuncImpl, AggFuncState};
 use futures::StreamExt;
 use hashbrown::raw::RawTable;
@@ -89,7 +90,7 @@ impl GroupingSet {
     /// if the key is not found, a new row will be created
     /// if the key is found, the states will be updated
     /// return the row index of the affected group
-    pub fn accumulate_row(&mut self, key: &[Datum], input_row: &[DatumRef]) -> RowIdx {
+    pub fn accumulate_row(&mut self, key: &[Datum], input_row: &[DatumRef]) -> Result<RowIdx, EvalError> {
         let row_idx = if let Some(idx) = self.lookup(key) {
             idx
         } else {
@@ -113,13 +114,14 @@ impl GroupingSet {
                 .iter()
                 .map(|idx| input_row.get(*idx).copied().unwrap_or(None))
                 .collect();
-            agg.update_state(state, &args);
+            agg.update_state(state, &args)?;
         }
-        row_idx
+        Ok(row_idx)
     }
 
     /// finalize all groups and produce (group_keys, agg_results) per group.
     /// finalize into data chunks using provided schema/order.
+    /// TODO(pgao): the result be an iterator
     pub fn finalize_chunks(
         &mut self,
         output_mapping: &[OutputColumnSource],
@@ -179,8 +181,8 @@ impl Executor for HashAggregateExecutor {
         let stream = try_stream! {
             let mut grouping = GroupingSet::new(agg_arg_idx.clone(), aggs.clone());
 
-            let mut input_stream = input.open(_ctx.clone())?;
-            while let Some(chunk_res) = input_stream.next().await {
+            let input_stream = input.open(_ctx.clone())?;
+            for await chunk_res in input_stream {
                 let chunk = chunk_res?;
                 if chunk.visible_row_len() == 0 {
                     continue;
@@ -204,7 +206,7 @@ impl Executor for HashAggregateExecutor {
                     }
                     let row_refs: Vec<DatumRef> = row_vals.iter().map(|d| d.as_ref()).collect();
 
-                    grouping.accumulate_row(&key, &row_refs);
+                    let _ = grouping.accumulate_row(&key, &row_refs)?;
                 }
             }
 
