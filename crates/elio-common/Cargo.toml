@@ -1,5 +1,5 @@
 [package]
-name = "elio_common"
+name = "elio-common"
 version.workspace = true
 edition.workspace = true
 

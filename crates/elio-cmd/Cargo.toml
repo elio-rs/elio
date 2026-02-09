@@ -1,5 +1,5 @@
 [package]
-name = "cmd"
+name = "elio-cmd"
 version.workspace = true
 edition.workspace = true
 
@@ -8,9 +8,10 @@ name = "elio"
 path = "bin/elio.rs"
 
 [dependencies]
+elio-core = { workspace = true }
+
 clap = { workspace = true, features = ["derive", "cargo"] }
 dirs = "5"
-elio_core = { workspace = true }
 futures = { workspace = true }
 rustyline = "14"
 tabled = "0.17"

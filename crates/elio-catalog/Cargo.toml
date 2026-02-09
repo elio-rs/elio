@@ -1,0 +1,11 @@
+[package]
+name = "elio-catalog"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+elio-common = { workspace = true }
+elio-expr = { workspace = true }
+elio-storage = { workspace = true }
+
+thiserror = { workspace = true }

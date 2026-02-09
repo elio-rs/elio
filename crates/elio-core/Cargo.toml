@@ -1,17 +1,18 @@
 [package]
-name = "elio_core"
+name = "elio-core"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
+elio-catalog = { workspace = true }
+elio-common = { workspace = true }
+elio-cypher = { workspace = true }
+elio-exec = { workspace = true }
+elio-parser = { workspace = true }
+elio-storage = { workspace = true }
+
 # workspace
 async-stream = { workspace = true }
-elio_catalog = { workspace = true }
-elio_common = { workspace = true }
-elio_cypher = { workspace = true }
-elio_exec = { workspace = true }
-elio_parser = { workspace = true }
-elio_storage = { workspace = true }
 futures = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }

@@ -1,19 +1,20 @@
 [package]
-name = "elio_exec"
+name = "elio-exec"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
+elio-catalog = { workspace = true }
+elio-common = { workspace = true }
+elio-cypher = { workspace = true }
+elio-expr = { workspace = true }
+elio-storage = { workspace = true }
+
 # workspace
 async-stream = { workspace = true }
 bitvec = { workspace = true }
 downcast-rs = { workspace = true }
 educe = { workspace = true }
-elio_catalog = { workspace = true }
-elio_common = { workspace = true }
-elio_cypher = { workspace = true }
-elio_expr = { workspace = true }
-elio_storage = { workspace = true }
 futures = { workspace = true }
 hashbrown = { workspace = true }
 indexmap = { workspace = true }

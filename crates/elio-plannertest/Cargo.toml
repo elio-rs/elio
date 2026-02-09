@@ -1,17 +1,18 @@
 [package]
-name = "plannertest"
+name = "elio-plannertest"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
+elio-catalog = { workspace = true }
+elio-common = { workspace = true }
+elio-cypher = { workspace = true }
+elio-expr = { workspace = true }
+elio-parser = { workspace = true }
+
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 clap = { workspace = true, features = ["derive", "cargo"] }
-elio_catalog = { workspace = true }
-elio_common = { workspace = true }
-elio_cypher = { workspace = true }
-elio_expr = { workspace = true }
-elio_parser = { workspace = true }
 itertools = { workspace = true }
 sqlplannertest = { workspace = true }
 tokio = { workspace = true }

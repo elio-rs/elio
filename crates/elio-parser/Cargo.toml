@@ -1,5 +1,5 @@
 [package]
-name = "elio_parser"
+name = "elio-parser"
 version = { workspace = true }
 edition = { workspace = true }
 
@@ -9,8 +9,9 @@ enum-as-inner = { workspace = true }
 peg = "0.8.5"
 # workspace
 either = { workspace = true }
-elio_common = { workspace = true }
 itertools = { workspace = true }
+
+elio-common = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true, features = ["yaml"] }
