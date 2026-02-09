@@ -1,16 +1,17 @@
 [package]
-name = "elio_cypher"
+name = "elio-cypher"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
+elio-catalog = { workspace = true }
+elio-common = { workspace = true }
+elio-expr = { workspace = true }
+elio-parser = { workspace = true }
+elio-storage = { workspace = true }
+
 derive_more = { workspace = true }
 educe = { workspace = true, features = ["full"] }
-elio_catalog = { workspace = true }
-elio_common = { workspace = true }
-elio_expr = { workspace = true }
-elio_parser = { workspace = true }
-elio_storage = { workspace = true }
 enum-as-inner = { workspace = true }
 indexmap = { workspace = true }
 itertools = { workspace = true }

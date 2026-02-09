@@ -24,16 +24,16 @@ build-release:
 	cargo build --release --workspace --bins
 
 planner-test:
-	cargo run -p plannertest
+	cargo run -p elio-plannertest
 
 rewrite-planner-test:
-	cargo run -p plannertest --bin apply
+	cargo run -p elio-plannertest --bin apply
 
 logic-test:
-	cargo nextest run -p logictest
+	cargo nextest run -p elio-logictest
 
 rewrite-logic-test:
-	REWRITE=1 cargo nextest run -p logictest
+	REWRITE=1 cargo nextest run -p elio-logictest
 	
 doc-test:
 	cargo test --no-fail-fast --doc --all-features --workspace

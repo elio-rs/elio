@@ -1,13 +1,14 @@
 [package]
-name = "logictest"
+name = "elio-logictest"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
+elio-common = { workspace = true }
+elio-core = { workspace = true }
+
 async-trait = { workspace = true }
 datatest-stable = { workspace = true }
-elio_common = { workspace = true }
-elio_core = { workspace = true }
 futures = { workspace = true }
 sqllogictest = { workspace = true }
 tempfile = { workspace = true }

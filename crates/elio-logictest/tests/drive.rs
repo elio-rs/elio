@@ -1,9 +1,9 @@
-extern crate logictest;
+extern crate elio_logictest;
 
 use std::path::Path;
 use std::sync::LazyLock;
 
-use logictest::graphdb::{EmbeddedGraphDB, graphdb_column_validator};
+use elio_logictest::graphdb::{EmbeddedGraphDB, graphdb_column_validator};
 use sqllogictest::runner::Runner;
 use sqllogictest::{default_normalizer, default_validator};
 use tempfile::tempdir;

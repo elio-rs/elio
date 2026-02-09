@@ -1,18 +1,18 @@
 [workspace]
 members = [
-    "src/catalog",
-    "src/cmd",
-    "src/common",
-    "src/common/macros",
-    "src/core",
-    "src/cypher",
-    "src/exec",
-    "src/expr/macros",
-    "src/expr",
-    "src/logictest",
-    "src/parser",
-    "src/plannertest",
-    "src/storage",
+    "crates/elio-catalog",
+    "crates/elio-cmd",
+    "crates/elio-common",
+    "crates/elio-common/macros",
+    "crates/elio-core",
+    "crates/elio-cypher",
+    "crates/elio-exec",
+    "crates/elio-expr/macros",
+    "crates/elio-expr",
+    "crates/elio-logictest",
+    "crates/elio-parser",
+    "crates/elio-plannertest",
+    "crates/elio-storage",
 ]
 resolver = "2"
 
@@ -21,15 +21,16 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
-elio_catalog = { path = "src/catalog" }
-elio_common = { path = "src/common" }
-elio_core = { path = "src/core" }
-elio_cypher = { path = "src/cypher" }
-elio_exec = { path = "src/exec" }
-elio_expr = { path = "src/expr" }
-elio_parser = { path = "src/parser" }
-elio_plannertest = { path = "src/plannertest" }
-elio_storage = { path = "src/storage" }
+elio-catalog = { path = "crates/elio-catalog" }
+elio-common = { path = "crates/elio-common" }
+elio-core = { path = "crates/elio-core" }
+elio-cypher = { path = "crates/elio-cypher" }
+elio-exec = { path = "crates/elio-exec" }
+elio-expr = { path = "crates/elio-expr" }
+elio-logictest = { path = "crates/elio-logictest" }
+elio-parser = { path = "crates/elio-parser" }
+elio-plannertest = { path = "crates/elio-plannertest" }
+elio-storage = { path = "crates/elio-storage" }
 
 # other
 anyhow = "1.0"

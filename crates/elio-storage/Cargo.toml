@@ -1,14 +1,15 @@
 [package]
-name = "elio_storage"
+name = "elio-storage"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
+elio-common = { workspace = true }
+
 # workspace
 async-trait = { workspace = true }
 bitvec = { workspace = true }
 bytes = { workspace = true }
-elio_common = { workspace = true }
 futures = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }

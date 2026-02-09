@@ -1,14 +1,15 @@
 [package]
-name = "elio_expr"
+name = "elio-expr"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
+elio-common = { workspace = true }
+elio-parser = { workspace = true }
+
 bitvec = { workspace = true }
 chrono = { workspace = true }
 downcast-rs = { workspace = true }
-elio_common = { workspace = true }
-elio_parser = { workspace = true }
 enum-as-inner = { workspace = true }
 expr_macros = { path = "./macros" }
 itertools = { workspace = true }
