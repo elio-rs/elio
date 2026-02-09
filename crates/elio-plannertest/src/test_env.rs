@@ -3,13 +3,13 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Error;
 use async_trait::async_trait;
-use elio_catalog::FunctionCatalog;
-use elio_catalog::error::CatalogError;
 use elio_common::{LabelId, PropertyKeyId, TokenId, TokenKind};
-use elio_cypher::planner::PlannerContext;
-use elio_cypher::session::{self, IndexHint, PlanLevel, PlannerSession};
-use elio_expr::FUNCTION_REGISTRY;
 use elio_parser::ast;
+use elio_query::catalog::FunctionCatalog;
+use elio_query::catalog::error::CatalogError;
+use elio_query::function::FUNCTION_REGISTRY;
+use elio_query::plan::session::{self, IndexHint, PlanLevel, PlannerSession};
+use elio_query::planner::PlannerContext;
 use itertools::Itertools;
 use sqlplannertest::ParsedTestCase;
 

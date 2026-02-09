@@ -4,16 +4,16 @@ use std::sync::Arc;
 use std::task::Poll;
 
 use async_stream::stream;
-use elio_catalog::Catalog;
-use elio_catalog::error::CatalogError;
 use elio_common::array::chunk::DataChunk;
 use elio_common::scalar::{Row, ScalarValue};
 use elio_common::{LabelId, PropertyKeyId, TokenId, TokenKind};
-use elio_cypher::planner::PlannerContext;
-use elio_cypher::session::{IndexHint, PlanLevel, PlannerSession, parse_statement, plan_query};
-use elio_exec::error::ExecError;
-use elio_exec::task::{ExecContext, create_task};
 use elio_parser::ast;
+use elio_query::catalog::error::CatalogError;
+use elio_query::catalog::{Catalog, FunctionCatalog};
+use elio_query::execution::error::ExecError;
+use elio_query::execution::task::{ExecContext, create_task};
+use elio_query::plan::session::{IndexHint, PlanLevel, PlannerSession, parse_statement, plan_query};
+use elio_query::planner::PlannerContext;
 use futures::Stream;
 use futures::stream::BoxStream;
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -44,7 +44,7 @@ impl PlannerSession for Session {
         Ok(self.catalog.get_or_create_token(token, kind)?)
     }
 
-    fn get_function_by_name(&self, name: &str) -> Option<&elio_catalog::FunctionCatalog> {
+    fn get_function_by_name(&self, name: &str) -> Option<&FunctionCatalog> {
         self.catalog.get_function_by_name(name)
     }
 

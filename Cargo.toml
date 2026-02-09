@@ -1,14 +1,16 @@
 [workspace]
 members = [
-    "crates/elio-catalog",
+    "crates/elio-query",
+    # "crates/elio-catalog",
     "crates/elio-cmd",
     "crates/elio-common",
     "crates/elio-common/macros",
     "crates/elio-core",
-    "crates/elio-cypher",
-    "crates/elio-exec",
-    "crates/elio-expr/macros",
-    "crates/elio-expr",
+    # "crates/elio-cypher",
+    # "crates/elio-exec",
+    "crates/elio-query/macros",
+    # "crates/elio-expr/macros",
+    # "crates/elio-expr",
     "crates/elio-logictest",
     "crates/elio-parser",
     "crates/elio-plannertest",
@@ -21,15 +23,16 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
-elio-catalog = { path = "crates/elio-catalog" }
+# elio-catalog = { path = "crates/elio-catalog" }
 elio-common = { path = "crates/elio-common" }
 elio-core = { path = "crates/elio-core" }
-elio-cypher = { path = "crates/elio-cypher" }
-elio-exec = { path = "crates/elio-exec" }
-elio-expr = { path = "crates/elio-expr" }
+# elio-cypher = { path = "crates/elio-cypher" }
+# elio-exec = { path = "crates/elio-exec" }
+# elio-expr = { path = "crates/elio-expr" }
 elio-logictest = { path = "crates/elio-logictest" }
 elio-parser = { path = "crates/elio-parser" }
 elio-plannertest = { path = "crates/elio-plannertest" }
+elio-query = { path = "crates/elio-query" }
 elio-storage = { path = "crates/elio-storage" }
 
 # other

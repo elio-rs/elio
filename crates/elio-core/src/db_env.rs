@@ -1,8 +1,8 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use elio_catalog::Catalog;
-use elio_exec::task::ExecContext;
+use elio_query::catalog::Catalog;
+use elio_query::execution::task::ExecContext;
 use elio_storage::graph::GraphStore;
 
 use crate::error::Error;

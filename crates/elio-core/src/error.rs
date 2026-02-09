@@ -1,7 +1,7 @@
 use std::backtrace::Backtrace;
 
-use elio_cypher::error::PlanError;
-use elio_exec::error::ExecError;
+use elio_query::execution::error::ExecError;
+use elio_query::plan::error::PlanError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

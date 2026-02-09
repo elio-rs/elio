@@ -1,0 +1,33 @@
+[package]
+name = "elio-query"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+elio-expr-macros = { path = "./macros" }
+
+elio-common = { workspace = true }
+elio-parser = { workspace = true }
+elio-storage = { workspace = true }
+
+async-stream = { workspace = true }
+bitvec = { workspace = true }
+chrono = { workspace = true }
+derive_more = { workspace = true }
+downcast-rs = { workspace = true }
+educe = { workspace = true, features = ["full"] }
+enum-as-inner = { workspace = true }
+futures = { workspace = true }
+hashbrown = { workspace = true }
+indexmap = { workspace = true }
+itertools = { workspace = true }
+ordered-float = { workspace = true }
+paste = { workspace = true }
+pretty-xmlish = { workspace = true }
+roaring = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+# extra, for reading from local files
+csv = "1.3"

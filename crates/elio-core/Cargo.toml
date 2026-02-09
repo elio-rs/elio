@@ -4,10 +4,11 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-elio-catalog = { workspace = true }
+# elio-catalog = { workspace = true }
 elio-common = { workspace = true }
-elio-cypher = { workspace = true }
-elio-exec = { workspace = true }
+elio-query = { workspace = true }
+# elio-cypher = { workspace = true }
+# elio-exec = { workspace = true }
 elio-parser = { workspace = true }
 elio-storage = { workspace = true }
 
