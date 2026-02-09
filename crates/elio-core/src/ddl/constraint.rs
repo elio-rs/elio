@@ -1,6 +1,7 @@
 //! Constraint DDL operations
 //!
 //! Handles CREATE CONSTRAINT and DROP CONSTRAINT statements.
+//! TODO(pgao): move constraint to query module
 
 use std::backtrace::Backtrace;
 use std::collections::HashSet;
@@ -8,8 +9,8 @@ use std::sync::Arc;
 
 use elio_common::array::Array;
 use elio_common::mapb::IndexKeyCodec;
-use elio_exec::error::ExecError;
 use elio_parser::ast;
+use elio_query::execution::error::ExecError;
 use elio_storage::constraint::{ConstraintKind, ConstraintMeta, EntityType};
 use elio_storage::graph::{GraphStore, TransactionMode};
 use elio_storage::transaction::NodeScanOptions;
