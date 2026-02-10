@@ -159,7 +159,7 @@ impl<PATHMODE: PathContainer> Iterator for VarExpandIter<PATHMODE> {
                     for entry in prop_map.iter() {
                         let key = match self
                             .ctx
-                            .store()
+                            .graph_store()
                             .token_store()
                             .get_token_val(entry.key(), TokenKind::PropertyKey)
                         {

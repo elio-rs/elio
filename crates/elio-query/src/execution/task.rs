@@ -6,8 +6,9 @@ use elio_common::array::chunk::DataChunk;
 use elio_common::array::{NodeArray, VirtualNodeArray};
 use elio_common::schema::Schema;
 use elio_common::{TokenId, TokenKind};
-use elio_storage::graph::{GraphStore, TransactionMode};
-use elio_storage::transaction::TransactionImpl;
+use elio_storage::graph::GraphStore;
+use elio_storage::transaction::Transaction;
+use elio_storage::transaction::manager::TransactionMode;
 use futures::StreamExt;
 use itertools::Itertools;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
@@ -50,7 +51,8 @@ impl ExecContext {
 
 pub struct EvalCtxImpl {
     pub catalog: Arc<Catalog>,
-    pub tx: Arc<TransactionImpl>,
+    pub graph_store: Arc<GraphStore>,
+    pub tx: Arc<Transaction>,
 }
 
 impl EvalCtx for EvalCtxImpl {
@@ -61,8 +63,8 @@ impl EvalCtx for EvalCtxImpl {
     }
 
     fn materialize_node(&self, node_ids: &VirtualNodeArray, vis: &BitVec) -> Result<NodeArray, EvalError> {
-        self.tx
-            .materialize_node(node_ids, vis)
+        self.graph_store
+            .materialize_node(&self.tx, node_ids, vis)
             .map_err(|e| EvalError::materialize_node_error(e.to_string()))
     }
 }
@@ -72,7 +74,8 @@ pub struct TaskExecContext {
     exec_ctx: Arc<ExecContext>,
     // task specific context here
     // TODO(pgao): maybe we should transaction also into catalog api?
-    tx: Arc<TransactionImpl>,
+    graph_store: Arc<GraphStore>,
+    tx: Arc<Transaction>,
 }
 
 impl TaskExecContext {
@@ -80,17 +83,18 @@ impl TaskExecContext {
         self.exec_ctx.catalog()
     }
 
-    pub fn store(&self) -> &Arc<GraphStore> {
-        self.exec_ctx.store()
+    pub fn graph_store(&self) -> &Arc<GraphStore> {
+        &self.graph_store
     }
 
-    pub fn tx(&self) -> &Arc<TransactionImpl> {
+    pub fn tx(&self) -> &Arc<Transaction> {
         &self.tx
     }
 
     pub fn derive_eval_ctx(&self) -> EvalCtxImpl {
         EvalCtxImpl {
             catalog: self.exec_ctx.catalog().clone(),
+            graph_store: self.graph_store.clone(),
             tx: self.tx.clone(),
         }
     }

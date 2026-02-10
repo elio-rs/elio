@@ -60,14 +60,14 @@ impl<EXPANDKIND: ExpandKindStrategy> Executor for ExpandExecutor<EXPANDKIND> {
                         // add rel to row
                         // SAFETY
                         //  planner and executor builder will only generate valid token_id
-                        let reltype = ctx.store().token_store().get_token_val(token_id, TokenKind::RelationshipType).unwrap();
+                        let reltype = ctx.graph_store().token_store().get_token_val(token_id, TokenKind::RelationshipType).unwrap();
                         // TODO(pgao): lazy deserialize
                         let prop_map = RelFormat::decode_value(&value);
                         // TODO(pgao): avoid clone
                         let struct_value = {
                             let mut fileds = vec![];
                             for entry in prop_map.iter() {
-                                let key = ctx.store().token_store().get_token_val(entry.key(), TokenKind::PropertyKey)?;
+                                let key = ctx.graph_store().token_store().get_token_val(entry.key(), TokenKind::PropertyKey)?;
                                 // TODO(pgao): avoid clone
                                 fileds.push((key, entry.value().to_owned_scalar()));
                             }

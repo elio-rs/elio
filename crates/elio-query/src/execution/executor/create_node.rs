@@ -42,15 +42,15 @@ impl Executor for CreateNodeExectuor {
             // Pre-fetch constraints for all labels
             let label_constraints: Vec<_> = label_vec
                 .iter()
-                .map(|labels| fetch_constraints_for_labels(ctx.store(), ctx.tx(), labels))
+                .map(|labels| fetch_constraints_for_labels(ctx.graph_store(), ctx.tx(), labels))
                 .collect::<Result<_, _>>()?;
 
             // Acquire read locks for all labels (to prevent concurrent CREATE CONSTRAINT)
             let all_label_ids: Vec<_> = label_vec
                 .iter()
-                .flat_map(|labels| labels.iter().filter_map(|l| ctx.store().token_store().get_label_id(l)))
+                .flat_map(|labels| labels.iter().filter_map(|l| ctx.graph_store().token_store().get_label_id(l)))
                 .collect();
-            let _locks = ctx.store().acquire_labels_read(&all_label_ids);
+            let _locks = ctx.graph_store().acquire_labels_read(&all_label_ids);
 
             // Execute the stream
             while let Some(chunk) = input_stream.next().await {
@@ -67,13 +67,13 @@ impl Executor for CreateNodeExectuor {
                     ))?;
 
                     // Check constraints before creating nodes
-                    check_unique_constraints(ctx.store(), ctx.tx(), &label_constraints[i], prop_struct)?;
+                    check_unique_constraints(ctx.graph_store(), ctx.tx(), &label_constraints[i], prop_struct)?;
 
                     // Create the nodes
                     let output = ctx.tx().node_create(&label_vec[i], &prop)?;
 
                     // Update unique indexes for the created nodes
-                    update_unique_indexes(ctx.store(), ctx.tx(), &label_constraints[i], prop_struct, &output)?;
+                    update_unique_indexes(ctx.graph_store(), ctx.tx(), &label_constraints[i], prop_struct, &output)?;
 
                     chunk.add_column(Arc::new(output.into()));
                 }

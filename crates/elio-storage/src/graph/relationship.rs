@@ -9,7 +9,9 @@ use elio_common::{NodeId, RelationshipId, SemanticDirection, TokenId, TokenKind}
 use crate::cf_topology;
 use crate::codec::RelFormat;
 use crate::error::GraphStoreError;
-use crate::transaction::TransactionImpl;
+use crate::id::IdStore;
+use crate::token::TokenStore;
+use crate::transaction::Transaction;
 
 /// start/end are expected to be :
 ///   - VirtualNodeArray
@@ -24,7 +26,9 @@ use crate::transaction::TransactionImpl;
 /// 3. serialize key-value
 /// 4. batch write
 pub(crate) fn batch_rel_create<A, B>(
-    tx: &TransactionImpl,
+    tx: &Transaction,
+    dict: &IdStore,
+    token: &TokenStore,
     rtype: &Arc<str>,
     start: &A,
     end: &B,
@@ -42,11 +46,11 @@ where
     assert_eq!(start.len(), end.len());
     assert_eq!(prop.len(), start.len());
 
-    let rtype_id = tx.token.get_or_create_token(rtype, TokenKind::RelationshipType)?;
-    let rel_ids = tx.dict.batch_rel_id(start.len())?;
+    let rtype_id = token.get_or_create_token(rtype, TokenKind::RelationshipType)?;
+    let rel_ids = dict.batch_rel_id(start.len())?;
     let prop_key_ids = prop
         .field_names()
-        .map(|k| tx.token.get_or_create_token(k, TokenKind::PropertyKey))
+        .map(|k| token.get_or_create_token(k, TokenKind::PropertyKey))
         .collect::<Result<Vec<_>, _>>()?;
     let len = start.len();
 
@@ -56,8 +60,6 @@ where
     let empty_prop = StructValue::default();
     let empty_prop_ref = empty_prop.as_scalar_ref();
     for (i, rel_id) in rel_ids.iter().enumerate() {
-        // for i in 0..len {
-        // let rel_id = rel_ids[i];
         let start_id = start.get_unchecked(i);
         let end_id = end.get_unchecked(i);
         let prop = prop.get(i);
@@ -73,7 +75,7 @@ where
     }
 
     // construct batch
-    let cf = tx.inner._db.cf_handle(cf_topology::CF_NAME).unwrap();
+    let cf = tx.snapshot._db.cf_handle(cf_topology::CF_NAME).unwrap();
     let mut guard = tx.write_state.lock().unwrap();
     for i in 0..values.len() {
         guard.batch.put_cf(&cf, &out_keys[i], &values[i]);
@@ -99,18 +101,18 @@ where
 }
 
 pub(crate) fn rel_iter_for_node<'a>(
-    tx: &'a TransactionImpl,
+    tx: &'a Transaction,
     node_id: NodeId,
     dir: SemanticDirection,
     rtypes: &[TokenId],
 ) -> Result<RelIterForNode<'a>, GraphStoreError> {
-    let cf = tx.inner._db.cf_handle(cf_topology::CF_NAME).unwrap();
+    let cf = tx.snapshot._db.cf_handle(cf_topology::CF_NAME).unwrap();
     let prefix = RelFormat::node_rel_iter_prefix(node_id, dir);
 
     let mut readopts = rocksdb::ReadOptions::default();
     readopts.set_prefix_same_as_start(true);
     let mode = rocksdb::IteratorMode::From(&prefix, rocksdb::Direction::Forward);
-    let iter = tx.inner.snapshot.iterator_cf_opt(&cf, readopts, mode);
+    let iter = tx.snapshot.snapshot.iterator_cf_opt(&cf, readopts, mode);
     Ok(RelIterForNode {
         iter,
         from_id: node_id,
