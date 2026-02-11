@@ -96,6 +96,7 @@ fn plan_aggregate(
             // if expr is varref or constant, let it pass through
             if expr.as_variable_ref().is_some() || expr.as_constant().is_some() {
                 pre_agg_proj.insert(var.clone(), expr.clone());
+                group_exprs.push((var.clone(), expr.clone()));
             } else {
                 let proj_var = ctx.ctx.var_gen().unnamed();
                 let proj_var_ref = Expr::new_variable_ref(proj_var.clone(), expr.typ().clone());

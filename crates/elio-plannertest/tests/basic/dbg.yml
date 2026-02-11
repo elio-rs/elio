@@ -1,5 +1,6 @@
 - sql: |
-    MATCH (a)--(b) RETURN a, SUM(b)
-  desc: aggregate sum
+    MATCH (a)--(b) RETURN a, SUM(b.age)
+  desc: aggregate sum with pre projection
   tasks: 
     - bind
+    - plan
