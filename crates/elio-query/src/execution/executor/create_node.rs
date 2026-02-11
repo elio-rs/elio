@@ -25,7 +25,7 @@ pub struct CreateNodeItem {
 }
 
 impl Executor for CreateNodeExectuor {
-    fn open(&self, ctx: Arc<TaskExecContext>) -> Result<DataChunkStream, ExecError> {
+    fn open(&self, ctx: Arc<QueryContext>) -> Result<DataChunkStream, ExecError> {
         let items = self.items.clone();
         let mut input_stream = self.input.open(ctx.clone())?;
 
@@ -42,16 +42,11 @@ impl Executor for CreateNodeExectuor {
             // Pre-fetch constraints for all labels
             let label_constraints: Vec<_> = label_vec
                 .iter()
-                .map(|labels| fetch_constraints_for_labels(ctx.store(), ctx.tx(), labels))
+                .map(|labels| fetch_constraints_for_labels(&ctx, labels))
                 .collect::<Result<_, _>>()?;
 
-            // Acquire read locks for all labels (to prevent concurrent CREATE CONSTRAINT)
-            let all_label_ids: Vec<_> = label_vec
-                .iter()
-                .flat_map(|labels| labels.iter().filter_map(|l| ctx.store().token_store().get_label_id(l)))
-                .collect();
-            let _locks = ctx.store().acquire_labels_read(&all_label_ids);
-
+            // TODO(pgao): since there's only single write txn, we can avoid the read lock
+            // TODO(pgao): use fine-grained locks
             // Execute the stream
             while let Some(chunk) = input_stream.next().await {
                 let chunk = chunk?;
@@ -67,13 +62,13 @@ impl Executor for CreateNodeExectuor {
                     ))?;
 
                     // Check constraints before creating nodes
-                    check_unique_constraints(ctx.store(), ctx.tx(), &label_constraints[i], prop_struct)?;
+                    check_unique_constraints(&ctx, &label_constraints[i], prop_struct)?;
 
                     // Create the nodes
-                    let output = ctx.tx().node_create(&label_vec[i], &prop)?;
+                    let output = ctx.graph_store().node_create(ctx.txn().as_ref(), &label_vec[i], &prop)?;
 
                     // Update unique indexes for the created nodes
-                    update_unique_indexes(ctx.store(), ctx.tx(), &label_constraints[i], prop_struct, &output)?;
+                    update_unique_indexes(&ctx, &label_constraints[i], prop_struct, &output)?;
 
                     chunk.add_column(Arc::new(output.into()));
                 }

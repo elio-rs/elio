@@ -33,14 +33,14 @@ pub struct ExpandExecutor<EXPANDKIND: ExpandKindStrategy> {
 ///        append row to output chunk
 ///        if output chunk full, then yield output chunk
 impl<EXPANDKIND: ExpandKindStrategy> Executor for ExpandExecutor<EXPANDKIND> {
-    fn open(&self, ctx: Arc<TaskExecContext>) -> Result<DataChunkStream, ExecError> {
+    fn open(&self, qctx: Arc<QueryContext>) -> Result<DataChunkStream, ExecError> {
         let from = self.from;
         let dir = self.dir;
         let rtype = self.rtype.clone();
         let schema = self.schema.clone();
         let expand_kind_filter = self.expand_kind_filter.clone();
 
-        let input_stream = self.input.open(ctx.clone())?;
+        let input_stream = self.input.open(qctx.clone())?;
 
         let stream = try_stream! {
             let mut out_builder = DataChunkBuilder::new(schema.columns().iter().map(|col| col.typ.physical_type()), CHUNK_SIZE);
@@ -53,21 +53,21 @@ impl<EXPANDKIND: ExpandKindStrategy> Executor for ExpandExecutor<EXPANDKIND> {
                         Some(id) => id,
                         None => continue, // if from is null, then skip this row
                     };
-                    let rel_iter = ctx.tx().rel_iter_for_node(from_id, dir, &rtype)?;
+                    let rel_iter = qctx.graph_store().rel_iter_for_node(qctx.txn().as_ref(),from_id, dir, &rtype)?;
                     for rel_kv in rel_iter {
                         let (from_id, rel_dir, token_id, to_id, rel_id, value) = rel_kv?;
                         let mut row = row.clone();
                         // add rel to row
                         // SAFETY
                         //  planner and executor builder will only generate valid token_id
-                        let reltype = ctx.store().token_store().get_token_val(token_id, TokenKind::RelationshipType).unwrap();
+                        let reltype = qctx.graph_store().token_store().get_token_val(token_id, TokenKind::RelationshipType).unwrap();
                         // TODO(pgao): lazy deserialize
                         let prop_map = RelFormat::decode_value(&value);
                         // TODO(pgao): avoid clone
                         let struct_value = {
                             let mut fileds = vec![];
                             for entry in prop_map.iter() {
-                                let key = ctx.store().token_store().get_token_val(entry.key(), TokenKind::PropertyKey)?;
+                                let key = qctx.graph_store().token_store().get_token_val(entry.key(), TokenKind::PropertyKey)?;
                                 // TODO(pgao): avoid clone
                                 fileds.push((key, entry.value().to_owned_scalar()));
                             }

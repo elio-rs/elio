@@ -11,7 +11,7 @@ use elio_common::scalar::StructValueRef;
 use elio_common::store_types::RelDirection;
 use elio_common::{NodeId, RelationshipId, SemanticDirection, TokenId};
 
-use crate::cf_topology;
+use crate::kv::cf_topology;
 
 pub struct RelFormat;
 

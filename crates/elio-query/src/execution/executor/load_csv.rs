@@ -24,7 +24,7 @@ pub struct LoadCsvExecutor {
 }
 
 impl Executor for LoadCsvExecutor {
-    fn open(&self, _ctx: Arc<TaskExecContext>) -> Result<DataChunkStream, ExecError> {
+    fn open(&self, _qctx: Arc<QueryContext>) -> Result<DataChunkStream, ExecError> {
         let (tx, mut rx) = mpsc::channel::<Result<DataChunk, ExecError>>(CHANNEL_BUFFER_SIZE);
         let source_url = self.source_url.clone();
         let format = self.format.clone();

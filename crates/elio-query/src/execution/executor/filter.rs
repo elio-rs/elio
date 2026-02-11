@@ -15,12 +15,12 @@ pub struct FilterExecutor {
 
 // TODO(pgao): short circuit filter
 impl Executor for FilterExecutor {
-    fn open(&self, ctx: Arc<TaskExecContext>) -> Result<DataChunkStream, ExecError> {
+    fn open(&self, qctx: Arc<QueryContext>) -> Result<DataChunkStream, ExecError> {
         let filter = self.filter.clone();
-        let input_stream = self.input.open(ctx.clone())?;
+        let input_stream = self.input.open(qctx.clone())?;
 
         let stream = try_stream! {
-            let eval_ctx = ctx.derive_eval_ctx();
+            let eval_ctx = qctx.derive_eval_ctx();
 
             for await chunk in input_stream {
                 let mut chunk = chunk?;

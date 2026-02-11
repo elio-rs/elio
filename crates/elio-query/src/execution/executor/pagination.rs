@@ -13,7 +13,7 @@ pub struct PaginationExecutor {
 }
 
 impl Executor for PaginationExecutor {
-    fn open(&self, ctx: Arc<TaskExecContext>) -> Result<DataChunkStream, ExecError> {
+    fn open(&self, ctx: Arc<QueryContext>) -> Result<DataChunkStream, ExecError> {
         let input_stream = self.input.open(ctx)?;
         let offset = self.offset as usize;
         let mut remaining = if self.limit == u64::MAX {

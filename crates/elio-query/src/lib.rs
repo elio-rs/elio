@@ -3,6 +3,7 @@
 
 pub mod binder;
 pub mod catalog;
+pub mod database;
 pub mod execution;
 pub mod function;
 pub mod optimizer;

@@ -170,7 +170,7 @@ impl GroupingSet {
 }
 
 impl Executor for HashAggregateExecutor {
-    fn open(&self, _ctx: Arc<TaskExecContext>) -> Result<DataChunkStream, ExecError> {
+    fn open(&self, qctx: Arc<QueryContext>) -> Result<DataChunkStream, ExecError> {
         let input = self.input.clone();
         let group_idx = self.group_by.clone();
         let agg_arg_idx = self.agg_args.clone();
@@ -181,7 +181,7 @@ impl Executor for HashAggregateExecutor {
         let stream = try_stream! {
             let mut grouping = GroupingSet::new(agg_arg_idx.clone(), aggs.clone());
 
-            let input_stream = input.open(_ctx.clone())?;
+            let input_stream = input.open(qctx.clone())?;
             for await chunk_res in input_stream {
                 let chunk = chunk_res?;
                 if chunk.visible_row_len() == 0 {

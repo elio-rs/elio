@@ -14,7 +14,7 @@ pub struct ArgumentExecutor {
 }
 
 impl Executor for ArgumentExecutor {
-    fn open(&self, _ctx: Arc<TaskExecContext>) -> Result<DataChunkStream, ExecError> {
+    fn open(&self, _ctx: Arc<QueryContext>) -> Result<DataChunkStream, ExecError> {
         let schema = self.schema.clone();
         let argument_ctx = self.argument_ctx.clone();
 

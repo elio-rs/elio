@@ -13,7 +13,7 @@ use crate::plan::expr::{Constant, CreateList, CreateStruct, Expr, ExprNode, Prop
 pub struct BuildExprContext<'a> {
     pub schema: &'a Schema,
     pub name2col: Name2ColumnMap,
-    pub ctx: &'a ExecutorBuildContext,
+    pub ctx: &'a ExecutorBuildContext<'a>,
 }
 
 impl<'a> BuildExprContext<'a> {

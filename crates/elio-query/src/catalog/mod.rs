@@ -2,12 +2,13 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use elio_storage::token::TokenStore;
+use elio_storage::catalog::CatalogStore;
 
 use crate::function::FUNCTION_REGISTRY;
 
 pub mod error;
 pub mod func;
+pub mod index;
 pub use func::FunctionCatalog;
 
 /// Catalog contains
@@ -15,23 +16,23 @@ pub use func::FunctionCatalog;
 ///  - Token to TokenId Mapping
 ///  - #TODO(pgao): Constraints
 ///  - #TODO(pgao): index
-pub struct Catalog {
-    // token store with cache
-    token: Arc<TokenStore>,
+pub struct SessionCatalog {
+    // durable catalog store
+    catalog_store: Arc<CatalogStore>,
     // functions
     functions: HashMap<String, FunctionCatalog>,
 }
 
-impl std::fmt::Debug for Catalog {
+impl std::fmt::Debug for SessionCatalog {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Catalog").finish()
     }
 }
 
-impl Catalog {
-    pub fn new(token: Arc<TokenStore>) -> Self {
+impl SessionCatalog {
+    pub fn new(catalog_store: Arc<CatalogStore>) -> Self {
         Self {
-            token,
+            catalog_store,
             functions: {
                 let mut map = HashMap::new();
                 for (name, def) in FUNCTION_REGISTRY.deref().name2def.iter() {
@@ -46,12 +47,8 @@ impl Catalog {
     pub fn get_function_by_name(&self, name: &str) -> Option<&FunctionCatalog> {
         self.functions.get(&name.trim().to_lowercase())
     }
-}
 
-impl Deref for Catalog {
-    type Target = TokenStore;
-
-    fn deref(&self) -> &Self::Target {
-        &self.token
+    pub fn catalog_store(&self) -> &Arc<CatalogStore> {
+        &self.catalog_store
     }
 }

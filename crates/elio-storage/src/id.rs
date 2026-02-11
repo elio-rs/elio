@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use elio_common::{NodeId, RelationshipId};
 
 use crate::error::GraphStoreError;
-use crate::{KvEngine, cf_meta};
+use crate::kv::KvEngine;
 
 // Number of ids to allocate from rocksdb
 const ID_BATCH_SIZE: u64 = 1000;
@@ -17,8 +17,16 @@ pub struct IdStore {
 
 impl IdStore {
     pub fn new(db: Arc<KvEngine>) -> Result<Self, GraphStoreError> {
-        let node_id = IdGenerator::new(db.clone(), (*cf_meta::MAX_NODE_ID_KEY).into(), cf_meta::CF_NAME.into())?;
-        let rel_id = IdGenerator::new(db.clone(), (*cf_meta::MAX_REL_ID_KEY).into(), cf_meta::CF_NAME.into())?;
+        let node_id = IdGenerator::new(
+            db.clone(),
+            (*crate::kv::cf_meta::MAX_NODE_ID_KEY).into(),
+            crate::kv::cf_meta::CF_NAME.into(),
+        )?;
+        let rel_id = IdGenerator::new(
+            db.clone(),
+            (*crate::kv::cf_meta::MAX_REL_ID_KEY).into(),
+            crate::kv::cf_meta::CF_NAME.into(),
+        )?;
         Ok(Self { node_id, rel_id })
     }
 }

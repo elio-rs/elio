@@ -1,12 +1,11 @@
-use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
 use clap::Parser;
-use elio_core::db_env::{DbConfig, DbEnv};
-use elio_core::session::Session;
+use elio_query::database::session::Session;
+use elio_query::database::{Database, DatabaseConfig};
 use futures::stream::StreamExt;
 use rustyline::DefaultEditor;
 use rustyline::error::ReadlineError;
@@ -37,7 +36,7 @@ fn print_help() {
 async fn execute_query(sess: &Arc<Session>, query: &str) {
     let start = Instant::now();
 
-    match sess.execute(query.to_string(), HashMap::new()).await {
+    match sess.execute(query, Default::default()).await {
         Ok(mut result) => {
             let columns = result.columns().to_vec();
             let mut rows: Vec<Vec<String>> = Vec::new();
@@ -204,9 +203,9 @@ async fn run_file(sess: Arc<Session>, path: &PathBuf) {
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
-    let db_config = DbConfig::with_db_path(&args.db_path);
+    let db_config = DatabaseConfig::with_path(&args.db_path);
 
-    let db = match DbEnv::open(&db_config) {
+    let db = match Database::open(&db_config) {
         Ok(db) => db,
         Err(e) => {
             eprintln!("Failed to open database: {}", e);

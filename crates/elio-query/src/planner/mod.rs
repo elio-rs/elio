@@ -22,14 +22,14 @@ mod single_query;
 mod tail;
 
 // planner temporaray state
-pub struct PlannerContext {
+pub struct PlannerContext<'a> {
     ctx: Arc<PlanContext>,
-    sess: Arc<dyn PlannerSession>,
+    sess: &'a dyn PlannerSession,
     _config: PlannerConfig,
 }
 
-impl PlannerContext {
-    pub fn new(sess: Arc<dyn PlannerSession>) -> Self {
+impl<'a> PlannerContext<'a> {
+    pub fn new(sess: &'a dyn PlannerSession) -> Self {
         Self {
             ctx: Arc::new(PlanContext::default()),
             sess,
@@ -37,8 +37,8 @@ impl PlannerContext {
         }
     }
 
-    pub fn session(&self) -> &Arc<dyn PlannerSession> {
-        &self.sess
+    pub fn session(&self) -> &'a dyn PlannerSession {
+        self.sess
     }
 }
 

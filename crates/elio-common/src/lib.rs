@@ -3,22 +3,20 @@
 
 use std::sync::Arc;
 
+use derive_more::PartialEq;
 use enum_as_inner::EnumAsInner;
+use serde::{Deserialize, Serialize};
 
 pub mod array;
-pub mod scalar;
-
+pub mod catalog;
 pub mod data_type;
-// mod macros;
 pub mod mapb;
 pub mod order;
+pub mod scalar;
 pub mod schema;
 pub mod store_types;
 pub mod value;
 pub mod variable;
-
-// pub type NodeId = u64;
-// pub type RelationshipId = u64;
 
 pub type TokenId = u16;
 pub type LabelId = TokenId;
@@ -78,6 +76,7 @@ pub type PropertyKey = String;
 pub type Label = String;
 pub type RelationshipType = String;
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EntityKind {
     Node,
     Rel,

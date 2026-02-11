@@ -19,13 +19,13 @@ use crate::plan::expr::{AggCall, CreateList, Expr, ExprNode, FilterExprs, FuncCa
 
 #[derive(Clone)]
 pub struct ExprContext<'a> {
-    pub bctx: &'a BindContext,
+    pub bctx: &'a BindContext<'a>,
     pub scope: &'a Scope,
     pub name: &'a str,
     pub sema_flags: ExprSemanticFlag,
 }
 
-#[derive(Default, Copy, Clone)]
+#[derive(Default, Copy, Clone, Debug)]
 pub struct ExprSemanticFlag(u64);
 
 const EXPR_REJECT_OUTER_REFERENCE: u64 = 0x1;
@@ -261,7 +261,8 @@ fn bind_func_call(
     let FunctionCatalog { name, func } = ectx
         .bctx
         .session()
-        .get_function_by_name(name)
+        .catalog()
+        .resolve_function(name)
         .ok_or(PlanError::from(SemanticError::unknown_function(name, ectx.name)))?;
 
     if func.is_agg && ectx.sema_flags.reject_aggregate() {
@@ -307,7 +308,8 @@ fn resolve_func(
     let FunctionCatalog { name, func } = ectx
         .bctx
         .session()
-        .get_function_by_name(name)
+        .catalog()
+        .resolve_function(name)
         .ok_or(PlanError::from(SemanticError::unknown_function(name, ectx.name)))?;
 
     let is_agg = func.is_agg;

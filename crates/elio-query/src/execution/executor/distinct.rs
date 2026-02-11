@@ -11,10 +11,10 @@ use futures::StreamExt;
 use hashbrown::HashSet;
 use itertools::{self, Itertools};
 
+use crate::execution::QueryContext;
 use crate::execution::error::ExecError;
 use crate::execution::executor::{CHUNK_SIZE, DataChunkStream, Executor, SharedExecutor};
 use crate::execution::expr::SharedExpression;
-use crate::execution::task::TaskExecContext;
 
 #[derive(Educe)]
 #[educe(Debug)]
@@ -41,17 +41,17 @@ impl DistinctState {
 }
 
 impl Executor for DistinctExecutor {
-    fn open(&self, ctx: Arc<TaskExecContext>) -> Result<DataChunkStream, ExecError> {
+    fn open(&self, qctx: Arc<QueryContext>) -> Result<DataChunkStream, ExecError> {
         let input = self.input.clone();
         let group_exprs = self.group_exprs.clone();
         let schema = self.schema.clone();
 
         let stream = try_stream! {
-            let input_stream = input.open(ctx.clone())?;
+            let input_stream = input.open(qctx.clone())?;
 
             let mut chunk_builder = DataChunkBuilder::new_from_schema(&schema, CHUNK_SIZE);
             let mut state = DistinctState::default();
-            let eval_ctx = ctx.derive_eval_ctx();
+            let eval_ctx = qctx.derive_eval_ctx();
 
             for await chunk in input_stream {
                 let chunk = chunk?;

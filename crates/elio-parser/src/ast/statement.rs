@@ -16,6 +16,22 @@ pub enum Statement {
     DropConstraint(Box<DropConstraint>),
 }
 
+pub enum QueryKind {
+    Read,
+    ReadWrite,
+}
+
+impl Statement {
+    pub fn query_kind(&self) -> QueryKind {
+        match self {
+            Statement::Explain(_) => QueryKind::Read,
+            Statement::Query(regular_query) => regular_query.query_kind(),
+            Statement::CreateConstraint(_) => QueryKind::ReadWrite,
+            Statement::DropConstraint(_) => QueryKind::ReadWrite,
+        }
+    }
+}
+
 /// EXPLAIN query
 #[derive(Debug, Display)]
 #[display("EXPLAIN {}", query)]

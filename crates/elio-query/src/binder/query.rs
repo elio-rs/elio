@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use elio_common::variable::VariableName;
 use elio_parser::ast;
 use indexmap::IndexMap;
@@ -23,7 +21,7 @@ pub enum ClauseKind {
     Return,
 }
 
-pub fn bind_root_query(sctx: Arc<dyn PlannerSession>, query: &ast::RegularQuery) -> Result<IrQueryRoot, PlanError> {
+pub fn bind_root_query(sctx: &dyn PlannerSession, query: &ast::RegularQuery) -> Result<IrQueryRoot, PlanError> {
     let bctx = BindContext::new(sctx);
 
     let (ir, scope) = bind_query(&bctx, query)?;

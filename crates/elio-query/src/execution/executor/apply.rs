@@ -44,7 +44,7 @@ pub struct ApplyExecutor {
 }
 
 impl Executor for ApplyExecutor {
-    fn open(&self, ctx: Arc<TaskExecContext>) -> Result<DataChunkStream, ExecError> {
+    fn open(&self, ctx: Arc<QueryContext>) -> Result<DataChunkStream, ExecError> {
         // Clone Arc-wrapped data to move into the async block
         let left = self.left.clone();
         let right = self.right.clone();

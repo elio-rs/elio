@@ -11,8 +11,11 @@ async-trait = { workspace = true }
 bitvec = { workspace = true }
 bytes = { workspace = true }
 futures = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+
 # local
 bytemuck = { version = "1.24.0", features = ["derive"] }
 parking_lot = "0.12"

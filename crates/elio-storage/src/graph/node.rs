@@ -6,15 +6,19 @@ use elio_common::array::chunk::DataChunk;
 use elio_common::array::{Array, ArrayImpl, NodeArray, NodeArrayBuilder, VirtualNodeArray, VirtualNodeArrayBuilder};
 use elio_common::scalar::{NodeValueRef, StructValue};
 
-use crate::cf_property;
 use crate::codec::NodeFormat;
 use crate::error::GraphStoreError;
-use crate::transaction::{DataChunkIterator, NodeScanOptions, TransactionImpl};
+use crate::id::IdStore;
+use crate::kv::cf_property;
+use crate::token::TokenStore;
+use crate::transaction::{DataChunkIterator, NodeScanOptions, Transaction};
 
-// props only accept the fowlling array types
+// props only accept the following array types
 // - StructArray
 pub(crate) fn batch_node_create(
-    tx: &TransactionImpl,
+    tx: &Transaction,
+    dict: &IdStore,
+    token: &TokenStore,
     labels: &[Arc<str>],
     props: &ArrayImpl,
 ) -> Result<NodeArray, GraphStoreError> {
@@ -25,21 +29,21 @@ pub(crate) fn batch_node_create(
         .as_struct()
         .ok_or(GraphStoreError::type_mismatch("Expected struct array"))?;
 
-    // create label id s
+    // create label ids
     let label_ids = labels
         .iter()
-        .map(|l| tx.token.get_or_create_token(l, TokenKind::Label))
+        .map(|l| token.get_or_create_token(l, TokenKind::Label))
         .collect::<Result<Vec<_>, _>>()?;
 
     // create property key names
     let token_ids = props
         .fields()
         .iter()
-        .map(|(k, _)| tx.token.get_or_create_token(k, TokenKind::PropertyKey))
+        .map(|(k, _)| token.get_or_create_token(k, TokenKind::PropertyKey))
         .collect::<Result<Vec<_>, _>>()?;
 
     // allocate node id for the batch
-    let node_ids = tx.dict.batch_node_id(len)?;
+    let node_ids = dict.batch_node_id(len)?;
 
     // create node fields for the batch
     let mut keys = Vec::with_capacity(len);
@@ -55,7 +59,7 @@ pub(crate) fn batch_node_create(
     }
 
     // construct batch
-    let cf = tx.inner._db.cf_handle(cf_property::CF_NAME).unwrap();
+    let cf = tx.snapshot._db.cf_handle(cf_property::CF_NAME).unwrap();
     let mut guard = tx.write_state.lock().unwrap();
     for (k, v) in keys.iter().zip(values.iter()) {
         guard.batch.put_cf(&cf, k, v);
@@ -78,15 +82,15 @@ pub(crate) fn batch_node_create(
 }
 
 pub(crate) fn batch_node_scan(
-    tx: &TransactionImpl,
+    tx: &Transaction,
     opts: NodeScanOptions,
 ) -> Result<Box<dyn DataChunkIterator + '_>, GraphStoreError> {
-    let cf_handle = tx.inner._db.cf_handle(cf_property::CF_NAME).unwrap();
+    let cf_handle = tx.snapshot._db.cf_handle(cf_property::CF_NAME).unwrap();
     let mut readopts = rocksdb::ReadOptions::default();
     // TODO(pgao): check the behavior of prefix scan
     readopts.set_prefix_same_as_start(true);
     let mode = rocksdb::IteratorMode::From(cf_property::NODE_KEY_PREFIX, rocksdb::Direction::Forward);
-    let iter = tx.inner.snapshot.iterator_cf_opt(&cf_handle, readopts, mode);
+    let iter = tx.snapshot.snapshot.iterator_cf_opt(&cf_handle, readopts, mode);
     Ok(Box::new(NodeIterator { iter, opts }))
 }
 
@@ -99,11 +103,12 @@ pub(crate) fn batch_node_scan(
 // Possible optimizations:
 //  1. for dense array(all the data are valid, we should handle it separately)
 pub(crate) fn batch_materialize_node(
-    tx: &TransactionImpl,
+    tx: &Transaction,
+    token: &TokenStore,
     node_ids: &VirtualNodeArray,
     vis: &BitVec,
 ) -> Result<NodeArray, GraphStoreError> {
-    let cf_handle = tx.inner._db.cf_handle(cf_property::CF_NAME).unwrap();
+    let cf_handle = tx.snapshot._db.cf_handle(cf_property::CF_NAME).unwrap();
     let mut builder = NodeArrayBuilder::with_capacity(node_ids.len());
 
     let mut valid_node_keys = vec![];
@@ -116,7 +121,7 @@ pub(crate) fn batch_materialize_node(
 
     // rocksdb batch read
     let keys_cf = valid_node_keys.iter().map(|k| (&cf_handle, k));
-    let batch = tx.inner.snapshot.multi_get_cf(keys_cf);
+    let batch = tx.snapshot.snapshot.multi_get_cf(keys_cf);
     let mut batch_iter = batch.into_iter();
 
     for (idx, node_id) in node_ids.iter().enumerate() {
@@ -135,13 +140,13 @@ pub(crate) fn batch_materialize_node(
 
             let label_strs = label_ids
                 .iter()
-                .map(|id| tx.token.get_token_val(id, TokenKind::Label))
+                .map(|id| token.get_token_val(id, TokenKind::Label))
                 .collect::<Result<Vec<_>, _>>()?;
 
             let struct_value = {
                 let mut fileds = vec![];
                 for entry in prop_map.iter() {
-                    let key = tx.token.get_token_val(entry.key(), TokenKind::PropertyKey)?;
+                    let key = token.get_token_val(entry.key(), TokenKind::PropertyKey)?;
                     fileds.push((key, entry.value().to_owned_scalar()));
                 }
                 StructValue::new(fileds)

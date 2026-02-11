@@ -1,102 +1,44 @@
 use std::sync::Arc;
 
 use bitvec::vec::BitVec;
-use educe::Educe;
 use elio_common::array::chunk::DataChunk;
 use elio_common::array::{NodeArray, VirtualNodeArray};
 use elio_common::schema::Schema;
 use elio_common::{TokenId, TokenKind};
-use elio_storage::graph::{GraphStore, TransactionMode};
-use elio_storage::transaction::TransactionImpl;
+use elio_storage::graph::GraphStore;
+use elio_storage::token::TokenStore;
+use elio_storage::transaction::Transaction;
 use futures::StreamExt;
 use itertools::Itertools;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
-use crate::catalog::Catalog;
+use crate::execution::QueryContext;
 use crate::execution::builder::{ExecutorBuildContext, build_executor};
 use crate::execution::error::{EvalError, ExecError};
 use crate::execution::executor::SharedExecutor;
 use crate::execution::expr::EvalCtx;
 use crate::execution::panic::spawn_with_hook;
-use crate::plan::plan_node::PlanExpr;
 use crate::planner::RootPlan;
 
-// global execution context
-#[derive(Educe)]
-#[educe(Debug)]
-pub struct ExecContext {
-    // TODO(pgao): separate catalog and token store
-    catalog: Arc<Catalog>,
-    // global resources here
-    #[educe(Debug(ignore))]
-    store: Arc<GraphStore>,
-}
-
-impl ExecContext {
-    pub fn new(catalog: Arc<Catalog>, store: Arc<GraphStore>) -> Self {
-        Self { catalog, store }
-    }
-}
-
-impl ExecContext {
-    pub fn catalog(&self) -> &Arc<Catalog> {
-        &self.catalog
-    }
-
-    pub fn store(&self) -> &Arc<GraphStore> {
-        &self.store
-    }
-}
-
 pub struct EvalCtxImpl {
-    pub catalog: Arc<Catalog>,
-    pub tx: Arc<TransactionImpl>,
+    pub graph_store: Arc<GraphStore>,
+    pub tx: Arc<Transaction>,
+    pub token_store: Arc<TokenStore>,
 }
 
 impl EvalCtx for EvalCtxImpl {
     fn get_or_create_token(&self, token: &str, kind: TokenKind) -> Result<TokenId, EvalError> {
-        self.catalog
+        self.token_store
             .get_or_create_token(token, kind)
             .map_err(|e| EvalError::GetOrCreateTokenError(e.to_string()))
     }
 
     fn materialize_node(&self, node_ids: &VirtualNodeArray, vis: &BitVec) -> Result<NodeArray, EvalError> {
-        self.tx
-            .materialize_node(node_ids, vis)
+        self.graph_store
+            .materialize_node(&self.tx, node_ids, vis)
             .map_err(|e| EvalError::materialize_node_error(e.to_string()))
     }
 }
-
-/// Task execution context contains the global resources needed by the task execution
-pub struct TaskExecContext {
-    exec_ctx: Arc<ExecContext>,
-    // task specific context here
-    // TODO(pgao): maybe we should transaction also into catalog api?
-    tx: Arc<TransactionImpl>,
-}
-
-impl TaskExecContext {
-    pub fn catalog(&self) -> &Arc<Catalog> {
-        self.exec_ctx.catalog()
-    }
-
-    pub fn store(&self) -> &Arc<GraphStore> {
-        self.exec_ctx.store()
-    }
-
-    pub fn tx(&self) -> &Arc<TransactionImpl> {
-        &self.tx
-    }
-
-    pub fn derive_eval_ctx(&self) -> EvalCtxImpl {
-        EvalCtxImpl {
-            catalog: self.exec_ctx.catalog().clone(),
-            tx: self.tx.clone(),
-        }
-    }
-}
-
-// TODO(pgao): task manager
 
 /// receiver side of task
 /// TODO(pgao): separate the task result fetcher and task control logic like abort etc
@@ -105,10 +47,7 @@ pub struct TaskHandle {
     pub query_id: Arc<str>,
     pub schema: Schema,
     pub columns: Vec<String>,
-
-    // pub task_id: Arc<str>,
     pub recv: UnboundedReceiver<Result<DataChunk, ExecError>>,
-    // output channnel for task results
 }
 
 impl TaskHandle {
@@ -123,21 +62,9 @@ impl TaskHandle {
 }
 
 /// create task and spawn running task execution
-pub async fn create_task(ectx: &Arc<ExecContext>, query_id: Arc<str>, plan: RootPlan) -> Result<TaskHandle, ExecError> {
-    let is_write = plan_is_write(plan.plan.as_ref());
-    let tx_mode = if is_write {
-        TransactionMode::ReadWrite
-    } else {
-        TransactionMode::ReadOnly
-    };
-    let tx = ectx.store.transaction(tx_mode);
-    let task_context = Arc::new(TaskExecContext {
-        exec_ctx: ectx.clone(),
-        tx,
-    });
-
+pub async fn create_task(qctx: Arc<QueryContext>, query_id: Arc<str>, plan: RootPlan) -> Result<TaskHandle, ExecError> {
     // compile to executor
-    let mut bctx = ExecutorBuildContext::new(task_context.clone());
+    let mut bctx = ExecutorBuildContext::new(&qctx);
     let root_executor = build_executor(&mut bctx, &plan)?;
 
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -152,7 +79,7 @@ pub async fn create_task(ectx: &Arc<ExecContext>, query_id: Arc<str>, plan: Root
     };
 
     let runner = TaskRunner {
-        ctx: task_context,
+        ctx: qctx,
         tx,
         root_executor,
     };
@@ -162,17 +89,8 @@ pub async fn create_task(ectx: &Arc<ExecContext>, query_id: Arc<str>, plan: Root
     Ok(handle)
 }
 
-fn plan_is_write(plan: &PlanExpr) -> bool {
-    match plan {
-        // NB: create constraint is handled separately in the ddl module
-        // TODO(pgao): we should put the create constraint into the task execution
-        PlanExpr::CreateNode(_) | PlanExpr::CreateRel(_) => true,
-        _ => plan.inputs().into_iter().any(plan_is_write),
-    }
-}
-
 pub struct TaskRunner {
-    ctx: Arc<TaskExecContext>,
+    ctx: Arc<QueryContext>,
     tx: UnboundedSender<Result<DataChunk, ExecError>>,
     root_executor: SharedExecutor,
     // TODO(pgao): cancellation token
@@ -182,7 +100,7 @@ impl TaskRunner {
     pub fn start(self) {
         // spawn task and drive task to finish
         let TaskRunner { ctx, tx, root_executor } = self;
-        let txn = ctx.tx().clone();
+        let txn = ctx.tx.clone();
         let stream = match root_executor.open(ctx) {
             Ok(s) => s,
             Err(e) => {

@@ -1,8 +1,9 @@
 use std::backtrace::Backtrace;
 
-use elio_query::execution::error::ExecError;
-use elio_query::plan::error::PlanError;
 use thiserror::Error;
+
+use crate::execution::error::ExecError;
+use crate::plan::error::PlanError;
 
 #[derive(Error, Debug)]
 pub enum Error {

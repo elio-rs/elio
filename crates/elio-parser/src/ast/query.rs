@@ -2,12 +2,26 @@ use derive_more::Display;
 use itertools::{self, Itertools};
 
 use crate::ast::pattern::UpdatePattern;
-use crate::ast::{Expr, Literal, MatchPattern, OrderBy, ReturnItems};
+use crate::ast::{Expr, Literal, MatchPattern, OrderBy, QueryKind, ReturnItems};
 
 #[derive(Debug)]
 pub struct RegularQuery {
     pub queries: Vec<SingleQuery>,
     pub union_all: bool,
+}
+
+impl RegularQuery {
+    pub fn query_kind(&self) -> QueryKind {
+        let is_read_only = self
+            .queries
+            .iter()
+            .all(|q| q.clauses.iter().all(|c| !matches!(c, Clause::Create(_))));
+        if is_read_only {
+            QueryKind::Read
+        } else {
+            QueryKind::ReadWrite
+        }
+    }
 }
 
 impl std::fmt::Display for RegularQuery {
@@ -51,6 +65,16 @@ pub enum Clause {
     Unwind(UnwindClause),
     #[display("{}", _0)]
     Load(LoadClause),
+}
+
+impl Clause {
+    pub fn query_kind(&self) -> QueryKind {
+        if matches!(self, Clause::Create(_)) {
+            QueryKind::ReadWrite
+        } else {
+            QueryKind::Read
+        }
+    }
 }
 
 #[derive(Debug, Display)]

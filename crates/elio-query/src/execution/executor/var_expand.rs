@@ -34,7 +34,7 @@ pub struct VarExpandExecutor<PATHMODE: PathContainer, EXPANDKIND: ExpandKindStra
 }
 
 impl<PATHMODE: PathContainer, EXPANDKIND: ExpandKindStrategy> Executor for VarExpandExecutor<PATHMODE, EXPANDKIND> {
-    fn open(&self, ctx: Arc<TaskExecContext>) -> Result<DataChunkStream, ExecError> {
+    fn open(&self, ctx: Arc<QueryContext>) -> Result<DataChunkStream, ExecError> {
         let input_stream = self.input.open(ctx.clone())?;
         let schema = self.schema.clone();
         let from = self.from;
@@ -109,7 +109,7 @@ impl<PATHMODE: PathContainer, EXPANDKIND: ExpandKindStrategy> Executor for VarEx
 
 pub struct VarExpandIter<PATHMODE: PathContainer> {
     pub stack: VecDeque<(NodeId, PATHMODE)>,
-    pub ctx: Arc<TaskExecContext>,
+    pub ctx: Arc<QueryContext>,
     pub dir: SemanticDirection,
     pub rel_types: Arc<[TokenId]>,
     pub min_len: usize,
@@ -124,10 +124,15 @@ impl<PATHMODE: PathContainer> Iterator for VarExpandIter<PATHMODE> {
         let (node, path) = self.stack.pop_back()?;
         if path.len() < self.max_len {
             // expand node and path
-            let rel_iter = match self.ctx.tx().rel_iter_for_node(node, self.dir, &self.rel_types) {
-                Ok(rel_iter) => rel_iter,
-                Err(e) => return Some(Err(e.into())),
-            };
+            let rel_iter =
+                match self
+                    .ctx
+                    .graph_store()
+                    .rel_iter_for_node(self.ctx.txn().as_ref(), node, self.dir, &self.rel_types)
+                {
+                    Ok(rel_iter) => rel_iter,
+                    Err(e) => return Some(Err(e.into())),
+                };
 
             // add expanded path to stack
             // for each rel, add (target, path + rel) to stack
@@ -140,7 +145,11 @@ impl<PATHMODE: PathContainer> Iterator for VarExpandIter<PATHMODE> {
                 let (from_id, rel_dir, token_id, to_id, rel_id, value) = rel_kv;
                 // TODO(pgao): avoid get token value for each rel
                 // maybe we can cache all the token value on the execution context
-                let rel_type = match self.ctx.catalog().get_token_val(token_id, TokenKind::RelationshipType) {
+                let rel_type = match self
+                    .ctx
+                    .token_store()
+                    .get_token_val(token_id, TokenKind::RelationshipType)
+                {
                     Ok(rel_type) => rel_type,
                     Err(e) => return Some(Err(e.into())),
                 };
@@ -159,7 +168,7 @@ impl<PATHMODE: PathContainer> Iterator for VarExpandIter<PATHMODE> {
                     for entry in prop_map.iter() {
                         let key = match self
                             .ctx
-                            .store()
+                            .graph_store()
                             .token_store()
                             .get_token_val(entry.key(), TokenKind::PropertyKey)
                         {

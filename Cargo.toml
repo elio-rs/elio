@@ -1,16 +1,10 @@
 [workspace]
 members = [
     "crates/elio-query",
-    # "crates/elio-catalog",
     "crates/elio-cmd",
     "crates/elio-common",
     "crates/elio-common/macros",
-    "crates/elio-core",
-    # "crates/elio-cypher",
-    # "crates/elio-exec",
     "crates/elio-query/macros",
-    # "crates/elio-expr/macros",
-    # "crates/elio-expr",
     "crates/elio-logictest",
     "crates/elio-parser",
     "crates/elio-plannertest",
@@ -23,12 +17,7 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
-# elio-catalog = { path = "crates/elio-catalog" }
 elio-common = { path = "crates/elio-common" }
-elio-core = { path = "crates/elio-core" }
-# elio-cypher = { path = "crates/elio-cypher" }
-# elio-exec = { path = "crates/elio-exec" }
-# elio-expr = { path = "crates/elio-expr" }
 elio-logictest = { path = "crates/elio-logictest" }
 elio-parser = { path = "crates/elio-parser" }
 elio-plannertest = { path = "crates/elio-plannertest" }
@@ -39,15 +28,15 @@ elio-storage = { path = "crates/elio-storage" }
 anyhow = "1.0"
 async-stream = "0.3.6"
 async-trait = "0.1.89"
-bitvec = "1.0.1"                                     # array bitmap
-bytes = "1.10.1"
-chrono = "0.4.42"
+bitvec = "1"                                         # array bitmap
+bytes = "1"
+chrono = "0.4"
 clap = "4.5"
 derive_more = { version = "2", features = ["full"] }
 downcast-rs = "2"
 educe = "0.6.0"
 either = "1.15.0"
-enum-as-inner = "0.6.1"
+enum-as-inner = "0.6"
 futures = "0.3"
 hashbrown = { version = "0.14", features = ["raw"] }
 indexmap = "2.12.0"
@@ -61,13 +50,14 @@ proc-macro2 = "1.0"                                  # expr proc macros
 quote = "1.0"                                        # expr proc macros
 regex = "1"                                          # for parsing expr macros fuction signature
 roaring = "0.11.3"                                   # for path storage(not used by now)
+serde = "1"                                          # for ser/de catalog entry
+serde_json = "1"                                     # for ser/de catalog entry
 sqlplannertest = "0.4.1"
 syn = { version = "2.0", features = ["full"] }       # expr proc macros
-thiserror = "2.0.12"
+thiserror = "2"
 tikv-jemallocator = "0.6"                            # for fast memory alloc
 tokio = { version = "1.48.0", features = ["full"] }
 tracing = "0.1.43"
-
 # dev-depencies
 datatest-stable = "0.3"
 insta = { version = "1.43", features = ["yaml"] }

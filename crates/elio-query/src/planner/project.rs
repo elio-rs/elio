@@ -96,6 +96,7 @@ fn plan_aggregate(
             // if expr is varref or constant, let it pass through
             if expr.as_variable_ref().is_some() || expr.as_constant().is_some() {
                 pre_agg_proj.insert(var.clone(), expr.clone());
+                group_exprs.push((var.clone(), expr.clone()));
             } else {
                 let proj_var = ctx.ctx.var_gen().unnamed();
                 let proj_var_ref = Expr::new_variable_ref(proj_var.clone(), expr.typ().clone());
@@ -143,8 +144,8 @@ fn plan_aggregate(
     // aggregate
     let inner = AggregateInner {
         input: root,
-        group_by: group_by.iter().map(|(k, v)| (k.clone(), v.clone())).collect_vec(),
-        aggregate: aggregate.iter().map(|(k, v)| (k.clone(), v.clone())).collect_vec(),
+        group_by: group_exprs,
+        aggregate: agg_exprs,
     };
     let mut root: Box<PlanExpr> = Aggregate::new(inner).into();
 
@@ -206,7 +207,7 @@ fn plan_distinct(
 fn plan_unwind(
     _ctx: &mut PlannerContext,
     _root: Box<PlanExpr>,
-    _unwind @ Unwind { variable, expr }: &Unwind,
+    _unwind @ Unwind { .. }: &Unwind,
 ) -> Result<Box<PlanExpr>, PlanError> {
     Err(PlanError::not_supported("unwind clause not implemented yet."))
 }

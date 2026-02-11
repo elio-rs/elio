@@ -6,8 +6,8 @@ use elio_common::schema::Schema;
 use futures::Stream;
 use tracing;
 
+use crate::execution::QueryContext;
 use crate::execution::error::ExecError;
-use crate::execution::task::TaskExecContext;
 
 pub mod all_node_scan;
 pub mod apply;
@@ -36,7 +36,7 @@ pub type DataChunkStream = Pin<Box<dyn Stream<Item = Result<DataChunk, ExecError
 pub const CHUNK_SIZE: usize = 4096;
 
 pub trait Executor: Send + Sync + std::fmt::Debug {
-    fn open(&self, _ctx: Arc<TaskExecContext>) -> Result<DataChunkStream, ExecError>;
+    fn open(&self, _qctx: Arc<QueryContext>) -> Result<DataChunkStream, ExecError>;
 
     fn schema(&self) -> &Schema;
 

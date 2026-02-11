@@ -12,7 +12,7 @@ pub struct ProjectExecutor {
 }
 
 impl Executor for ProjectExecutor {
-    fn open(&self, ctx: Arc<TaskExecContext>) -> Result<DataChunkStream, ExecError> {
+    fn open(&self, ctx: Arc<QueryContext>) -> Result<DataChunkStream, ExecError> {
         let exprs = self.exprs.clone();
 
         let input_stream = self.input.open(ctx.clone())?;

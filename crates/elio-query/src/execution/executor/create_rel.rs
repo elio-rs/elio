@@ -24,12 +24,12 @@ pub struct CreateRelItem {
 }
 
 impl Executor for CreateRelExectuor {
-    fn open(&self, ctx: Arc<TaskExecContext>) -> Result<DataChunkStream, ExecError> {
+    fn open(&self, qctx: Arc<QueryContext>) -> Result<DataChunkStream, ExecError> {
         let items = self.items.clone();
-        let input_stream = self.input.open(ctx.clone())?;
+        let input_stream = self.input.open(qctx.clone())?;
 
         let stream = try_stream! {
-            let eval_ctx = ctx.derive_eval_ctx();
+            let eval_ctx = qctx.derive_eval_ctx();
 
             // execute the stream
             for await chunk in input_stream {
@@ -51,16 +51,16 @@ impl Executor for CreateRelExectuor {
 
                     let output = match (start.as_ref(), end.as_ref()) {
                         (ArrayImpl::VirtualNode(start), ArrayImpl::VirtualNode(end)) => {
-                            ctx.tx().relationship_create(&item.rtype, start, end, prop).map_err(|e| e.into())
+                            qctx.graph_store().rel_create(qctx.txn().as_ref(), &item.rtype, start, end, prop).map_err(|e| e.into())
                         }
                         (ArrayImpl::Node(start), ArrayImpl::Node(end)) => {
-                            ctx.tx().relationship_create(&item.rtype, start, end, prop).map_err(|e| e.into())
+                            qctx.graph_store().rel_create(qctx.txn().as_ref(), &item.rtype, start, end, prop).map_err(|e| e.into())
                         }
                         (ArrayImpl::VirtualNode(start), ArrayImpl::Node(end)) => {
-                            ctx.tx().relationship_create(&item.rtype, start, end, prop).map_err(|e| e.into())
+                            qctx.graph_store().rel_create(qctx.txn().as_ref(), &item.rtype, start, end, prop).map_err(|e| e.into())
                         }
                         (ArrayImpl::Node(start), ArrayImpl::VirtualNode(end)) => {
-                            ctx.tx().relationship_create(&item.rtype, start, end, prop).map_err(|e| e.into())
+                            qctx.graph_store().rel_create(qctx.txn().as_ref(), &item.rtype, start, end, prop).map_err(|e| e.into())
                         }
                         (s, e) => {
                             let pt = if !matches!(s, ArrayImpl::Node(_) | ArrayImpl::VirtualNode(_)) {
