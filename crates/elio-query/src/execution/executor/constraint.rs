@@ -10,9 +10,9 @@ use std::sync::Arc;
 use elio_common::TokenKind;
 use elio_common::array::{Array, NodeArray, StructArray};
 use elio_common::mapb::IndexKeyCodec;
-use elio_storage::constraint::{ConstraintKind, ConstraintMeta};
+use elio_storage::catalog::{ConstraintKind, ConstraintMeta};
 use elio_storage::graph::GraphStore;
-use elio_storage::transaction::TransactionImpl;
+use elio_storage::transaction::Transaction;
 
 use crate::execution::error::ExecError;
 
@@ -31,7 +31,7 @@ impl LabelConstraints {
 /// Fetch all UNIQUE/NODE KEY constraints for the given labels
 pub fn fetch_constraints_for_labels(
     store: &Arc<GraphStore>,
-    tx: &Arc<TransactionImpl>,
+    tx: &Arc<Transaction>,
     labels: &[Arc<str>],
 ) -> Result<LabelConstraints, ExecError> {
     let mut constraints = Vec::new();

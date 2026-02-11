@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use elio_query::catalog::Catalog;
+use elio_query::catalog::SessionCatalog;
 use elio_query::execution::task::ExecContext;
 use elio_storage::graph::GraphStore;
 
@@ -26,14 +26,14 @@ impl DbConfig {
 
 pub struct DbEnv {
     // TODO(pgao): QueryManager which manages query execution
-    catalog: Arc<Catalog>,
+    catalog: Arc<SessionCatalog>,
     exec_ctx: Arc<ExecContext>,
 }
 
 impl DbEnv {
     pub fn open(config: &DbConfig) -> Result<Arc<DbEnv>, Error> {
         let store = Arc::new(GraphStore::open(&config.store_path)?);
-        let catalog = Arc::new(Catalog::new(store.token_store().clone()));
+        let catalog = Arc::new(SessionCatalog::new(store.token_store().clone()));
         let exec_ctx = Arc::new(ExecContext::new(catalog.clone(), store.clone()));
         let me = Self { catalog, exec_ctx };
         Ok(Arc::new(me))

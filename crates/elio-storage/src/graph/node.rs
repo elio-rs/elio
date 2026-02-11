@@ -6,10 +6,10 @@ use elio_common::array::chunk::DataChunk;
 use elio_common::array::{Array, ArrayImpl, NodeArray, NodeArrayBuilder, VirtualNodeArray, VirtualNodeArrayBuilder};
 use elio_common::scalar::{NodeValueRef, StructValue};
 
-use crate::cf_property;
 use crate::codec::NodeFormat;
 use crate::error::GraphStoreError;
 use crate::id::IdStore;
+use crate::kv::cf_property;
 use crate::token::TokenStore;
 use crate::transaction::{DataChunkIterator, NodeScanOptions, Transaction};
 

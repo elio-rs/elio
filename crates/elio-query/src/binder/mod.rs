@@ -19,17 +19,17 @@ pub mod query;
 pub mod scope;
 
 /// Context to bind a query
-#[derive(Debug, Clone)]
-pub struct BindContext {
-    pub sctx: Arc<dyn PlannerSession>,
+#[derive(Debug)]
+pub struct BindContext<'a> {
+    pub sctx: &'a dyn PlannerSession,
     // TODO(pgao): seems outer_scopes is not needed?
     pub outer_scopes: Vec<Scope>,
     pub variable_generator: Arc<VariableGenerator>,
     // TODO(pgao): semantic context like disable some semantics
 }
 
-impl BindContext {
-    pub fn new(sctx: Arc<dyn PlannerSession>) -> Self {
+impl<'a> BindContext<'a> {
+    pub fn new(sctx: &'a dyn PlannerSession) -> Self {
         Self {
             sctx,
             outer_scopes: Vec::new(),
@@ -37,7 +37,7 @@ impl BindContext {
         }
     }
 
-    pub fn derive_expr_context<'a>(&'a self, scope: &'a Scope, name: &'a str) -> ExprContext<'a> {
+    pub fn derive_expr_context(&'a self, scope: &'a Scope, name: &'a str) -> ExprContext<'a> {
         ExprContext {
             bctx: self,
             scope,
@@ -47,17 +47,17 @@ impl BindContext {
     }
 }
 
-impl BindContext {
-    pub fn session(&self) -> &Arc<dyn PlannerSession> {
-        &self.sctx
+impl<'a> BindContext<'a> {
+    pub fn session(&self) -> &'a dyn PlannerSession {
+        self.sctx
     }
 
     pub fn resolve_function(&self, name: &str) -> Option<&FuncDef> {
-        self.session().get_function_by_name(name).map(|x| &x.func)
+        self.session().catalog().resolve_function(name).map(|x| &x.func)
     }
 
     pub fn resolve_token(&self, token: &str, token_kind: TokenKind) -> IrToken {
-        match self.session().get_token_id(token, token_kind) {
+        match self.session().token_manager().resolve_token(token, token_kind) {
             Some(token_id) => IrToken::Resolved {
                 name: token.to_owned().into(),
                 token: token_id,

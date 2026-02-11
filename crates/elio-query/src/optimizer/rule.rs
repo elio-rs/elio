@@ -9,7 +9,7 @@ pub enum RewriteOrder {
 }
 
 pub struct RuleContext<'a> {
-    pub plan_ctx: &'a mut PlannerContext,
+    pub plan_ctx: &'a PlannerContext<'a>,
 }
 
 pub trait OptimizationRule: Send + Sync {

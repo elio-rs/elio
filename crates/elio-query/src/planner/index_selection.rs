@@ -59,7 +59,7 @@ fn find_index_match(
     label: &ResolvedIrToken,
     prop: &SargablePropPredicate,
 ) -> Option<IndexCandidate> {
-    let index_hint = ctx.session().find_unique_index(label.id, &[prop.prop.id])?;
+    let index_hint = ctx.session().catalog().find_unique_index(label.id, &[prop.prop.id])?;
     let has_label_expr = Expr::new_has_label(
         prop.var.clone(),
         IrToken::Resolved {

@@ -563,7 +563,8 @@ fn extract_top_level_aggregate(bctx: &BindContext, expr: &ast::Expr) -> Result<V
 // TODO(pgao): should catalog with static lifetime
 fn resolve_function(bctx: &BindContext, name: &str) -> Result<FunctionCatalog, PlanError> {
     bctx.session()
-        .get_function_by_name(name)
+        .catalog()
+        .resolve_function(name)
         .cloned()
         .ok_or(PlanError::from(SemanticError::unknown_function(name, "")))
 }

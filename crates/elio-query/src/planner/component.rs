@@ -56,7 +56,7 @@ pub(crate) fn plan_qg_simple(ctx: &mut PlannerContext, qg: &QueryGraph) -> Resul
 ///
 /// Topology is our first class citizon, purly solve the graph traversal.
 struct TraversalSolver<'a> {
-    pub _ctx: &'a mut PlannerContext,
+    pub _ctx: &'a PlannerContext<'a>,
     pub qg: &'a QueryGraph,
     solved: IndexSet<VariableName>,
     stack: VecDeque<&'a RelPattern>,
@@ -66,7 +66,7 @@ struct TraversalSolver<'a> {
 impl<'a> TraversalSolver<'a> {
     /// Create solver with index selection optimization
     /// Returns (solver, remaining_filter) where remaining_filter has index conditions removed
-    fn new_with_index_selection(ctx: &'a mut PlannerContext, qg: &'a QueryGraph) -> (Self, FilterExprs) {
+    fn new_with_index_selection(ctx: &'a PlannerContext<'a>, qg: &'a QueryGraph) -> (Self, FilterExprs) {
         assert!(!qg.nodes.is_empty() || !qg.input_bindings().is_empty());
         let imported = qg.input_bindings().clone();
         let mut solved = IndexSet::new();

@@ -6,7 +6,7 @@ use elio_common::{LabelId, PropertyKeyId, RelationshipTypeId, TokenId, TokenKind
 
 use crate::codec::TokenCodec;
 use crate::error::GraphStoreError;
-use crate::{KvEngine, cf_meta};
+use crate::kv::{KvEngine, cf_meta};
 
 pub struct TokenStore {
     db: Arc<KvEngine>,

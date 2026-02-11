@@ -4,9 +4,8 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-elio-expr-macros = { path = "./macros" }
-
 elio-common = { workspace = true }
+elio-expr-macros = { path = "./macros" }
 elio-parser = { workspace = true }
 elio-storage = { workspace = true }
 
@@ -29,5 +28,6 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 
-# extra, for reading from local files
-csv = "1.3"
+# extra
+csv = "1.3"                                      # for LOAD CSV clause
+uuid = { version = "1.18.1", features = ["v4"] } # for generate query nique id

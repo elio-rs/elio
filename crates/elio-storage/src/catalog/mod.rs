@@ -2,20 +2,21 @@ pub mod codec;
 
 use std::sync::Arc;
 
+use elio_common::catalog::{ConstraintCatalogEntry, ConstraintKind, IndexHint};
 use elio_common::{LabelId, NodeId, PropertyKeyId};
 
-pub use self::codec::{ConstraintCodec, ConstraintKind, ConstraintMeta, EntityType, UniqueIndexCodec};
+pub use self::codec::{ConstraintCodec, UniqueIndexCodec};
 use crate::error::GraphStoreError;
+use crate::kv::{KvEngine, cf_catalog};
 use crate::transaction::Transaction;
-use crate::{KvEngine, cf_constraint};
 
-/// Constraint store — schema metadata + index enforcement.
-/// All transactional operations take &Transaction for MVCC reads/writes.
-pub struct ConstraintStore {
+/// Catalog store:
+///  - constraints
+pub struct CatalogStore {
     db: Arc<KvEngine>,
 }
 
-impl ConstraintStore {
+impl CatalogStore {
     pub fn new(db: Arc<KvEngine>) -> Self {
         Self { db }
     }
@@ -24,14 +25,18 @@ impl ConstraintStore {
 
     /// Check if a constraint exists (reads from transaction snapshot)
     pub fn constraint_exists(&self, tx: &Transaction, name: &str) -> Result<bool, GraphStoreError> {
-        let cf = self.db.cf_handle(cf_constraint::CF_NAME).unwrap();
+        let cf = self.db.cf_handle(cf_catalog::CF_NAME).unwrap();
         let key = ConstraintCodec::encode_meta_key(name);
         Ok(tx.snapshot.get_cf(&cf, &key)?.is_some())
     }
 
     /// Get constraint metadata by name (reads from transaction snapshot)
-    pub fn get_constraint(&self, tx: &Transaction, name: &str) -> Result<Option<ConstraintMeta>, GraphStoreError> {
-        let cf = self.db.cf_handle(cf_constraint::CF_NAME).unwrap();
+    pub fn get_constraint(
+        &self,
+        tx: &Transaction,
+        name: &str,
+    ) -> Result<Option<ConstraintCatalogEntry>, GraphStoreError> {
+        let cf = self.db.cf_handle(cf_catalog::CF_NAME).unwrap();
         let key = ConstraintCodec::encode_meta_key(name);
         match tx.snapshot.get_cf(&cf, &key)? {
             Some(value) => Ok(ConstraintCodec::decode_meta_value(name.to_string(), &value)),
@@ -44,8 +49,8 @@ impl ConstraintStore {
         &self,
         tx: &Transaction,
         label_id: LabelId,
-    ) -> Result<Vec<ConstraintMeta>, GraphStoreError> {
-        let cf = self.db.cf_handle(cf_constraint::CF_NAME).unwrap();
+    ) -> Result<Vec<ConstraintCatalogEntry>, GraphStoreError> {
+        let cf = self.db.cf_handle(cf_catalog::CF_NAME).unwrap();
         let prefix = ConstraintCodec::encode_label_constraint_prefix(label_id);
 
         let mut constraints = Vec::new();
@@ -69,8 +74,7 @@ impl ConstraintStore {
             if key.len() < name_len_offset + 2 + name_len {
                 continue;
             }
-            let name =
-                String::from_utf8_lossy(&key[name_len_offset + 2..name_len_offset + 2 + name_len]).to_string();
+            let name = String::from_utf8_lossy(&key[name_len_offset + 2..name_len_offset + 2 + name_len]).to_string();
 
             // Get the full constraint metadata
             if let Some(meta) = self.get_constraint(tx, &name)? {
@@ -82,8 +86,8 @@ impl ConstraintStore {
     }
 
     /// Store a constraint (buffered in transaction write batch)
-    pub fn put_constraint(&self, tx: &Transaction, meta: &ConstraintMeta) -> Result<(), GraphStoreError> {
-        let cf = self.db.cf_handle(cf_constraint::CF_NAME).unwrap();
+    pub fn put_constraint(&self, tx: &Transaction, meta: &ConstraintCatalogEntry) -> Result<(), GraphStoreError> {
+        let cf = self.db.cf_handle(cf_catalog::CF_NAME).unwrap();
         let mut guard = tx.write_state.lock().unwrap();
 
         // Store metadata
@@ -92,7 +96,7 @@ impl ConstraintStore {
         guard.batch.put_cf(&cf, &meta_key, &meta_value);
 
         // Store label-to-constraint mapping
-        let label_key = ConstraintCodec::encode_label_constraint_key(meta.label_id, &meta.name);
+        let label_key = ConstraintCodec::encode_label_constraint_key(meta.label_or_rel_id, &meta.name);
         guard.batch.put_cf(&cf, &label_key, []);
 
         Ok(())
@@ -100,14 +104,14 @@ impl ConstraintStore {
 
     /// Delete a constraint (buffered in transaction write batch)
     pub fn delete_constraint(&self, tx: &Transaction, name: &str) -> Result<(), GraphStoreError> {
-        let cf = self.db.cf_handle(cf_constraint::CF_NAME).unwrap();
+        let cf = self.db.cf_handle(cf_catalog::CF_NAME).unwrap();
 
         // Get the constraint first to find the label_id
         if let Some(meta) = self.get_constraint(tx, name)? {
             let mut guard = tx.write_state.lock().unwrap();
 
             // Delete label-to-constraint mapping
-            let label_key = ConstraintCodec::encode_label_constraint_key(meta.label_id, name);
+            let label_key = ConstraintCodec::encode_label_constraint_key(meta.label_or_rel_id, name);
             guard.batch.delete_cf(&cf, &label_key);
 
             // Delete metadata
@@ -116,6 +120,35 @@ impl ConstraintStore {
         }
 
         Ok(())
+    }
+
+    pub fn find_unique_index(
+        &self,
+        tx: &Transaction,
+        label_id: LabelId,
+        property_key_ids: &[PropertyKeyId],
+    ) -> Result<Option<IndexHint>, GraphStoreError> {
+        let constraints = self.get_constraints_for_label(tx, label_id)?;
+        for constraint in constraints {
+            if matches!(
+                constraint.constraint_kind,
+                ConstraintKind::Unique | ConstraintKind::NodeKey
+            ) {
+                // Check if all constraint properties are in the requested set
+                // The constraint properties must be a subset of the filter properties
+                // and the filter must have all constraint properties
+                if constraint.property_key_ids.len() <= property_key_ids.len()
+                    && constraint.property_key_ids.iter().all(|p| property_key_ids.contains(p))
+                {
+                    return Ok(Some(IndexHint {
+                        constraint_name: constraint.name,
+                        label_id: constraint.label_or_rel_id,
+                        property_key_ids: constraint.property_key_ids,
+                    }));
+                }
+            }
+        }
+        Ok(None)
     }
 
     // ==================== Unique Index Operations ====================
@@ -128,7 +161,7 @@ impl ConstraintStore {
         prop_key_ids: &[PropertyKeyId],
         prop_values: &[&[u8]],
     ) -> Result<bool, GraphStoreError> {
-        let cf = self.db.cf_handle(cf_constraint::CF_NAME).unwrap();
+        let cf = self.db.cf_handle(cf_catalog::CF_NAME).unwrap();
         let key = UniqueIndexCodec::encode_key(label_id, prop_key_ids, prop_values);
         Ok(tx.snapshot.get_cf(&cf, &key)?.is_some())
     }
@@ -141,7 +174,7 @@ impl ConstraintStore {
         prop_key_ids: &[PropertyKeyId],
         prop_values: &[&[u8]],
     ) -> Result<Option<NodeId>, GraphStoreError> {
-        let cf = self.db.cf_handle(cf_constraint::CF_NAME).unwrap();
+        let cf = self.db.cf_handle(cf_catalog::CF_NAME).unwrap();
         let key = UniqueIndexCodec::encode_key(label_id, prop_key_ids, prop_values);
         match tx.snapshot.get_cf(&cf, &key)? {
             Some(value) => Ok(UniqueIndexCodec::decode_value(&value)),
@@ -158,7 +191,7 @@ impl ConstraintStore {
         prop_values: &[&[u8]],
         node_id: NodeId,
     ) -> Result<(), GraphStoreError> {
-        let cf = self.db.cf_handle(cf_constraint::CF_NAME).unwrap();
+        let cf = self.db.cf_handle(cf_catalog::CF_NAME).unwrap();
         let key = UniqueIndexCodec::encode_key(label_id, prop_key_ids, prop_values);
         let value = UniqueIndexCodec::encode_value(node_id);
 
@@ -175,7 +208,7 @@ impl ConstraintStore {
         prop_key_ids: &[PropertyKeyId],
         prop_values: &[&[u8]],
     ) -> Result<(), GraphStoreError> {
-        let cf = self.db.cf_handle(cf_constraint::CF_NAME).unwrap();
+        let cf = self.db.cf_handle(cf_catalog::CF_NAME).unwrap();
         let key = UniqueIndexCodec::encode_key(label_id, prop_key_ids, prop_values);
 
         let mut guard = tx.write_state.lock().unwrap();

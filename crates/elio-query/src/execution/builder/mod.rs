@@ -5,6 +5,7 @@ use std::sync::Arc;
 use elio_common::schema::{Name2ColumnMap, Schema};
 use elio_common::variable::VariableName;
 
+use crate::execution::QueryContext;
 use crate::execution::builder::expression::{BuildExprContext, build_expression};
 use crate::execution::executor::all_node_scan::AllNodeScanExectuor;
 use crate::execution::executor::apply::{ApplyExecutor, ArgumentContext, OutputColumnSource};
@@ -28,7 +29,6 @@ use crate::execution::executor::var_expand::{
 };
 use crate::execution::executor::*;
 use crate::execution::expr::SharedExpression;
-use crate::execution::task::TaskExecContext;
 use crate::function::FUNCTION_REGISTRY;
 use crate::function::scalar::sig::FuncInvoke;
 use crate::plan::expr::{self, AggCall, Expr, VariableRef};
@@ -58,15 +58,15 @@ impl BuildError {
     }
 }
 
-pub struct ExecutorBuildContext {
-    pub ctx: Arc<TaskExecContext>,
+pub struct ExecutorBuildContext<'a> {
+    pub qctx: &'a Arc<QueryContext>,
     pub argument_ctx: Option<ArgumentContext>,
 }
 
-impl ExecutorBuildContext {
-    pub fn new(ctx: Arc<TaskExecContext>) -> Self {
+impl<'a> ExecutorBuildContext<'a> {
+    pub fn new(ctx: &'a Arc<QueryContext>) -> Self {
         Self {
-            ctx,
+            qctx: ctx,
             argument_ctx: None,
         }
     }
@@ -395,7 +395,7 @@ fn build_apply(ctx: &mut ExecutorBuildContext, apply: &plan_node::Apply) -> Resu
 
     // Build right child WITH argument context
     let mut right_ctx = ExecutorBuildContext {
-        ctx: ctx.ctx.clone(),
+        qctx: ctx.qctx,
         argument_ctx: Some(argument_ctx.clone()),
     };
     let right = build_node(&mut right_ctx, &apply.inner().right)?;

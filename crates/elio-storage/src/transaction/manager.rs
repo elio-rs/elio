@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::KvEngine;
+use crate::kv::KvEngine;
 use crate::transaction::{Transaction, WriteState};
 
 pub enum TransactionMode {
@@ -65,7 +65,6 @@ impl TransactionManager {
         Self {
             db,
             tx_lock: RwLock::new(()),
-            // label_locks: RwLock::new(HashMap::new()),
         }
     }
 

@@ -14,3 +14,5 @@ enum-as-inner = { workspace = true }
 iso8601-duration = { workspace = true }
 itertools = { workspace = true }
 ordered-float = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

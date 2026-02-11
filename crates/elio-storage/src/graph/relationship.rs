@@ -6,10 +6,10 @@ use elio_common::scalar::{RelValueRef, StructValue};
 use elio_common::store_types::RelDirection;
 use elio_common::{NodeId, RelationshipId, SemanticDirection, TokenId, TokenKind};
 
-use crate::cf_topology;
 use crate::codec::RelFormat;
 use crate::error::GraphStoreError;
 use crate::id::IdStore;
+use crate::kv::cf_topology;
 use crate::token::TokenStore;
 use crate::transaction::Transaction;
 

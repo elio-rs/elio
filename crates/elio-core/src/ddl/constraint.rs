@@ -11,7 +11,7 @@ use elio_common::array::Array;
 use elio_common::mapb::IndexKeyCodec;
 use elio_parser::ast;
 use elio_query::execution::error::ExecError;
-use elio_storage::constraint::{ConstraintKind, ConstraintMeta, EntityType};
+use elio_storage::catalog::{ConstraintKind, ConstraintMeta, EntityType};
 use elio_storage::graph::{GraphStore, TransactionMode};
 use elio_storage::transaction::NodeScanOptions;
 

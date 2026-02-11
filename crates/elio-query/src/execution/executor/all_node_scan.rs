@@ -42,10 +42,11 @@ impl AllNodeScanExectuor {
 fn scan_nodes(ctx: &Arc<TaskExecContext>) -> mpsc::Receiver<Result<DataChunk, ExecError>> {
     let (tx, rx) = mpsc::channel::<Result<DataChunk, ExecError>>(CHANNEL_BUFFER_SIZE);
     let txn = ctx.tx().clone();
+    let graph_store = ctx.graph_store().clone();
 
     tokio::task::spawn_blocking(move || {
         let opts = NodeScanOptions { batch_size: 1024 };
-        let mut iter = match txn.node_scan(opts) {
+        let mut iter = match graph_store.node_scan(&txn, opts) {
             Ok(iter) => iter,
             Err(e) => {
                 let _ = tx.blocking_send(Err(e.into()));

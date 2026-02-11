@@ -1,6 +1,6 @@
 use elio_common::TokenKind;
 
-use crate::cf_meta::{LABEL_KEY_PREFIX, PROPERTY_KEY_PREFIX, RELTYPE_KEY_PREFIX};
+use crate::kv::cf_meta::{LABEL_KEY_PREFIX, PROPERTY_KEY_PREFIX, RELTYPE_KEY_PREFIX};
 
 /// Storage
 ///   - key   := <LABEL_PREFIX> <label>

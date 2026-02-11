@@ -9,7 +9,7 @@ use elio_common::scalar::{Row, ScalarValue};
 use elio_common::{LabelId, PropertyKeyId, TokenId, TokenKind};
 use elio_parser::ast;
 use elio_query::catalog::error::CatalogError;
-use elio_query::catalog::{Catalog, FunctionCatalog};
+use elio_query::catalog::{FunctionCatalog, SessionCatalog};
 use elio_query::execution::error::ExecError;
 use elio_query::execution::task::{ExecContext, create_task};
 use elio_query::plan::session::{IndexHint, PlanLevel, PlannerSession, parse_statement, plan_query};
@@ -24,12 +24,12 @@ use crate::result::ResultHandle;
 
 #[derive(Debug)]
 pub struct Session {
-    pub(crate) catalog: Arc<Catalog>,
+    pub(crate) catalog: Arc<SessionCatalog>,
     pub(crate) exec_ctx: Arc<ExecContext>,
 }
 
 impl Session {
-    pub fn new(catalog: Arc<Catalog>, exec_ctx: Arc<ExecContext>) -> Self {
+    pub fn new(catalog: Arc<SessionCatalog>, exec_ctx: Arc<ExecContext>) -> Self {
         Self { catalog, exec_ctx }
     }
 }
@@ -59,7 +59,7 @@ impl PlannerSession for Session {
 
         // Look for a UNIQUE or NODE KEY constraint that matches the property keys
         for constraint in constraints {
-            use elio_storage::constraint::ConstraintKind;
+            use elio_storage::catalog::ConstraintKind;
             if matches!(
                 constraint.constraint_kind,
                 ConstraintKind::Unique | ConstraintKind::NodeKey

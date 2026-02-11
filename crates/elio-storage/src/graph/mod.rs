@@ -6,53 +6,27 @@ use std::sync::Arc;
 use bitvec::vec::BitVec;
 use elio_common::array::{ArrayImpl, NodeArray, RelArray, StructArray, VirtualNodeArray};
 use elio_common::{NodeId, SemanticDirection, TokenId};
-use rocksdb::{ColumnFamilyDescriptor, Options};
 
 pub use self::relationship::{NodeIdContainer, RelIterForNode};
-use crate::constraint::ConstraintStore;
+use crate::catalog::CatalogStore;
 use crate::error::GraphStoreError;
 use crate::id::IdStore;
+use crate::kv::KvEngine;
 use crate::token::TokenStore;
 use crate::transaction::{DataChunkIterator, NodeScanOptions, Transaction};
-use crate::{KvEngine, cf_constraint, cf_meta, cf_property, cf_topology};
 
 pub struct GraphStore {
     db: Arc<KvEngine>,
     dict: Arc<IdStore>,
     token: Arc<TokenStore>,
-    constraint: Arc<ConstraintStore>,
+    constraint: Arc<CatalogStore>,
 }
 
 impl GraphStore {
-    pub fn open(path: &str) -> Result<Self, GraphStoreError> {
-        let mut opts = Options::default();
-        opts.create_if_missing(true);
-        opts.create_missing_column_families(true);
-
-        let cf_descriptors = vec![
-            ColumnFamilyDescriptor::new(cf_meta::CF_NAME, Options::default()),
-            ColumnFamilyDescriptor::new(cf_topology::CF_NAME, Options::default()),
-            ColumnFamilyDescriptor::new(cf_property::CF_NAME, Options::default()),
-            ColumnFamilyDescriptor::new(cf_constraint::CF_NAME, Options::default()),
-        ];
-        let db = match KvEngine::open_cf_descriptors(&opts, path, cf_descriptors) {
-            Ok(db) => db,
-            Err(_) => {
-                let db = KvEngine::open(&opts, path)?;
-                let cf_opts = Options::default();
-                db.create_cf(cf_meta::CF_NAME, &cf_opts)?;
-                db.create_cf(cf_topology::CF_NAME, &cf_opts)?;
-                db.create_cf(cf_property::CF_NAME, &cf_opts)?;
-                db.create_cf(cf_constraint::CF_NAME, &cf_opts)?;
-                db
-            }
-        };
-        let db = Arc::new(db);
-
+    pub fn new(db: Arc<KvEngine>) -> Result<Self, GraphStoreError> {
         let dict = Arc::new(IdStore::new(db.clone())?);
         let token = Arc::new(TokenStore::new(db.clone())?);
-        let constraint = Arc::new(ConstraintStore::new(db.clone()));
-
+        let constraint = Arc::new(CatalogStore::new(db.clone()));
         Ok(Self {
             db,
             dict,
@@ -73,7 +47,7 @@ impl GraphStore {
         &self.token
     }
 
-    pub fn constraint_store(&self) -> &Arc<ConstraintStore> {
+    pub fn constraint_store(&self) -> &Arc<CatalogStore> {
         &self.constraint
     }
 
