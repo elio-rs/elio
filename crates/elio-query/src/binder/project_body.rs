@@ -12,7 +12,6 @@ use crate::binder::builder::IrSingleQueryBuilder;
 use crate::binder::expr::{bind_expr, bind_where};
 use crate::binder::query::ClauseKind;
 use crate::binder::scope::{Scope, ScopeItem};
-use crate::catalog::FunctionCatalog;
 use crate::plan::error::{PlanError, SemanticError};
 use crate::plan::expr::{Constant, Expr, ExprNode, ExprRewriter, FilterExprs, VariableRef};
 use crate::plan::ir::order::SortItem;
@@ -528,46 +527,46 @@ impl<'a> ExprRewriter for AggExtractor<'a> {
     }
 }
 
-// input: SUM(a.age + b)/COUNT(b)
-// output: [SUM(a.age + b), COUNT(b)]
-// input: SUM(a.age + b)
-// output:
-fn extract_top_level_aggregate(bctx: &BindContext, expr: &ast::Expr) -> Result<Vec<ast::Expr>, PlanError> {
-    let mut aggs = vec![];
-    match expr {
-        ast::Expr::Unary { oprand, .. } => aggs.extend(extract_top_level_aggregate(bctx, oprand)?),
-        ast::Expr::Binary { left, right, .. } => {
-            let children = extract_top_level_aggregate(bctx, left)?
-                .into_iter()
-                .chain(extract_top_level_aggregate(bctx, right)?)
-                .collect_vec();
-            aggs.extend(children);
-        }
-        ast::Expr::FunctionCall { name, args, .. } => {
-            let func = resolve_function(bctx, name)?;
-            if func.func.is_agg {
-                aggs.push(expr.clone());
-            } else {
-                let children = args
-                    .iter()
-                    .map(|x| extract_top_level_aggregate(bctx, x))
-                    .collect::<Result<Vec<_>, _>>()?;
-                aggs.extend(children.into_iter().flatten());
-            }
-        }
-        _ => (),
-    };
-    Ok(aggs)
-}
+// // input: SUM(a.age + b)/COUNT(b)
+// // output: [SUM(a.age + b), COUNT(b)]
+// // input: SUM(a.age + b)
+// // output:
+// fn extract_top_level_aggregate(bctx: &BindContext, expr: &ast::Expr) -> Result<Vec<ast::Expr>, PlanError> {
+//     let mut aggs = vec![];
+//     match expr {
+//         ast::Expr::Unary { oprand, .. } => aggs.extend(extract_top_level_aggregate(bctx, oprand)?),
+//         ast::Expr::Binary { left, right, .. } => {
+//             let children = extract_top_level_aggregate(bctx, left)?
+//                 .into_iter()
+//                 .chain(extract_top_level_aggregate(bctx, right)?)
+//                 .collect_vec();
+//             aggs.extend(children);
+//         }
+//         ast::Expr::FunctionCall { name, args, .. } => {
+//             let func = resolve_function(bctx, name)?;
+//             if func.func.is_agg {
+//                 aggs.push(expr.clone());
+//             } else {
+//                 let children = args
+//                     .iter()
+//                     .map(|x| extract_top_level_aggregate(bctx, x))
+//                     .collect::<Result<Vec<_>, _>>()?;
+//                 aggs.extend(children.into_iter().flatten());
+//             }
+//         }
+//         _ => (),
+//     };
+//     Ok(aggs)
+// }
 
-// TODO(pgao): should catalog with static lifetime
-fn resolve_function(bctx: &BindContext, name: &str) -> Result<FunctionCatalog, PlanError> {
-    bctx.session()
-        .catalog()
-        .resolve_function(name)
-        .cloned()
-        .ok_or(PlanError::from(SemanticError::unknown_function(name, "")))
-}
+// // TODO(pgao): should catalog with static lifetime
+// fn resolve_function(bctx: &BindContext, name: &str) -> Result<FunctionCatalog, PlanError> {
+//     bctx.session()
+//         .catalog()
+//         .resolve_function(name)
+//         .cloned()
+//         .ok_or(PlanError::from(SemanticError::unknown_function(name, "")))
+// }
 
 pub fn bind_order_by(
     bctx: &BindContext,

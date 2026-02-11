@@ -1,9 +1,9 @@
 use std::pin::Pin;
 use std::sync::Arc;
 
-use elio_common::catalog::IndexHint;
+use elio_common::catalog::{ConstraintCatalogEntry, ConstraintKind, IndexHint};
 use elio_common::scalar::ScalarValue;
-use elio_common::{LabelId, PropertyKeyId};
+use elio_common::{EntityKind, LabelId, PropertyKeyId, TokenKind};
 use elio_parser::ast::{self, QueryKind};
 use elio_storage::token::TokenStore;
 use elio_storage::transaction::Transaction;
@@ -13,8 +13,9 @@ use hashbrown::HashMap;
 use crate::catalog::{FunctionCatalog, SessionCatalog};
 use crate::database::Database;
 use crate::database::error::Error;
-use crate::database::result::{ExplainResultHandle, ResultHandle, TaskHandleBridge};
+use crate::database::result::{EmptyResultHandle, ExplainResultHandle, ResultHandle, TaskHandleBridge};
 use crate::execution::QueryContext;
+use crate::execution::ddl::build_index;
 use crate::execution::task::create_task;
 use crate::plan::session::{PlanLevel, PlannerCatalog, PlannerSession, PlannerToken, parse_statement, plan_query};
 use crate::planner;
@@ -136,19 +137,86 @@ async fn handle_query(qctx: Arc<QueryContext>, query: &ast::RegularQuery) -> Res
 }
 
 async fn handle_create_constraint(
-    _qctx: Arc<QueryContext>,
-    _constraint: &ast::CreateConstraint,
+    qctx: Arc<QueryContext>,
+    stmt: &ast::CreateConstraint,
 ) -> Result<Pin<Box<dyn ResultHandle>>, Error> {
-    todo!()
-    // ddl::create_constraint(self.exec_ctx.store(), constraint)?;
-    // Ok(Box::pin(EmptyResultHandle::new(vec!["result".to_string()])))
+    let catalog_store = qctx.sess_catalog().catalog_store().clone();
+    let token_store = qctx.token_store().clone();
+    let tx = qctx.txn();
+
+    // check if constraint already exists
+    if catalog_store.constraint_exists(tx.as_ref(), &stmt.name)? {
+        if stmt.if_not_exists {
+            return Ok(Box::pin(EmptyResultHandle::new(vec!["result".into()])));
+        }
+        return Err(Error::ConstraintAlreadyExists(stmt.name.clone()));
+    }
+
+    // resolve entity kind and label name
+    let (entity_kind, label_name) = match &stmt.entity {
+        ast::ConstraintEntity::Node { label, .. } => (EntityKind::Node, label.clone()),
+        ast::ConstraintEntity::Relationship { rel_type, .. } => (EntityKind::Rel, rel_type.clone()),
+    };
+
+    // resolve constraint kind and property names
+    let (constraint_kind, property_names) = match &stmt.constraint_type {
+        ast::ConstraintType::Unique { properties } => {
+            let names: Vec<String> = properties.iter().map(|p| p.property.clone()).collect();
+            (ConstraintKind::Unique, names)
+        }
+        ast::ConstraintType::NodeKey { properties } => {
+            let names: Vec<String> = properties.iter().map(|p| p.property.clone()).collect();
+            (ConstraintKind::NodeKey, names)
+        }
+        ast::ConstraintType::NotNull { property } => (ConstraintKind::NotNull, vec![property.property.clone()]),
+    };
+
+    // resolve tokens
+    let label_id = token_store.get_or_create_token(&label_name, TokenKind::Label)?;
+    let property_key_ids: Vec<PropertyKeyId> = property_names
+        .iter()
+        .map(|name| token_store.get_or_create_token(name, TokenKind::PropertyKey))
+        .collect::<Result<_, _>>()?;
+
+    // build index for Unique/NodeKey constraints
+    if matches!(constraint_kind, ConstraintKind::Unique | ConstraintKind::NodeKey) {
+        build_index(&qctx, &constraint_kind, label_id, &property_key_ids, &property_names)?;
+    }
+
+    // register constraint in catalog
+    let entry = ConstraintCatalogEntry {
+        name: Arc::from(stmt.name.as_str()),
+        entity_kind,
+        label_or_rel_id: label_id,
+        constraint_kind,
+        property_key_ids,
+    };
+    catalog_store.put_constraint(tx.as_ref(), &entry)?;
+
+    // ddl commits its own transaction
+    tx.commit()?;
+
+    Ok(Box::pin(EmptyResultHandle::new(vec!["result".into()])))
 }
 
 async fn handle_drop_constraint(
-    _qctx: Arc<QueryContext>,
-    _constraint: &ast::DropConstraint,
+    qctx: Arc<QueryContext>,
+    stmt: &ast::DropConstraint,
 ) -> Result<Pin<Box<dyn ResultHandle>>, Error> {
-    todo!()
-    // ddl::drop_constraint(self.exec_ctx.store(), constraint)?;
-    // Ok(Box::pin(EmptyResultHandle::new(vec!["result".to_string()])))
+    let catalog_store = qctx.sess_catalog().catalog_store().clone();
+    let tx = qctx.txn();
+
+    if !catalog_store.constraint_exists(tx.as_ref(), &stmt.name)? {
+        if stmt.if_exists {
+            return Ok(Box::pin(EmptyResultHandle::new(vec!["result".into()])));
+        }
+        return Err(Error::ConstraintNotFound(stmt.name.clone()));
+    }
+
+    catalog_store.delete_constraint(tx.as_ref(), &stmt.name)?;
+
+    // ddl commits its own transaction
+    tx.commit()?;
+
+    Ok(Box::pin(EmptyResultHandle::new(vec!["result".into()])))
 }

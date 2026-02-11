@@ -143,8 +143,8 @@ fn plan_aggregate(
     // aggregate
     let inner = AggregateInner {
         input: root,
-        group_by: group_by.iter().map(|(k, v)| (k.clone(), v.clone())).collect_vec(),
-        aggregate: aggregate.iter().map(|(k, v)| (k.clone(), v.clone())).collect_vec(),
+        group_by: group_exprs,
+        aggregate: agg_exprs,
     };
     let mut root: Box<PlanExpr> = Aggregate::new(inner).into();
 
@@ -206,7 +206,7 @@ fn plan_distinct(
 fn plan_unwind(
     _ctx: &mut PlannerContext,
     _root: Box<PlanExpr>,
-    _unwind @ Unwind { variable, expr }: &Unwind,
+    _unwind @ Unwind { .. }: &Unwind,
 ) -> Result<Box<PlanExpr>, PlanError> {
     Err(PlanError::not_supported("unwind clause not implemented yet."))
 }

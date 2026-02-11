@@ -123,6 +123,9 @@ pub(crate) fn rel_iter_for_node<'a>(
 
 pub trait NodeIdContainer: Sized {
     fn len(&self) -> usize;
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
     fn get_unchecked(&self, index: usize) -> NodeId;
     fn valid_map(&self) -> &BitVec;
 }

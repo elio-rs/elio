@@ -9,6 +9,7 @@ use crate::database::Database;
 use crate::execution::task::EvalCtxImpl;
 
 pub mod builder;
+pub mod ddl;
 pub mod error;
 pub mod executor;
 pub mod expr;

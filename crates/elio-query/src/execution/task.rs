@@ -18,7 +18,6 @@ use crate::execution::error::{EvalError, ExecError};
 use crate::execution::executor::SharedExecutor;
 use crate::execution::expr::EvalCtx;
 use crate::execution::panic::spawn_with_hook;
-use crate::plan::plan_node::PlanExpr;
 use crate::planner::RootPlan;
 
 pub struct EvalCtxImpl {
@@ -88,15 +87,6 @@ pub async fn create_task(qctx: Arc<QueryContext>, query_id: Arc<str>, plan: Root
     runner.start();
 
     Ok(handle)
-}
-
-fn plan_is_write(plan: &PlanExpr) -> bool {
-    match plan {
-        // NB: create constraint is handled separately in the ddl module
-        // TODO(pgao): we should put the create constraint into the task execution
-        PlanExpr::CreateNode(_) | PlanExpr::CreateRel(_) => true,
-        _ => plan.inputs().into_iter().any(plan_is_write),
-    }
 }
 
 pub struct TaskRunner {
