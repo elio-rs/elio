@@ -23,6 +23,7 @@ impl KvEngine {
         opts.create_missing_column_families(true);
 
         let cf_descriptors = vec![
+            rocksdb::ColumnFamilyDescriptor::new(cf_catalog::CF_NAME, rocksdb::Options::default()),
             rocksdb::ColumnFamilyDescriptor::new(cf_meta::CF_NAME, rocksdb::Options::default()),
             rocksdb::ColumnFamilyDescriptor::new(cf_topology::CF_NAME, rocksdb::Options::default()),
             rocksdb::ColumnFamilyDescriptor::new(cf_property::CF_NAME, rocksdb::Options::default()),
@@ -33,6 +34,7 @@ impl KvEngine {
             Err(_) => {
                 let db = RocksKV::open(&opts, path)?;
                 let cf_opts = rocksdb::Options::default();
+                db.create_cf(cf_catalog::CF_NAME, &cf_opts)?;
                 db.create_cf(cf_meta::CF_NAME, &cf_opts)?;
                 db.create_cf(cf_topology::CF_NAME, &cf_opts)?;
                 db.create_cf(cf_property::CF_NAME, &cf_opts)?;

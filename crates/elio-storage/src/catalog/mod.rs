@@ -3,9 +3,9 @@ pub mod codec;
 use std::sync::Arc;
 
 use elio_common::catalog::{ConstraintCatalogEntry, ConstraintKind, IndexHint};
-use elio_common::{LabelId, NodeId, PropertyKeyId};
+use elio_common::{LabelId, PropertyKeyId};
 
-pub use self::codec::{ConstraintCodec, UniqueIndexCodec};
+pub use self::codec::ConstraintCodec;
 use crate::error::GraphStoreError;
 use crate::kv::{KvEngine, cf_catalog};
 use crate::transaction::Transaction;
@@ -149,70 +149,5 @@ impl CatalogStore {
             }
         }
         Ok(None)
-    }
-
-    // ==================== Unique Index Operations ====================
-
-    /// Check if a unique index entry exists (reads from transaction snapshot)
-    pub fn unique_index_exists(
-        &self,
-        tx: &Transaction,
-        label_id: LabelId,
-        prop_key_ids: &[PropertyKeyId],
-        prop_values: &[&[u8]],
-    ) -> Result<bool, GraphStoreError> {
-        let cf = self.db.cf_handle(cf_catalog::CF_NAME).unwrap();
-        let key = UniqueIndexCodec::encode_key(label_id, prop_key_ids, prop_values);
-        Ok(tx.snapshot.get_cf(&cf, &key)?.is_some())
-    }
-
-    /// Get node_id from unique index (reads from transaction snapshot)
-    pub fn get_unique_index(
-        &self,
-        tx: &Transaction,
-        label_id: LabelId,
-        prop_key_ids: &[PropertyKeyId],
-        prop_values: &[&[u8]],
-    ) -> Result<Option<NodeId>, GraphStoreError> {
-        let cf = self.db.cf_handle(cf_catalog::CF_NAME).unwrap();
-        let key = UniqueIndexCodec::encode_key(label_id, prop_key_ids, prop_values);
-        match tx.snapshot.get_cf(&cf, &key)? {
-            Some(value) => Ok(UniqueIndexCodec::decode_value(&value)),
-            None => Ok(None),
-        }
-    }
-
-    /// Put unique index entry (buffered in transaction write batch)
-    pub fn put_unique_index(
-        &self,
-        tx: &Transaction,
-        label_id: LabelId,
-        prop_key_ids: &[PropertyKeyId],
-        prop_values: &[&[u8]],
-        node_id: NodeId,
-    ) -> Result<(), GraphStoreError> {
-        let cf = self.db.cf_handle(cf_catalog::CF_NAME).unwrap();
-        let key = UniqueIndexCodec::encode_key(label_id, prop_key_ids, prop_values);
-        let value = UniqueIndexCodec::encode_value(node_id);
-
-        let mut guard = tx.write_state.lock().unwrap();
-        guard.batch.put_cf(&cf, &key, &value);
-        Ok(())
-    }
-
-    /// Delete unique index entry (buffered in transaction write batch)
-    pub fn delete_unique_index(
-        &self,
-        tx: &Transaction,
-        label_id: LabelId,
-        prop_key_ids: &[PropertyKeyId],
-        prop_values: &[&[u8]],
-    ) -> Result<(), GraphStoreError> {
-        let cf = self.db.cf_handle(cf_catalog::CF_NAME).unwrap();
-        let key = UniqueIndexCodec::encode_key(label_id, prop_key_ids, prop_values);
-
-        let mut guard = tx.write_state.lock().unwrap();
-        guard.batch.delete_cf(&cf, &key);
-        Ok(())
     }
 }

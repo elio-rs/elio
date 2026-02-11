@@ -13,6 +13,7 @@ use elio_storage::token::TokenStore;
 use elio_storage::transaction::manager::TransactionManager;
 
 use crate::database::error::Error;
+use crate::database::session::Session;
 
 #[derive(Clone)]
 pub struct DatabaseConfig {
@@ -42,8 +43,8 @@ pub struct Database {
 impl Database {
     pub fn open(config: &DatabaseConfig) -> Result<Arc<Database>, Error> {
         let kv_engine = Arc::new(KvEngine::open(&config.path)?);
-        let graph_store = Arc::new(GraphStore::new(kv_engine.clone())?);
         let token_store = Arc::new(TokenStore::new(kv_engine.clone())?);
+        let graph_store = Arc::new(GraphStore::new(kv_engine.clone(), token_store.clone())?);
         let catalog_store = Arc::new(CatalogStore::new(kv_engine.clone()));
         let transaction_manager = Arc::new(TransactionManager::new(kv_engine.clone()));
         Ok(Arc::new(Self {
@@ -69,5 +70,11 @@ impl Database {
 
     pub fn transaction_manager(&self) -> &Arc<TransactionManager> {
         &self.transaction_manager
+    }
+}
+
+impl Database {
+    pub fn new_session(self: &Arc<Self>) -> Arc<Session> {
+        Arc::new(Session::new(self.clone()))
     }
 }

@@ -8,7 +8,7 @@ name = "elio"
 path = "bin/elio.rs"
 
 [dependencies]
-elio-core = { workspace = true }
+elio-query = { workspace = true }
 
 clap = { workspace = true, features = ["derive", "cargo"] }
 dirs = "5"

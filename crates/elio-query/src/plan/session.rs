@@ -13,7 +13,7 @@ use crate::planner::{PlannerContext, RootPlan, plan_root};
 
 /// Session used by the planner.
 pub trait PlannerSession {
-    fn derive_planner_context(&self) -> PlannerContext;
+    fn derive_planner_context(&'_ self) -> PlannerContext<'_>;
     fn catalog(&self) -> &dyn PlannerCatalog;
     fn token_manager(&self) -> &dyn PlannerToken;
     fn send_notification(&self, notification: String);
@@ -47,9 +47,9 @@ pub fn plan_query(
     level: PlanLevel,
 ) -> Result<RootPlan, PlanError> {
     // bind
-    let ir = bind_root_query(ctx.clone(), query)?;
+    let ir = bind_root_query(ctx, query)?;
     // plan
-    let mut planner_ctx = ctx.clone().derive_planner_context();
+    let mut planner_ctx = ctx.derive_planner_context();
     let plan = plan_root(&mut planner_ctx, &ir)?;
     if matches!(level, PlanLevel::Plan) {
         return Ok(plan);

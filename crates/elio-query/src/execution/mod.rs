@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use elio_storage::graph::GraphStore;
+use elio_storage::token::TokenStore;
 use elio_storage::transaction::Transaction;
 
 use crate::catalog::SessionCatalog;
@@ -22,9 +24,25 @@ pub struct QueryContext {
 impl QueryContext {
     pub fn derive_eval_ctx(&self) -> EvalCtxImpl {
         EvalCtxImpl {
-            catalog: self.sess_catalog.clone(),
+            token_store: self.token_store().clone(),
             graph_store: self.db.graph_store().clone(),
             tx: self.tx.clone(),
         }
+    }
+
+    pub fn token_store(&self) -> &Arc<TokenStore> {
+        self.db.token_store()
+    }
+
+    pub fn graph_store(&self) -> &Arc<GraphStore> {
+        self.db.graph_store()
+    }
+
+    pub fn txn(&self) -> &Arc<Transaction> {
+        &self.tx
+    }
+
+    pub fn sess_catalog(&self) -> &Arc<SessionCatalog> {
+        &self.sess_catalog
     }
 }

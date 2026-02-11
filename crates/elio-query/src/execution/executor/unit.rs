@@ -11,7 +11,7 @@ pub struct UnitExecutor {
 }
 
 impl Executor for UnitExecutor {
-    fn open(&self, _ctx: Arc<TaskExecContext>) -> Result<DataChunkStream, ExecError> {
+    fn open(&self, _ctx: Arc<QueryContext>) -> Result<DataChunkStream, ExecError> {
         let stream = try_stream! {
             // return one empty row
             yield DataChunk::unit();

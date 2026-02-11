@@ -3,12 +3,13 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Error;
 use async_trait::async_trait;
+use elio_common::catalog::IndexHint;
 use elio_common::{LabelId, PropertyKeyId, TokenId, TokenKind};
 use elio_parser::ast;
 use elio_query::catalog::FunctionCatalog;
 use elio_query::catalog::error::CatalogError;
 use elio_query::function::FUNCTION_REGISTRY;
-use elio_query::plan::session::{self, IndexHint, PlanLevel, PlannerSession};
+use elio_query::plan::session::{self, PlanLevel, PlannerCatalog, PlannerSession, PlannerToken};
 use elio_query::planner::PlannerContext;
 use itertools::Itertools;
 use sqlplannertest::ParsedTestCase;
@@ -99,17 +100,17 @@ impl MockPlannerSession {
     }
 
     pub fn bind_query(self: &Arc<Self>, ast: &ast::RegularQuery) -> anyhow::Result<String> {
-        let ir = session::bind_query(self.clone(), ast)?;
+        let ir = session::bind_query(self.as_ref(), ast)?;
         Ok(ir.explain())
     }
 
     pub fn plan_query(self: &Arc<Self>, ast: &ast::RegularQuery) -> anyhow::Result<String> {
-        let plan = session::plan_query(self.clone(), ast, PlanLevel::Plan)?;
+        let plan = session::plan_query(self.as_ref(), ast, PlanLevel::Plan)?;
         Ok(plan.explain())
     }
 
     pub fn optimize_query(self: &Arc<Self>, ast: &ast::RegularQuery) -> anyhow::Result<String> {
-        let plan = session::plan_query(self.clone(), ast, PlanLevel::Optimize)?;
+        let plan = session::plan_query(self.as_ref(), ast, PlanLevel::Optimize)?;
         Ok(plan.explain())
     }
 
@@ -135,10 +136,12 @@ impl MockPlannerSession {
                 };
 
                 // Get or create token IDs
-                let label_id = self.get_or_create_token(&label_name, TokenKind::Label)?;
+                let label_id = self
+                    .token_manager()
+                    .resolve_or_create_token(&label_name, TokenKind::Label)?;
                 let prop_key_ids: Vec<PropertyKeyId> = properties
                     .iter()
-                    .map(|p| self.get_or_create_token(p, TokenKind::PropertyKey))
+                    .map(|p| self.token_manager().resolve_or_create_token(p, TokenKind::PropertyKey))
                     .collect::<Result<_, _>>()?;
 
                 // Record the index in mock catalog
@@ -154,35 +157,16 @@ impl MockPlannerSession {
     }
 }
 
-impl PlannerSession for MockPlannerSession {
-    fn derive_planner_context(self: Arc<Self>) -> PlannerContext {
-        PlannerContext::new(self)
-    }
-
-    fn get_or_create_token(&self, token: &str, kind: TokenKind) -> Result<TokenId, CatalogError> {
-        let key = TokenKey {
-            kind,
-            key: token.to_string(),
-        };
-        let mut tokens = self.catalog.tokens.lock().unwrap();
-        let token_id = tokens.len() as TokenId;
-        Ok(*tokens.entry(key).or_insert_with(|| token_id))
-    }
-
-    fn get_function_by_name(&self, name: &str) -> Option<&FunctionCatalog> {
+impl PlannerCatalog for MockPlannerSession {
+    fn resolve_function(&self, name: &str) -> Option<&FunctionCatalog> {
         self.catalog.functions.get(&name.trim().to_lowercase())
     }
 
-    fn get_token_id(&self, token: &str, kind: TokenKind) -> Option<TokenId> {
-        let key = TokenKey {
-            kind,
-            key: token.to_string(),
-        };
-        let tokens = self.catalog.tokens.lock().unwrap();
-        tokens.get(&key).cloned()
-    }
-
-    fn find_unique_index(&self, label_id: LabelId, property_key_ids: &[PropertyKeyId]) -> Option<IndexHint> {
+    fn find_unique_index(
+        &self,
+        label_id: LabelId,
+        property_key_ids: &[PropertyKeyId],
+    ) -> Option<elio_common::catalog::IndexHint> {
         // Check mock indexes
         self.catalog
             .find_index(label_id, property_key_ids)
@@ -192,9 +176,44 @@ impl PlannerSession for MockPlannerSession {
                 property_key_ids: prop_ids,
             })
     }
+}
+
+impl PlannerToken for MockPlannerSession {
+    fn resolve_or_create_token(&self, token: &str, kind: TokenKind) -> Result<TokenId, CatalogError> {
+        let key = TokenKey {
+            kind,
+            key: token.to_string(),
+        };
+        let mut tokens = self.catalog.tokens.lock().unwrap();
+        let token_id = tokens.len() as TokenId;
+        Ok(*tokens.entry(key).or_insert_with(|| token_id))
+    }
+
+    fn resolve_token(&self, token: &str, kind: TokenKind) -> Option<TokenId> {
+        let key = TokenKey {
+            kind,
+            key: token.to_string(),
+        };
+        let tokens = self.catalog.tokens.lock().unwrap();
+        tokens.get(&key).cloned()
+    }
+}
+
+impl PlannerSession for MockPlannerSession {
+    fn derive_planner_context(&'_ self) -> PlannerContext<'_> {
+        PlannerContext::new(self)
+    }
 
     fn send_notification(&self, _notification: String) {
         todo!()
+    }
+
+    fn catalog(&self) -> &dyn PlannerCatalog {
+        self
+    }
+
+    fn token_manager(&self) -> &dyn PlannerToken {
+        self
     }
 }
 

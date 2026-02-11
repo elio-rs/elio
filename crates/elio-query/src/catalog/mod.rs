@@ -3,7 +3,6 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use elio_storage::catalog::CatalogStore;
-use elio_storage::token::TokenStore;
 
 use crate::function::FUNCTION_REGISTRY;
 
@@ -20,8 +19,6 @@ pub use func::FunctionCatalog;
 pub struct SessionCatalog {
     // durable catalog store
     catalog_store: Arc<CatalogStore>,
-    // token store with cache
-    token_store: Arc<TokenStore>,
     // functions
     functions: HashMap<String, FunctionCatalog>,
 }
@@ -33,10 +30,9 @@ impl std::fmt::Debug for SessionCatalog {
 }
 
 impl SessionCatalog {
-    pub fn new(catalog_store: Arc<CatalogStore>, token_store: Arc<TokenStore>) -> Self {
+    pub fn new(catalog_store: Arc<CatalogStore>) -> Self {
         Self {
             catalog_store,
-            token_store,
             functions: {
                 let mut map = HashMap::new();
                 for (name, def) in FUNCTION_REGISTRY.deref().name2def.iter() {
@@ -54,17 +50,5 @@ impl SessionCatalog {
 
     pub fn catalog_store(&self) -> &Arc<CatalogStore> {
         &self.catalog_store
-    }
-
-    pub fn token_store(&self) -> &Arc<TokenStore> {
-        &self.token_store
-    }
-}
-
-impl Deref for SessionCatalog {
-    type Target = TokenStore;
-
-    fn deref(&self) -> &Self::Target {
-        &self.token_store
     }
 }

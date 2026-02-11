@@ -12,7 +12,7 @@ pub struct BlackHoleExecutor {
 }
 
 impl Executor for BlackHoleExecutor {
-    fn open(&self, ctx: Arc<TaskExecContext>) -> Result<DataChunkStream, ExecError> {
+    fn open(&self, ctx: Arc<QueryContext>) -> Result<DataChunkStream, ExecError> {
         let input_stream = self.input.open(ctx.clone())?;
         let schema = self.schema.clone();
 

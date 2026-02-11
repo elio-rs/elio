@@ -39,10 +39,10 @@ impl AllNodeScanExectuor {
 }
 
 /// Scan all nodes from storage, returns a receiver for node chunks
-fn scan_nodes(ctx: &Arc<TaskExecContext>) -> mpsc::Receiver<Result<DataChunk, ExecError>> {
+fn scan_nodes(qctx: &Arc<QueryContext>) -> mpsc::Receiver<Result<DataChunk, ExecError>> {
     let (tx, rx) = mpsc::channel::<Result<DataChunk, ExecError>>(CHANNEL_BUFFER_SIZE);
-    let txn = ctx.tx().clone();
-    let graph_store = ctx.graph_store().clone();
+    let txn = qctx.tx.clone();
+    let graph_store = qctx.db.graph_store().clone();
 
     tokio::task::spawn_blocking(move || {
         let opts = NodeScanOptions { batch_size: 1024 };
@@ -73,7 +73,7 @@ fn scan_nodes(ctx: &Arc<TaskExecContext>) -> mpsc::Receiver<Result<DataChunk, Ex
 }
 
 impl Executor for AllNodeScanExectuor {
-    fn open(&self, ctx: Arc<TaskExecContext>) -> Result<DataChunkStream, ExecError> {
+    fn open(&self, ctx: Arc<QueryContext>) -> Result<DataChunkStream, ExecError> {
         let schema = self.schema.clone();
         let input = self.input.clone();
         let output_mapping = self.output_mapping.clone();

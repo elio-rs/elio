@@ -1,18 +1,17 @@
 use std::sync::Arc;
 
 use bitvec::vec::BitVec;
-use educe::Educe;
 use elio_common::array::chunk::DataChunk;
 use elio_common::array::{NodeArray, VirtualNodeArray};
 use elio_common::schema::Schema;
 use elio_common::{TokenId, TokenKind};
 use elio_storage::graph::GraphStore;
+use elio_storage::token::TokenStore;
 use elio_storage::transaction::Transaction;
 use futures::StreamExt;
 use itertools::Itertools;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
-use crate::catalog::SessionCatalog;
 use crate::execution::QueryContext;
 use crate::execution::builder::{ExecutorBuildContext, build_executor};
 use crate::execution::error::{EvalError, ExecError};
@@ -23,14 +22,14 @@ use crate::plan::plan_node::PlanExpr;
 use crate::planner::RootPlan;
 
 pub struct EvalCtxImpl {
-    pub catalog: Arc<SessionCatalog>,
     pub graph_store: Arc<GraphStore>,
     pub tx: Arc<Transaction>,
+    pub token_store: Arc<TokenStore>,
 }
 
 impl EvalCtx for EvalCtxImpl {
     fn get_or_create_token(&self, token: &str, kind: TokenKind) -> Result<TokenId, EvalError> {
-        self.catalog
+        self.token_store
             .get_or_create_token(token, kind)
             .map_err(|e| EvalError::GetOrCreateTokenError(e.to_string()))
     }

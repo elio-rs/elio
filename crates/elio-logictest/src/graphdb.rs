@@ -4,15 +4,15 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use elio_common::scalar::Row;
-use elio_core::db_env::{DbConfig, DbEnv};
-use elio_core::error::Error as GraphDBError;
-use elio_core::session::Session;
+use elio_query::database::error::Error as GraphDBError;
+use elio_query::database::session::Session;
+use elio_query::database::{Database, DatabaseConfig};
 use futures::stream::StreamExt;
 use sqllogictest::{AsyncDB, ColumnType, DBOutput};
 use tempfile::TempDir;
 
 pub struct EmbeddedGraphDB {
-    _db: Arc<DbEnv>,
+    _db: Arc<Database>,
     sess: Arc<Session>,
     // hold db files, references the temp file, in case of temp file is deleted during test
     _temp_dir: TempDir,
@@ -20,9 +20,9 @@ pub struct EmbeddedGraphDB {
 
 impl EmbeddedGraphDB {
     pub fn open(temp_dir: TempDir) -> Result<Self, GraphDBError> {
-        let config = DbConfig::with_db_path(temp_dir.path());
+        let config = DatabaseConfig::with_path(temp_dir.path());
 
-        let db = DbEnv::open(&config)?;
+        let db = Database::open(&config)?;
         let sess = db.new_session();
         Ok(Self {
             _db: db,
@@ -74,7 +74,7 @@ impl AsyncDB for EmbeddedGraphDB {
 
     /// Async run a SQL query and return the output.
     async fn run(&mut self, sql: &str) -> Result<DBOutput<Self::ColumnType>, Self::Error> {
-        let mut stream = self.sess.execute(sql.to_string(), Default::default()).await?;
+        let mut stream = self.sess.execute(sql, Default::default()).await?;
         let mut rows = Vec::new();
         while let Some(row) = stream.next().await {
             let row = row?;

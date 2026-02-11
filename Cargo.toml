@@ -5,7 +5,7 @@ members = [
     "crates/elio-cmd",
     "crates/elio-common",
     "crates/elio-common/macros",
-    "crates/elio-core",
+    # "crates/elio-core",
     # "crates/elio-cypher",
     # "crates/elio-exec",
     "crates/elio-query/macros",
@@ -25,7 +25,7 @@ edition = "2024"
 [workspace.dependencies]
 # elio-catalog = { path = "crates/elio-catalog" }
 elio-common = { path = "crates/elio-common" }
-elio-core = { path = "crates/elio-core" }
+# elio-core = { path = "crates/elio-core" }
 # elio-cypher = { path = "crates/elio-cypher" }
 # elio-exec = { path = "crates/elio-exec" }
 # elio-expr = { path = "crates/elio-expr" }

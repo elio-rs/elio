@@ -19,7 +19,6 @@ pub mod query;
 pub mod scope;
 
 /// Context to bind a query
-#[derive(Debug)]
 pub struct BindContext<'a> {
     pub sctx: &'a dyn PlannerSession,
     // TODO(pgao): seems outer_scopes is not needed?

@@ -5,7 +5,7 @@ edition.workspace = true
 
 [dependencies]
 elio-common = { workspace = true }
-elio-core = { workspace = true }
+elio-query = { workspace = true }
 
 async-trait = { workspace = true }
 datatest-stable = { workspace = true }

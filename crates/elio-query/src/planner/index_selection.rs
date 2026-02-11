@@ -3,13 +3,13 @@
 //! This module analyzes filters and determines if a unique index can be used
 //! to directly lookup nodes instead of scanning all nodes.
 
+use elio_common::catalog::IndexHint;
 use elio_common::schema::Variable;
 use elio_common::variable::VariableName;
 use elio_common::{IrToken, ResolvedIrToken};
 use indexmap::IndexSet;
 
 use crate::plan::expr::{Expr, FilterExprs, HasLabel};
-use crate::plan::session::IndexHint;
 use crate::planner::PlannerContext;
 
 /// Information extracted from a filter that can potentially use an index

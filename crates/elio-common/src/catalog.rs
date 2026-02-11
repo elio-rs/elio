@@ -35,7 +35,6 @@ pub struct ConstraintCatalogEntry {
     pub label_or_rel_id: LabelId, // label or rel id
     pub constraint_kind: ConstraintKind,
     pub property_key_ids: Vec<PropertyKeyId>,
-    pub(crate) label_id: u16,
 }
 
 /// Index hint for query optimization

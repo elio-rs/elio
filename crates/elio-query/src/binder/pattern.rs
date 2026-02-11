@@ -21,7 +21,7 @@ use crate::plan::ir::node_connection::{
 };
 use crate::plan::ir::path_pattern::{ChainPattern, PathPattern, SingleNode};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct PatternContext<'a> {
     pub bctx: &'a BindContext<'a>,
     pub clause: ClauseKind,

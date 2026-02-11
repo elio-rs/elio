@@ -65,7 +65,7 @@ impl NodeIndexSeekExecutor {
 }
 
 impl Executor for NodeIndexSeekExecutor {
-    fn open(&self, ctx: Arc<TaskExecContext>) -> Result<DataChunkStream, ExecError> {
+    fn open(&self, ctx: Arc<QueryContext>) -> Result<DataChunkStream, ExecError> {
         let schema = self.schema.clone();
         let label = self.label.id;
         let prop_tokens: Vec<_> = self.prop_tokens.iter().map(|x| x.id).collect();
@@ -74,7 +74,8 @@ impl Executor for NodeIndexSeekExecutor {
         let output_mapping = self.output_mapping.clone();
 
         let stream = try_stream! {
-            let tx = ctx.tx();
+            let tx = ctx.txn().clone();
+            let graph_store = ctx.graph_store().clone();
             let eval_ctx = ctx.derive_eval_ctx();
 
             if let Some(input) = input {
@@ -122,7 +123,7 @@ impl Executor for NodeIndexSeekExecutor {
                         let prop_value_refs: Vec<&[u8]> = prop_values_encoded.iter().map(|v| v.as_slice()).collect();
 
                         // perform index lookup
-                        let node_id = tx.get_unique_index(label, &prop_tokens, &prop_value_refs)?;
+                        let node_id = graph_store.get_unique_index(tx.as_ref(), label, &prop_tokens, &prop_value_refs)?;
 
                         if let Some(node_id) = node_id {
                             // build output row: combine input row and node
@@ -177,7 +178,7 @@ impl Executor for NodeIndexSeekExecutor {
                 let prop_value_refs: Vec<&[u8]> = prop_values_encoded.iter().map(|v| v.as_slice()).collect();
 
                 // perform single index lookup
-                let node_id = tx.get_unique_index(label, &prop_tokens, &prop_value_refs)?;
+                let node_id = graph_store.get_unique_index(tx.as_ref(), label, &prop_tokens, &prop_value_refs)?;
 
                 if let Some(node_id) = node_id {
                     // found a node - create a single-row result

@@ -17,7 +17,7 @@ use crate::plan::error::{PlanError, SemanticError};
 use crate::plan::expr::value::Constant;
 use crate::plan::expr::{AggCall, CreateList, Expr, ExprNode, FilterExprs, FuncCall, PropertyAccess, VariableRef};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ExprContext<'a> {
     pub bctx: &'a BindContext<'a>,
     pub scope: &'a Scope,

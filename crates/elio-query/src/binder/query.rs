@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use elio_common::variable::VariableName;
 use elio_parser::ast;
 use indexmap::IndexMap;

@@ -20,7 +20,7 @@ pub struct CrossProductExecutor {
 }
 
 impl Executor for CrossProductExecutor {
-    fn open(&self, ctx: Arc<TaskExecContext>) -> Result<DataChunkStream, ExecError> {
+    fn open(&self, qctx: Arc<QueryContext>) -> Result<DataChunkStream, ExecError> {
         let left = self.left.clone();
         let right = self.right.clone();
         let schema = self.schema.clone();
@@ -29,7 +29,7 @@ impl Executor for CrossProductExecutor {
         let stream = try_stream! {
             // materialize the right side into memory as data chunks
             let mut right_chunks = Vec::new();
-            let right_stream = right.open(ctx.clone())?;
+            let right_stream = right.open(qctx.clone())?;
             futures::pin_mut!(right_stream);
 
             while let Some(chunk_result) = right_stream.next().await {
@@ -48,7 +48,7 @@ impl Executor for CrossProductExecutor {
                 CHUNK_SIZE
             );
 
-            let left_stream = left.open(ctx.clone())?;
+            let left_stream = left.open(qctx.clone())?;
             futures::pin_mut!(left_stream);
 
             while let Some(left_chunk_result) = left_stream.next().await {

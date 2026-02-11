@@ -6,7 +6,7 @@ pub struct AllRelScanExecutor {
 }
 
 impl Executor for AllRelScanExecutor {
-    fn open(&self, _ctx: Arc<TaskExecContext>) -> Result<DataChunkStream, ExecError> {
+    fn open(&self, _ctx: Arc<QueryContext>) -> Result<DataChunkStream, ExecError> {
         todo!()
     }
 
