@@ -15,7 +15,7 @@ use crate::database::Database;
 use crate::database::error::Error;
 use crate::database::result::{EmptyResultHandle, ExplainResultHandle, ResultHandle, TaskHandleBridge};
 use crate::execution::QueryContext;
-use crate::execution::ddl::build_index;
+use crate::execution::ddl::{CreateConstraintExecutor, DropConstraintExecutor};
 use crate::execution::task::create_task;
 use crate::plan::session::{PlanLevel, PlannerCatalog, PlannerSession, PlannerToken, parse_statement, plan_query};
 use crate::planner;
@@ -168,10 +168,14 @@ async fn handle_create_constraint(
         .map(|name| token_store.get_or_create_token(name, TokenKind::PropertyKey))
         .collect::<Result<_, _>>()?;
 
-    // build index for Unique/NodeKey constraints
-    if matches!(constraint_kind, ConstraintKind::Unique | ConstraintKind::NodeKey) {
-        build_index(&qctx, &constraint_kind, label_id, &property_key_ids, &property_names)?;
-    }
+    // execute data operations (build index for Unique/NodeKey constraints)
+    let executor = CreateConstraintExecutor::new(
+        constraint_kind.clone(),
+        label_id,
+        property_key_ids.clone(),
+        property_names,
+    );
+    executor.execute(&qctx)?;
 
     // register constraint in catalog (buffered in tx, applied on commit)
     let entry = ConstraintCatalogEntry {
@@ -202,6 +206,10 @@ async fn handle_drop_constraint(
         }
         return Err(Error::ConstraintNotFound(stmt.name.clone()));
     }
+
+    // execute data operations (no-op for now; index cleanup can be added later)
+    let executor = DropConstraintExecutor;
+    executor.execute(&qctx)?;
 
     tx.delete_constraint(&stmt.name)?;
 
