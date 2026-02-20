@@ -52,6 +52,8 @@ pub(crate) mod cf_catalog {
     pub const CF_NAME: &str = "cf_catalog";
     // Constraint metadata: | prefix | constraint_name |
     pub const CONSTRAINT_META_PREFIX: u8 = 0x01;
+    // Index metadata: | prefix | index_name |
+    pub const INDEX_META_PREFIX: u8 = 0x02;
     // Label to constraints mapping: | prefix | label_id | constraint_name |
     pub const LABEL_CONSTRAINT_PREFIX: u8 = 0x03;
 }

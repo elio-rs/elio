@@ -31,7 +31,7 @@ struct MockIndexKey {
 pub struct MockCatalog {
     functions: HashMap<String, FunctionCatalog>,
     tokens: Mutex<HashMap<TokenKey, TokenId>>,
-    /// Mock indexes: (label_id, property_key_ids) -> (constraint_name)
+    /// Mock indexes: (label_id, property_key_ids) -> (index_name)
     indexes: Mutex<HashMap<MockIndexKey, String>>,
 }
 
@@ -60,12 +60,12 @@ impl Default for MockCatalog {
 
 impl MockCatalog {
     /// Add a mock index for testing
-    pub fn add_index(&self, label_id: LabelId, property_key_ids: Vec<PropertyKeyId>, constraint_name: &str) {
+    pub fn add_index(&self, label_id: LabelId, property_key_ids: Vec<PropertyKeyId>, index_name: &str) {
         let key = MockIndexKey {
             label_id,
             property_key_ids,
         };
-        self.indexes.lock().unwrap().insert(key, constraint_name.to_string());
+        self.indexes.lock().unwrap().insert(key, index_name.to_string());
     }
 
     /// Find index matching the given label and properties
@@ -76,12 +76,12 @@ impl MockCatalog {
     ) -> Option<(String, Vec<PropertyKeyId>)> {
         let indexes = self.indexes.lock().unwrap();
         // Look for an index where all index properties are covered by the query
-        for (key, constraint_name) in indexes.iter() {
+        for (key, index_name) in indexes.iter() {
             if key.label_id == label_id
                 && key.property_key_ids.len() <= property_key_ids.len()
                 && key.property_key_ids.iter().all(|p| property_key_ids.contains(p))
             {
-                return Some((constraint_name.clone(), key.property_key_ids.clone()));
+                return Some((index_name.clone(), key.property_key_ids.clone()));
             }
         }
         None
@@ -170,8 +170,8 @@ impl PlannerCatalog for MockPlannerSession {
         // Check mock indexes
         self.catalog
             .find_index(label_id, property_key_ids)
-            .map(|(constraint_name, prop_ids)| IndexHint {
-                constraint_name: constraint_name.into(),
+            .map(|(index_name, prop_ids)| IndexHint {
+                index_name: index_name.into(),
                 label_id,
                 property_key_ids: prop_ids,
             })

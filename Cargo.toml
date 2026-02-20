@@ -25,6 +25,7 @@ elio-query = { path = "crates/elio-query" }
 elio-storage = { path = "crates/elio-storage" }
 
 # other
+arc-swap = "1.8"
 anyhow = "1.0"
 async-stream = "0.3.6"
 async-trait = "0.1.89"

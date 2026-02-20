@@ -45,8 +45,8 @@ impl Database {
         let kv_engine = Arc::new(KvEngine::open(&config.path)?);
         let token_store = Arc::new(TokenStore::new(kv_engine.clone())?);
         let graph_store = Arc::new(GraphStore::new(kv_engine.clone(), token_store.clone())?);
-        let catalog_store = Arc::new(CatalogStore::new(kv_engine.clone()));
-        let transaction_manager = Arc::new(TransactionManager::new(kv_engine.clone()));
+        let catalog_store = Arc::new(CatalogStore::new(kv_engine.clone())?);
+        let transaction_manager = Arc::new(TransactionManager::new(kv_engine.clone(), catalog_store.clone()));
         Ok(Arc::new(Self {
             graph_store,
             token_store,

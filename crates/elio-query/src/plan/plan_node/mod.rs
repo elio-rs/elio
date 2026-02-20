@@ -276,7 +276,7 @@ impl PlanExpr {
                 let NodeIndexSeekInner {
                     variable,
                     label,
-                    constraint_name,
+                    index_name,
                     prop_tokens,
                     prop_values,
                     ctx,
@@ -289,7 +289,7 @@ impl PlanExpr {
                 Ok(NodeIndexSeek::new(NodeIndexSeekInner::new(
                     variable,
                     label,
-                    constraint_name,
+                    index_name,
                     prop_tokens,
                     prop_values,
                     ctx,
