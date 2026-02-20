@@ -4,7 +4,6 @@ use elio_storage::graph::GraphStore;
 use elio_storage::token::TokenStore;
 use elio_storage::transaction::Transaction;
 
-use crate::catalog::SessionCatalog;
 use crate::database::Database;
 use crate::execution::task::EvalCtxImpl;
 
@@ -18,7 +17,6 @@ pub mod task;
 
 pub struct QueryContext {
     pub(crate) db: Arc<Database>,
-    pub(crate) sess_catalog: Arc<SessionCatalog>,
     pub(crate) tx: Arc<Transaction>,
 }
 
@@ -41,9 +39,5 @@ impl QueryContext {
 
     pub fn txn(&self) -> &Arc<Transaction> {
         &self.tx
-    }
-
-    pub fn sess_catalog(&self) -> &Arc<SessionCatalog> {
-        &self.sess_catalog
     }
 }

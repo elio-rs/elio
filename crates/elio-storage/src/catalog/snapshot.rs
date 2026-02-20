@@ -55,10 +55,6 @@ impl DurableCatalogSnapshot {
             .collect()
     }
 
-    pub(crate) fn get_index(&self, name: &str) -> Option<IndexCatalogEntry> {
-        self.indexes_by_name.get(name).cloned()
-    }
-
     pub(crate) fn get_indexes_for_label(&self, label_id: LabelId) -> Vec<IndexCatalogEntry> {
         self.indexes_by_label
             .get(&label_id)

@@ -36,10 +36,7 @@ pub fn fetch_constraints_for_labels(
 
     for label in labels {
         if let Some(label_id) = qctx.token_store().get_label_id(label) {
-            let label_constraints = qctx
-                .sess_catalog()
-                .catalog_store()
-                .get_constraints_for_label(qctx.txn().as_ref(), label_id)?;
+            let label_constraints = qctx.txn().get_constraints_for_label(label_id);
             for c in label_constraints {
                 if matches!(c.constraint_kind, ConstraintKind::Unique | ConstraintKind::NodeKey) {
                     constraints.push((label_id, c));
