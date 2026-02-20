@@ -13,11 +13,55 @@ use hashbrown::HashSet;
 use crate::execution::QueryContext;
 use crate::execution::error::ExecError;
 
+pub struct CreateConstraintExecutor {
+    constraint_kind: ConstraintKind,
+    label_id: LabelId,
+    property_key_ids: Vec<PropertyKeyId>,
+    property_names: Vec<String>,
+}
+
+impl CreateConstraintExecutor {
+    pub fn new(
+        constraint_kind: ConstraintKind,
+        label_id: LabelId,
+        property_key_ids: Vec<PropertyKeyId>,
+        property_names: Vec<String>,
+    ) -> Self {
+        Self {
+            constraint_kind,
+            label_id,
+            property_key_ids,
+            property_names,
+        }
+    }
+
+    pub fn execute(&self, qctx: &QueryContext) -> Result<(), ExecError> {
+        if matches!(self.constraint_kind, ConstraintKind::Unique | ConstraintKind::NodeKey) {
+            build_index(
+                qctx,
+                &self.constraint_kind,
+                self.label_id,
+                &self.property_key_ids,
+                &self.property_names,
+            )?;
+        }
+        Ok(())
+    }
+}
+
+pub struct DropConstraintExecutor;
+
+impl DropConstraintExecutor {
+    pub fn execute(&self, _qctx: &QueryContext) -> Result<(), ExecError> {
+        Ok(())
+    }
+}
+
 /// Scans all existing nodes, validates uniqueness, and populates the index.
 ///
 /// Uses an in-memory HashSet for duplicate detection because RocksDB write batch
 /// entries are not visible to snapshot reads within the same transaction.
-pub fn build_index(
+fn build_index(
     qctx: &QueryContext,
     constraint_kind: &ConstraintKind,
     label_id: LabelId,
