@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
+use crate::catalog::CatalogStore;
 use crate::kv::KvEngine;
-use crate::transaction::{Transaction, WriteState};
+use crate::transaction::{CatalogCommitFn, Transaction, WriteState};
 
 pub enum TransactionMode {
     ReadOnly,
@@ -56,14 +57,18 @@ impl std::ops::Deref for OwnedSnapshot {
 
 pub struct TransactionManager {
     db: Arc<KvEngine>,
-    /// the global transaction lock, this is used to enforce single-writer
+    // used to apply changes to inmemory catalog snapshot
+    catalog_store: Arc<CatalogStore>,
+    // the global transaction lock, this is used to enforce single-writer
+    // TODO(pgao): we should have a mutext here, reads should not hold locks.
     tx_lock: RwLock<()>,
 }
 
 impl TransactionManager {
-    pub fn new(db: Arc<KvEngine>) -> Self {
+    pub fn new(db: Arc<KvEngine>, catalog_store: Arc<CatalogStore>) -> Self {
         Self {
             db,
+            catalog_store,
             tx_lock: RwLock::new(()),
         }
     }
@@ -85,9 +90,14 @@ impl TransactionManager {
                 TxGuard::Write(guard)
             }
         };
+        let catalog_snapshot = self.catalog_store.current_snapshot();
+        let catalog_store = self.catalog_store.clone();
+        let on_catalog_commit: CatalogCommitFn = Arc::new(move |changes| catalog_store.publish_changes(changes));
         Arc::new(Transaction {
             snapshot: OwnedSnapshot::new(self.db.clone()),
+            catalog_snapshot,
             write_state: std::sync::Mutex::new(WriteState::default()),
+            on_catalog_commit,
             tx_guard,
         })
     }

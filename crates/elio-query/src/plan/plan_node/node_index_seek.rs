@@ -50,7 +50,7 @@ impl PlanNode for NodeIndexSeek {
         let mut fields = vec![
             ("variable", Pretty::from(self.inner.variable.name.as_ref())),
             ("label", Pretty::from(self.inner.label.to_string())),
-            ("constraint", Pretty::from(self.inner.constraint_name.as_ref())),
+            ("index", Pretty::from(self.inner.index_name.as_ref())),
         ];
 
         let props = self
@@ -75,7 +75,7 @@ pub struct NodeIndexSeekInner {
     /// Output variable name for the node
     pub variable: Variable,
     pub label: ResolvedIrToken,
-    pub constraint_name: Arc<str>,
+    pub index_name: Arc<str>,
     pub prop_tokens: Vec<ResolvedIrToken>,
     pub prop_values: Vec<Expr>,
     #[educe(Debug(ignore))]
@@ -87,7 +87,7 @@ impl NodeIndexSeekInner {
     pub fn new(
         variable: Variable,
         label: ResolvedIrToken,
-        constraint_name: Arc<str>,
+        index_name: Arc<str>,
         prop_tokens: Vec<ResolvedIrToken>,
         prop_values: Vec<Expr>,
         ctx: Arc<PlanContext>,
@@ -102,7 +102,7 @@ impl NodeIndexSeekInner {
         Self {
             variable,
             label,
-            constraint_name,
+            index_name,
             prop_tokens,
             prop_values,
             ctx,

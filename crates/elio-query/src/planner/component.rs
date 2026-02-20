@@ -167,7 +167,7 @@ impl<'a> TraversalSolver<'a> {
         let plan = NodeIndexSeek::new(NodeIndexSeekInner::new(
             candidate.variable.clone(),
             candidate.label.clone(),
-            candidate.index_hint.constraint_name.clone(),
+            candidate.index_hint.index_name.clone(),
             candidate.prop_tokens.clone(),
             candidate.prop_values.clone(),
             ctx.ctx.clone(),

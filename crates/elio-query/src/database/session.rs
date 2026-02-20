@@ -190,6 +190,7 @@ async fn handle_create_constraint(
         label_or_rel_id: label_id,
         constraint_kind,
         property_key_ids,
+        backing_index: None, // CatalogStore will assign index name for Unique/NodeKey
     };
     catalog_store.put_constraint(tx.as_ref(), &entry)?;
 
