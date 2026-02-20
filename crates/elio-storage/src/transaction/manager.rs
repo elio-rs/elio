@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::catalog::CatalogStore;
+use crate::catalog::CatalogState;
 use crate::kv::KvEngine;
 use crate::transaction::{CatalogCommitFn, Transaction, WriteState};
 
@@ -58,17 +58,17 @@ impl std::ops::Deref for OwnedSnapshot {
 pub struct TransactionManager {
     db: Arc<KvEngine>,
     // used to apply changes to inmemory catalog snapshot
-    catalog_store: Arc<CatalogStore>,
+    catalog_state: Arc<CatalogState>,
     // the global transaction lock, this is used to enforce single-writer
     // TODO(pgao): we should have a mutext here, reads should not hold locks.
     tx_lock: RwLock<()>,
 }
 
 impl TransactionManager {
-    pub fn new(db: Arc<KvEngine>, catalog_store: Arc<CatalogStore>) -> Self {
+    pub fn new(db: Arc<KvEngine>, catalog_state: Arc<CatalogState>) -> Self {
         Self {
             db,
-            catalog_store,
+            catalog_state,
             tx_lock: RwLock::new(()),
         }
     }
@@ -90,9 +90,9 @@ impl TransactionManager {
                 TxGuard::Write(guard)
             }
         };
-        let catalog_snapshot = self.catalog_store.current_snapshot();
-        let catalog_store = self.catalog_store.clone();
-        let on_catalog_commit: CatalogCommitFn = Arc::new(move |changes| catalog_store.publish_changes(changes));
+        let catalog_snapshot = self.catalog_state.current_snapshot();
+        let catalog_state = self.catalog_state.clone();
+        let on_catalog_commit: CatalogCommitFn = Arc::new(move |changes| catalog_state.publish_changes(changes));
         Arc::new(Transaction {
             snapshot: OwnedSnapshot::new(self.db.clone()),
             catalog_snapshot,

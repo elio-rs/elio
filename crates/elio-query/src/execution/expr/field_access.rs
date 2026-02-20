@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use elio_common::IrToken;
 use elio_common::array::chunk::DataChunk;
-use elio_common::array::{AnyArray, AnyArrayBuilder, Array, ArrayImpl, ArrayRef, PhysicalType, StructArray};
+use elio_common::array::{AnyArray, AnyArrayBuilder, Array, ArrayImpl, ArrayRef, StructArray};
 use elio_common::data_type::DataType;
 use elio_common::scalar::{ScalarRef, StructValueRef};
 
@@ -21,17 +21,17 @@ pub struct FieldAccessExpr {
     pub input: SharedExpression,
     key: IrToken,
     pub typ: DataType,
-    physical_type: PhysicalType,
+    // physical_type: PhysicalType,
 }
 
 impl FieldAccessExpr {
     pub fn new(input: SharedExpression, key: IrToken, typ: DataType) -> Self {
-        let physical_type = typ.physical_type();
+        // let physical_type = typ.physical_type();
         Self {
             input,
             key,
             typ,
-            physical_type,
+            // physical_type,
         }
     }
 }
