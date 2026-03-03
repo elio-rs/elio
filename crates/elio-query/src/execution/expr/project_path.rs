@@ -14,11 +14,11 @@ pub struct ProjectPathExpr {
     // expected to be interleaved by node and rel
     pub inputs: Vec<SharedExpression>,
     // output type, expected to be virtualpath
-    pub typ: DataType,
+    pub typ: LogicalType,
 }
 
 impl Expression for ProjectPathExpr {
-    fn typ(&self) -> &DataType {
+    fn typ(&self) -> &LogicalType {
         &self.typ
     }
 
@@ -45,7 +45,7 @@ impl Expression for ProjectPathExpr {
                         return Err(EvalError::TypeError(format!(
                             "Expected node array at step {}, found {:?}",
                             i,
-                            other.physical_type()
+                            other.logical_type()
                         )));
                     }
                 }
@@ -56,7 +56,7 @@ impl Expression for ProjectPathExpr {
                         return Err(EvalError::TypeError(format!(
                             "Expected rel array at step {}, found {:?}",
                             i,
-                            other.physical_type()
+                            other.logical_type()
                         )));
                     }
                 }

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 use elio_common::schema::Variable;
 use elio_common::variable::VariableName;
 use enum_as_inner::EnumAsInner;
@@ -341,7 +341,7 @@ pub enum LoadFormat {
 }
 
 impl LoadFormat {
-    pub fn output_type(&self) -> DataType {
+    pub fn output_type(&self) -> LogicalType {
         match self {
             LoadFormat::Csv(f) => f.output_type(),
         }
@@ -373,13 +373,13 @@ impl CsvLoadFormat {
         self.delimiter
     }
 
-    pub fn output_type(&self) -> DataType {
+    pub fn output_type(&self) -> LogicalType {
         if self.header {
             // we do not know the struct fields, so put an any here.
-            DataType::Any
+            LogicalType::ANY
         } else {
             // we assume the list fields are string
-            DataType::new_list(DataType::String)
+            LogicalType::new_list(LogicalType::STRING)
         }
     }
 

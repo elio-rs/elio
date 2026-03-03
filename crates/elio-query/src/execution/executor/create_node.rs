@@ -58,7 +58,7 @@ impl Executor for CreateNodeExectuor {
                     let prop_struct = prop.as_struct().ok_or_else(|| ExecError::type_mismatch(
                         "create_node",
                         "struct",
-                        prop.physical_type(),
+                        prop.logical_type().clone(),
                     ))?;
 
                     // Check constraints before creating nodes

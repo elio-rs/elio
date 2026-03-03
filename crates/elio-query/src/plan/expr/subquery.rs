@@ -1,4 +1,4 @@
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 
 use crate::plan::expr::{Expr, ExprNode};
 
@@ -6,7 +6,7 @@ use crate::plan::expr::{Expr, ExprNode};
 pub struct Subquery {}
 
 impl ExprNode for Subquery {
-    fn typ(&self) -> DataType {
+    fn typ(&self) -> LogicalType {
         todo!()
     }
 }

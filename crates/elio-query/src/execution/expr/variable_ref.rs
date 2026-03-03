@@ -1,6 +1,6 @@
 use elio_common::array::ArrayRef;
 use elio_common::array::chunk::DataChunk;
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 
 use crate::execution::error::EvalError;
 use crate::execution::expr::{EvalCtx, Expression};
@@ -8,17 +8,17 @@ use crate::execution::expr::{EvalCtx, Expression};
 #[derive(Debug)]
 pub struct VariableRefExpr {
     pub idx: usize,
-    typ: DataType,
+    typ: LogicalType,
 }
 
 impl VariableRefExpr {
-    pub fn new(idx: usize, typ: DataType) -> Self {
+    pub fn new(idx: usize, typ: LogicalType) -> Self {
         Self { idx, typ }
     }
 }
 
 impl Expression for VariableRefExpr {
-    fn typ(&self) -> &DataType {
+    fn typ(&self) -> &LogicalType {
         &self.typ
     }
 

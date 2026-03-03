@@ -44,6 +44,7 @@
 
 use bitvec::prelude::*;
 use elio_common::array::*;
+use elio_common::data_type::LogicalType;
 use elio_common::scalar::*;
 use elio_expr_macros::cypher_func;
 
@@ -166,35 +167,35 @@ fn any_duration(arg: ScalarRef<'_>) -> Result<ScalarValue, EvalError> {
 pub(crate) fn register(registry: &mut FunctionRegistry) {
     let date = define_function!( name: "date", impls: 
     [
-        { args: [{anyof String | Date | LocalDateTime | ZonedDateTime| Any}], ret: Any, func: date_batch},
-        { args: [], ret: Any, func: current_date_batch}
+        { args: [{anyof STRING | DATE | LOCAL_DATE_TIME | ZONED_DATE_TIME| ANY}], ret: ANY, func: date_batch},
+        { args: [], ret: ANY, func: current_date_batch}
     ],
     is_agg: false);
 
     let local_time = define_function!( name: "localtime", impls: 
     [
-        { args: [{anyof String | LocalTime | LocalDateTime | ZonedDateTime| Any}], ret: Any, func: local_time_batch},
-        { args: [], ret: Any, func: current_local_time_batch}
+        { args: [{anyof STRING | LOCAL_TIME | LOCAL_DATE_TIME | ZONED_DATE_TIME| ANY}], ret: ANY, func: local_time_batch},
+        { args: [], ret: ANY, func: current_local_time_batch}
     ],
     is_agg: false);
 
     let local_date_time = define_function!( name: "localdatetime", impls: 
     [
-        { args: [{anyof String | LocalDateTime | ZonedDateTime| Any}], ret: Any, func: local_date_time_batch},
-        { args: [], ret: Any, func: current_local_date_time_batch}
+        { args: [{anyof STRING | LOCAL_DATE_TIME | ZONED_DATE_TIME| ANY}], ret: ANY, func: local_date_time_batch},
+        { args: [], ret: ANY, func: current_local_date_time_batch}
     ],
     is_agg: false);
 
     let date_time = define_function!( name: "datetime", impls: 
     [
-        { args: [{anyof String | ZonedDateTime | Any}], ret: Any, func: zoned_date_time_batch},
-        { args: [], ret: Any, func: current_zoned_date_time_batch}
+        { args: [{anyof STRING | ZONED_DATE_TIME | ANY}], ret: ANY, func: zoned_date_time_batch},
+        { args: [], ret: ANY, func: current_zoned_date_time_batch}
     ],
     is_agg: false);
 
     let duration = define_function!( name: "duration", impls: 
     [
-        { args: [{anyof String | Duration}], ret: Any, func: duration_batch}
+        { args: [{anyof STRING | DURATION}], ret: ANY, func: duration_batch}
     ],
     is_agg: false);
 

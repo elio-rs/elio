@@ -40,7 +40,7 @@ pub(crate) fn register(registry: &mut HashMap<String, FuncDef>) {
         impls: [
             {
                 args: [String],
-                ret: String,
+                ret: STRING,
                 func: lower_function,
             }
         ],
@@ -52,7 +52,7 @@ pub(crate) fn register(registry: &mut HashMap<String, FuncDef>) {
         impls: [
             {
                 args: [String],
-                ret: String,
+                ret: STRING,
                 func: upper_function,
             }
         ],

@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 use elio_common::schema::Variable;
 use elio_common::variable::VariableName;
 use indexmap::IndexSet;
@@ -121,10 +121,10 @@ impl QueryGraph {
     pub fn output_bindings(&self) -> Bindings {
         let mut output_bidings = self.input_bindings.clone();
         for node in self.nodes.iter() {
-            output_bidings.insert(Variable::new(node, &DataType::VirtualNode));
+            output_bidings.insert(Variable::new(node, &LogicalType::VIRTUAL_NODE));
         }
         for rel in self.rels.iter() {
-            output_bidings.insert(Variable::new(&rel.variable, &DataType::Rel));
+            output_bidings.insert(Variable::new(&rel.variable, &LogicalType::REL));
         }
         output_bidings
     }
@@ -138,10 +138,10 @@ impl QueryGraph {
         let mut vars = IndexSet::new();
         // match pattern
         for var in self.nodes.iter() {
-            vars.insert(Variable::new(var, &DataType::VirtualNode));
+            vars.insert(Variable::new(var, &LogicalType::VIRTUAL_NODE));
         }
         for rel in self.rels.iter() {
-            vars.insert(Variable::new(&rel.variable, &DataType::Rel));
+            vars.insert(Variable::new(&rel.variable, &LogicalType::REL));
         }
         // filter
         for e in self.filter.iter() {

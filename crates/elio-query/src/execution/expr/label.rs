@@ -21,8 +21,8 @@ pub struct HasLabelExpr {
 }
 
 impl Expression for HasLabelExpr {
-    fn typ(&self) -> &DataType {
-        &DataType::Bool
+    fn typ(&self) -> &LogicalType {
+        &LogicalType::BOOL
     }
 
     fn eval_batch(&self, chunk: &DataChunk, ctx: &dyn EvalCtx) -> Result<ArrayRef, EvalError> {
@@ -48,7 +48,7 @@ impl Expression for HasLabelExpr {
             }
             _ => Err(EvalError::TypeError(format!(
                 "Expected node array or rel array, found {:?}",
-                entity.physical_type()
+                entity.logical_type()
             ))),
         }
     }

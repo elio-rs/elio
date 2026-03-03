@@ -1,5 +1,5 @@
 use elio_common::SemanticDirection;
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 use elio_common::schema::Variable;
 use elio_common::variable::VariableName;
 use indexmap::IndexSet;
@@ -47,15 +47,15 @@ impl PathStep {
         let mut set = IndexSet::new();
         match self {
             Self::NodeStep(var) => {
-                set.insert(Variable::new(var, &DataType::VirtualNode));
+                set.insert(Variable::new(var, &LogicalType::VIRTUAL_NODE));
             }
             Self::SingleRelStep { rel, other, .. } => {
-                set.insert(Variable::new(rel, &DataType::VirtualRel));
-                set.insert(Variable::new(other, &DataType::VirtualNode));
+                set.insert(Variable::new(rel, &LogicalType::VIRTUAL_REL));
+                set.insert(Variable::new(other, &LogicalType::VIRTUAL_NODE));
             }
             Self::MutliRelStep { rel, other, .. } => {
-                set.insert(Variable::new(rel, &DataType::new_list(DataType::Rel)));
-                set.insert(Variable::new(other, &DataType::VirtualNode));
+                set.insert(Variable::new(rel, &LogicalType::new_list(LogicalType::REL)));
+                set.insert(Variable::new(other, &LogicalType::VIRTUAL_NODE));
             }
         }
         set
@@ -63,17 +63,17 @@ impl PathStep {
 
     pub fn as_variable_ref(&self) -> Vec<VariableRef> {
         match self {
-            PathStep::NodeStep(var) => vec![VariableRef::new_unchecked(var.clone(), DataType::VirtualNode)],
+            PathStep::NodeStep(var) => vec![VariableRef::new_unchecked(var.clone(), LogicalType::VIRTUAL_NODE)],
             PathStep::SingleRelStep { rel, other, .. } => {
                 vec![
-                    VariableRef::new_unchecked(rel.clone(), DataType::VirtualRel),
-                    VariableRef::new_unchecked(other.clone(), DataType::VirtualNode),
+                    VariableRef::new_unchecked(rel.clone(), LogicalType::VIRTUAL_REL),
+                    VariableRef::new_unchecked(other.clone(), LogicalType::VIRTUAL_NODE),
                 ]
             }
             PathStep::MutliRelStep { rel, other, .. } => {
                 vec![
-                    VariableRef::new_unchecked(rel.clone(), DataType::new_list(DataType::Rel)),
-                    VariableRef::new_unchecked(other.clone(), DataType::VirtualNode),
+                    VariableRef::new_unchecked(rel.clone(), LogicalType::new_list(LogicalType::REL)),
+                    VariableRef::new_unchecked(other.clone(), LogicalType::VIRTUAL_NODE),
                 ]
             }
         }
@@ -81,8 +81,8 @@ impl PathStep {
 }
 
 impl ExprNode for ProjectPath {
-    fn typ(&self) -> DataType {
-        DataType::VirtualPath
+    fn typ(&self) -> LogicalType {
+        LogicalType::VIRTUAL_PATH
     }
 }
 

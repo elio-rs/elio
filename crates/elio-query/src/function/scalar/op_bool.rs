@@ -69,22 +69,22 @@ fn bool_is_not_null_batch(args: &[ArrayRef], _vis: &BitVec, len: usize) -> Resul
 }
 
 pub(crate) fn register(registry: &mut FunctionRegistry) {
-    let and = define_function!( name: "and", impls: [ {args: [{exact Bool}, {exact Bool}], ret: Bool, func: bool_and_batch}],is_agg: false);
+    let and = define_function!( name: "and", impls: [ {args: [{exact BOOL}, {exact BOOL}], ret: BOOL, func: bool_and_batch}],is_agg: false);
     registry.insert(and);
 
-    let or = define_function!( name: "or", impls: [ {args: [{exact Bool}, {exact Bool}], ret: Bool, func: bool_or_batch}],is_agg: false);
+    let or = define_function!( name: "or", impls: [ {args: [{exact BOOL}, {exact BOOL}], ret: BOOL, func: bool_or_batch}],is_agg: false);
     registry.insert(or);
 
-    let xor = define_function!( name: "xor", impls: [ {args: [{exact Bool}, {exact Bool}], ret: Bool, func: bool_xor_batch}],is_agg: false);
+    let xor = define_function!( name: "xor", impls: [ {args: [{exact BOOL}, {exact BOOL}], ret: BOOL, func: bool_xor_batch}],is_agg: false);
     registry.insert(xor);
 
     let not =
-        define_function!( name: "not", impls: [ {args: [{exact Bool}], ret: Bool, func: bool_not_batch}],is_agg: false);
+        define_function!( name: "not", impls: [ {args: [{exact BOOL}], ret: BOOL, func: bool_not_batch}],is_agg: false);
     registry.insert(not);
 
-    let is_null = define_function!( name: "is_null", impls: [ {args: [{exact Bool}], ret: Bool, func: bool_is_null_batch}],is_agg: false);
+    let is_null = define_function!( name: "is_null", impls: [ {args: [{exact BOOL}], ret: BOOL, func: bool_is_null_batch}],is_agg: false);
     registry.insert(is_null);
 
-    let is_not_null = define_function!( name: "is_not_null", impls: [ {args: [{exact Bool}], ret: Bool, func: bool_is_not_null_batch}],is_agg: false);
+    let is_not_null = define_function!( name: "is_not_null", impls: [ {args: [{exact BOOL}], ret: BOOL, func: bool_is_not_null_batch}],is_agg: false);
     registry.insert(is_not_null);
 }

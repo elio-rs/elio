@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use bitvec::vec::BitVec;
 use elio_common::array::chunk::DataChunk;
-use elio_common::array::{ArrayRef, PhysicalType, StructArray};
-use elio_common::data_type::DataType;
+use elio_common::array::{ArrayRef, StructArray};
+use elio_common::data_type::LogicalType;
 
 use crate::execution::error::EvalError;
 use crate::execution::expr::{EvalCtx, Expression, SharedExpression};
@@ -12,23 +12,17 @@ use crate::execution::expr::{EvalCtx, Expression, SharedExpression};
 pub struct CreateStructExpr {
     // struct keys and values
     pub fields: Vec<(Arc<str>, SharedExpression)>,
-    pub typ: DataType,
-    pub physical_type: PhysicalType,
+    pub typ: LogicalType,
 }
 
 impl CreateStructExpr {
-    pub fn new(fields: Vec<(Arc<str>, SharedExpression)>, typ: DataType) -> Self {
-        let physical_type = typ.physical_type();
-        Self {
-            fields,
-            typ,
-            physical_type,
-        }
+    pub fn new(fields: Vec<(Arc<str>, SharedExpression)>, typ: LogicalType) -> Self {
+        Self { fields, typ }
     }
 }
 
 impl Expression for CreateStructExpr {
-    fn typ(&self) -> &DataType {
+    fn typ(&self) -> &LogicalType {
         &self.typ
     }
 

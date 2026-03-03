@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 use elio_common::schema::Variable;
 use elio_common::variable::VariableName;
 use elio_parser::ast;
@@ -21,13 +21,13 @@ pub struct ScopeItem {
     // If you do not want to reference the bound expression, please set bound_expr to
     // none, then when binding project_body, it will replace the symbol to VarRef.
     pub expr: HashSet<ast::Expr>,
-    pub typ: DataType,
+    pub typ: LogicalType,
     // this is only for path expressions
     pub bound_expr: Option<Expr>,
 }
 
 impl ScopeItem {
-    pub fn new_variable(variable: VariableName, symbol: Option<&str>, typ: DataType) -> Self {
+    pub fn new_variable(variable: VariableName, symbol: Option<&str>, typ: LogicalType) -> Self {
         Self {
             symbol: symbol.map(|s| s.to_string()),
             variable,

@@ -1,4 +1,4 @@
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 
 use crate::plan::expr::{Expr, ExprNode};
 
@@ -10,11 +10,11 @@ pub struct AggCall {
     pub func_id: String,
     pub args: Vec<Expr>,
     pub distinct: bool,
-    typ: DataType,
+    typ: LogicalType,
 }
 
 impl AggCall {
-    pub fn new_unchecked(func: String, func_id: String, args: Vec<Expr>, distinct: bool, typ: DataType) -> Self {
+    pub fn new_unchecked(func: String, func_id: String, args: Vec<Expr>, distinct: bool, typ: LogicalType) -> Self {
         Self {
             func,
             func_id,
@@ -26,7 +26,7 @@ impl AggCall {
 }
 
 impl ExprNode for AggCall {
-    fn typ(&self) -> DataType {
+    fn typ(&self) -> LogicalType {
         self.typ.clone()
     }
 }

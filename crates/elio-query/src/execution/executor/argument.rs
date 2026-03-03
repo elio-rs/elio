@@ -23,8 +23,7 @@ impl Executor for ArgumentExecutor {
 
             for (idx, field) in schema.columns().iter().enumerate() {
                 let value = argument_ctx.get_value(idx);
-                let physical_type = field.typ.physical_type();
-                let mut builder = physical_type.array_builder(1);
+                let mut builder = field.typ.array_builder(1);
                 builder.push(value.as_ref().map(|v| v.as_scalar_ref()));
                 columns.push(Arc::new(builder.finish()));
             }

@@ -9,9 +9,9 @@
 //! generics around the Array and ArrayBuilder.
 //! This file is derived from type-exercise-in-rust and modified by elio.
 
-pub mod any;
 pub mod bool;
 pub mod chunk;
+pub mod variant;
 // pub mod datum;
 pub mod list;
 pub mod node;
@@ -23,19 +23,21 @@ pub mod iter;
 
 use std::sync::Arc;
 
-pub use any::*;
 use bitvec::prelude::*;
 pub use bool::*;
 pub use chunk::*;
 use enum_as_inner::EnumAsInner;
+use itertools::Itertools;
 pub use list::*;
 pub use node::*;
 pub use path::*;
 pub use rel::*;
 pub use struct_::*;
+pub use variant::*;
 
 use super::scalar::*;
 use crate::array::iter::ArrayIterator;
+use crate::data_type::{LogicalType, PhysicalType};
 use crate::scalar::ScalarRefVTable;
 use crate::{NodeId, RelationshipId};
 
@@ -78,7 +80,7 @@ pub trait Array: Send + Sync + Sized + 'static + Into<ArrayImpl> + std::fmt::Deb
         ArrayIterator::new(self)
     }
 
-    fn physical_type(&self) -> PhysicalType;
+    fn logical_type(&self) -> &LogicalType;
 
     fn compact(&self, visibility: &BitVec, new_len: usize) -> Self;
 }
@@ -87,7 +89,7 @@ pub type ArrayRef = Arc<ArrayImpl>;
 
 #[derive(EnumAsInner, Clone, Debug, PartialEq, Eq)]
 pub enum ArrayImpl {
-    Any(AnyArray),
+    Variant(VariantArray),
     Bool(BoolArray),
     // graph
     VirtualNode(VirtualNodeArray),
@@ -118,7 +120,7 @@ macro_rules! impl_partial_eq_for_variant {
 }
 
 impl_partial_eq_for_variant!(
-    AnyArray,
+    VariantArray,
     BoolArray,
     VirtualNodeArray,
     VirtualRelArray,
@@ -133,9 +135,9 @@ impl_partial_eq_for_variant!(
 macro_rules! impl_array_dispatch {
     ($($variant:ident),*) => {
         impl ArrayImpl {
-            pub fn physical_type(&self) -> PhysicalType {
+            pub fn logical_type(&self) -> &LogicalType {
                 match self {
-                    $(ArrayImpl::$variant(a) => a.physical_type(),)*
+                    $(ArrayImpl::$variant(a) => a.logical_type(),)*
                 }
             }
 
@@ -174,7 +176,7 @@ macro_rules! impl_array_dispatch {
 }
 
 impl_array_dispatch!(
-    Any,
+    Variant,
     Bool,
     VirtualNode,
     VirtualRel,
@@ -200,7 +202,7 @@ macro_rules! impl_array_convert {
 }
 
 impl_array_convert!(
-{Any, AnyArray},
+{Variant, VariantArray},
 {Bool, BoolArray},
 {VirtualNode, VirtualNodeArray},
 {VirtualRel, VirtualRelArray},
@@ -213,7 +215,7 @@ impl_array_convert!(
 
 #[derive(Debug, EnumAsInner)]
 pub enum ArrayBuilderImpl {
-    Any(AnyArrayBuilder),
+    Variant(VariantArrayBuilder),
     Bool(BoolArrayBuilder),
     // graph
     VirtualNode(VirtualNodeArrayBuilder),
@@ -230,7 +232,7 @@ pub enum ArrayBuilderImpl {
 impl ArrayBuilderImpl {
     pub fn push_n(&mut self, item: Option<ScalarRef<'_>>, repeat: usize) {
         match self {
-            ArrayBuilderImpl::Any(any) => {
+            ArrayBuilderImpl::Variant(any) => {
                 any.push_n(item, repeat);
             }
             ArrayBuilderImpl::Bool(b) => {
@@ -280,6 +282,12 @@ impl ArrayBuilderImpl {
 macro_rules! impl_array_builder_dispatch {
     ($($variant:ident),*) => {
         impl ArrayBuilderImpl {
+            pub fn logical_type(&self) -> &LogicalType {
+                match self {
+                    $(ArrayBuilderImpl::$variant(b) => b.logical_type(),)*
+                }
+            }
+
             pub fn finish(self) -> ArrayImpl {
                 match self{
                     $(ArrayBuilderImpl::$variant(b) => ArrayImpl::$variant(b.finish()),)*
@@ -290,7 +298,7 @@ macro_rules! impl_array_builder_dispatch {
 }
 
 impl_array_builder_dispatch!(
-    Any,
+    Variant,
     Bool,
     VirtualNode,
     VirtualRel,
@@ -315,7 +323,7 @@ macro_rules! impl_array_builder_convert {
 }
 
 impl_array_builder_convert!(
-{Any, AnyArrayBuilder},
+{Variant, VariantArrayBuilder},
 {Bool, BoolArrayBuilder},
 {VirtualNode, VirtualNodeArrayBuilder},
 {VirtualRel, VirtualRelArrayBuilder},
@@ -326,29 +334,31 @@ impl_array_builder_convert!(
 {List, ListArrayBuilder},
 {Struct, StructArrayBuilder});
 
-// physical array type
-#[derive(Debug, PartialEq, Eq)]
-pub enum PhysicalType {
-    // basic
-    Any,
-    Bool, // for filter
-    // graph
-    VirtualNode,
-    VirtualRel,
-    VirtualPath,
-    Node,
-    Rel,
-    Path,
-    // structure
-    List(Box<PhysicalType>),
-    // (field_name, field type)
-    Struct(Box<[(Arc<str>, PhysicalType)]>),
-}
+// // physical array type
+// #[derive(Debug, PartialEq, Eq)]
+// pub enum PhysicalType {
+//     // basic
+//     Variant,
+//     Bool, // for filter
+//     // graph
+//     VirtualNode,
+//     VirtualRel,
+//     VirtualPath,
+//     Node,
+//     Rel,
+//     Path,
+//     // structure
+//     List(Box<PhysicalType>),
+//     // (field_name, field type)
+//     Struct(Box<[(Arc<str>, PhysicalType)]>),
+// }
 
-impl PhysicalType {
+impl LogicalType {
     pub fn array_builder(&self, capacity: usize) -> ArrayBuilderImpl {
-        match self {
-            PhysicalType::Any => ArrayBuilderImpl::Any(AnyArrayBuilder::with_capacity(capacity)),
+        match self.physical_type {
+            PhysicalType::Variant => {
+                ArrayBuilderImpl::Variant(VariantArrayBuilder::with_capacity(capacity, self.clone()))
+            }
             PhysicalType::Bool => ArrayBuilderImpl::Bool(BoolArrayBuilder::with_capacity(capacity)),
             PhysicalType::VirtualNode => {
                 ArrayBuilderImpl::VirtualNode(VirtualNodeArrayBuilder::with_capacity(capacity))
@@ -360,16 +370,21 @@ impl PhysicalType {
             PhysicalType::Node => ArrayBuilderImpl::Node(NodeArrayBuilder::with_capacity(capacity)),
             PhysicalType::Rel => ArrayBuilderImpl::Rel(RelArrayBuilder::with_capacity(capacity)),
             PhysicalType::Path => ArrayBuilderImpl::Path(PathArrayBuilder::with_capacity(capacity)),
-            PhysicalType::List(inner) => {
-                let child = inner.array_builder(capacity);
+            PhysicalType::List => {
+                let child = self
+                    .as_list()
+                    .expect("List must have inner type")
+                    .array_builder(capacity);
                 ArrayBuilderImpl::List(ListArrayBuilder::new(Box::new(child)))
             }
-            PhysicalType::Struct(fields) => {
-                let mut field_builders = Vec::with_capacity(fields.len());
-                for (name, ty) in fields {
-                    field_builders.push((name.clone(), ty.array_builder(capacity)));
-                }
-                ArrayBuilderImpl::Struct(StructArrayBuilder::new(field_builders.into_iter()))
+            PhysicalType::Struct => {
+                let fields = self
+                    .as_struct()
+                    .expect("Struct must have fields")
+                    .iter()
+                    .map(|(name, ty)| (name.clone(), ty.array_builder(capacity)))
+                    .collect_vec();
+                ArrayBuilderImpl::Struct(StructArrayBuilder::new(fields.into_iter()))
             }
         }
     }

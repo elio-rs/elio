@@ -75,8 +75,8 @@ impl Array for PathArray {
         self.valid.len()
     }
 
-    fn physical_type(&self) -> PhysicalType {
-        PhysicalType::Path
+    fn logical_type(&self) -> &LogicalType {
+        &LogicalType::PATH
     }
 
     fn compact(&self, visibility: &BitVec, new_len: usize) -> Self {
@@ -146,6 +146,10 @@ impl PathArrayBuilder {
             rels: Arc::new(self.rels.finish()),
             valid: self.valid,
         }
+    }
+
+    pub fn logical_type(&self) -> &LogicalType {
+        &LogicalType::PATH
     }
 }
 
@@ -228,8 +232,8 @@ impl Array for VirtualPathArray {
         self.valid.len()
     }
 
-    fn physical_type(&self) -> PhysicalType {
-        PhysicalType::VirtualPath
+    fn logical_type(&self) -> &LogicalType {
+        &LogicalType::VIRTUAL_PATH
     }
 
     fn compact(&self, visibility: &BitVec, new_len: usize) -> Self {
@@ -295,5 +299,9 @@ impl VirtualPathArrayBuilder {
             rels: Arc::new(self.rels.finish()),
             valid: self.valid,
         }
+    }
+
+    pub fn logical_type(&self) -> &LogicalType {
+        &LogicalType::VIRTUAL_PATH
     }
 }

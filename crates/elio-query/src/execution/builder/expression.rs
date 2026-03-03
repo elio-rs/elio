@@ -1,4 +1,4 @@
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 use elio_common::schema::{Name2ColumnMap, Schema};
 
 use crate::execution::builder::{BuildError, ExecutorBuildContext};
@@ -61,7 +61,7 @@ fn build_constant(_ctx: &BuildExprContext<'_>, constant: &Constant) -> Result<Sh
         value: constant.data.clone(),
         // After null coercion in binder, all constants should have a type.
         // If not, fall back to Any type for runtime handling.
-        typ: constant.typ.clone().unwrap_or(DataType::Any),
+        typ: constant.typ.clone().unwrap_or(LogicalType::ANY),
     }
     .into_shared())
 }
@@ -105,7 +105,6 @@ fn build_create_map(ctx: &BuildExprContext<'_>, create_map: &CreateStruct) -> Re
     Ok(CreateStructExpr {
         fields: properties,
         typ: create_map.typ().clone(),
-        physical_type: create_map.typ().physical_type(),
     }
     .into_shared())
 }

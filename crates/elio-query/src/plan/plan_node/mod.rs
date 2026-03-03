@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 use elio_common::schema::{Schema, Variable};
 use elio_common::variable::VariableName;
 use enum_as_inner::EnumAsInner;

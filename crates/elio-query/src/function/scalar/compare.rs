@@ -84,13 +84,13 @@ fn any_lt_eq_batch(inputs: &[ArrayRef], vis: &BitVec, len: usize) -> Result<Arra
 }
 
 pub(crate) fn register(registry: &mut FunctionRegistry) {
-    let equal = define_function!( name: "eq", impls: [ {args: [{exact Any}, {exact Any}], ret: Bool, func: any_eq_batch}],is_agg: false);
-    let not_equal = define_function!( name: "not_eq", impls: [ {args: [{exact Any}, {exact Any}], ret: Bool, func: any_not_eq_batch}],is_agg: false);
+    let equal = define_function!( name: "eq", impls: [ {args: [{exact ANY}, {exact ANY}], ret: BOOL, func: any_eq_batch}],is_agg: false);
+    let not_equal = define_function!( name: "not_eq", impls: [ {args: [{exact ANY}, {exact ANY}], ret: BOOL, func: any_not_eq_batch}],is_agg: false);
 
-    let gt = define_function!( name: "gt", impls: [ {args: [{exact Any}, {exact Any}], ret: Bool, func: any_gt_batch}],is_agg: false);
-    let gt_eq = define_function!( name: "gt_eq", impls: [ {args: [{exact Any}, {exact Any}], ret: Bool, func: any_gt_eq_batch}],is_agg: false);
-    let lt = define_function!( name: "lt", impls: [ {args: [{exact Any}, {exact Any}], ret: Bool, func: any_lt_batch}],is_agg: false);
-    let lt_eq = define_function!( name: "lt_eq", impls: [ {args: [{exact Any}, {exact Any}], ret: Bool, func: any_lt_eq_batch}],is_agg: false);
+    let gt = define_function!( name: "gt", impls: [ {args: [{exact ANY}, {exact ANY}], ret: BOOL, func: any_gt_batch}],is_agg: false);
+    let gt_eq = define_function!( name: "gt_eq", impls: [ {args: [{exact ANY}, {exact ANY}], ret: BOOL, func: any_gt_eq_batch}],is_agg: false);
+    let lt = define_function!( name: "lt", impls: [ {args: [{exact ANY}, {exact ANY}], ret: BOOL, func: any_lt_batch}],is_agg: false);
+    let lt_eq = define_function!( name: "lt_eq", impls: [ {args: [{exact ANY}, {exact ANY}], ret: BOOL, func: any_lt_eq_batch}],is_agg: false);
 
     registry.insert(equal);
     registry.insert(not_equal);

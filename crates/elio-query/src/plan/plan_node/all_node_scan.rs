@@ -70,7 +70,7 @@ impl AllNodeScanInner {
         let mut schema = Schema::empty();
         schema.fields.push(Variable {
             name: self.variable.clone(),
-            typ: DataType::VirtualNode,
+            typ: LogicalType::VIRTUAL_NODE,
         });
         let optional_arguments = self.arguments.as_ref().map(|x| x.schema()).unwrap_or_default();
         schema.fields.extend(optional_arguments.iter().cloned());

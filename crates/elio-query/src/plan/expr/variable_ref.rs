@@ -1,4 +1,4 @@
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 use elio_common::schema::Variable;
 use elio_common::variable::VariableName;
 
@@ -7,11 +7,11 @@ use crate::plan::expr::{Expr, ExprNode};
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct VariableRef {
     pub name: VariableName,
-    pub typ: DataType,
+    pub typ: LogicalType,
 }
 
 impl VariableRef {
-    pub fn new_unchecked(name: VariableName, typ: DataType) -> Self {
+    pub fn new_unchecked(name: VariableName, typ: LogicalType) -> Self {
         Self { name, typ }
     }
 
@@ -25,7 +25,7 @@ impl VariableRef {
 }
 
 impl ExprNode for VariableRef {
-    fn typ(&self) -> DataType {
+    fn typ(&self) -> LogicalType {
         self.typ.clone()
     }
 }

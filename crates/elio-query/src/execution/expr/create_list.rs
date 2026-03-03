@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use elio_common::array::ArrayRef;
 use elio_common::array::chunk::DataChunk;
-use elio_common::array::{ArrayRef, PhysicalType};
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 use elio_common::scalar::{ListValue, ScalarVTable};
 
 use crate::execution::error::EvalError;
@@ -17,24 +17,17 @@ pub struct CreateListExpr {
     /// Element expressions - each produces one element per row
     pub elements: Vec<SharedExpression>,
     /// The result type (List<T>)
-    pub typ: DataType,
-    /// Physical type for building arrays
-    pub physical_type: PhysicalType,
+    pub typ: LogicalType,
 }
 
 impl CreateListExpr {
-    pub fn new(elements: Vec<SharedExpression>, typ: DataType) -> Self {
-        let physical_type = typ.physical_type();
-        Self {
-            elements,
-            typ,
-            physical_type,
-        }
+    pub fn new(elements: Vec<SharedExpression>, typ: LogicalType) -> Self {
+        Self { elements, typ }
     }
 }
 
 impl Expression for CreateListExpr {
-    fn typ(&self) -> &DataType {
+    fn typ(&self) -> &LogicalType {
         &self.typ
     }
 
@@ -50,7 +43,7 @@ impl Expression for CreateListExpr {
             .collect::<Result<Vec<_>, _>>()?;
 
         // Build the output list array
-        let mut builder = self.physical_type.array_builder(len).into_list().unwrap();
+        let mut builder = self.typ.array_builder(len).into_list().unwrap();
 
         for idx in chunk.visibility().iter_ones() {
             let mut items = Vec::with_capacity(element_arrays.len());

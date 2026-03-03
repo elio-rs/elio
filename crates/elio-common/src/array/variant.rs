@@ -3,16 +3,17 @@ use std::sync::Arc;
 use bitvec::prelude::*;
 
 use super::*;
-use crate::array::{Array, PhysicalType};
+use crate::array::Array;
 
 #[derive(Debug, Clone)]
-pub struct AnyArray {
-    data: Arc<[ScalarValue]>,
+pub struct VariantArray {
+    data: Arc<[VariantValue]>,
     valid: BitVec,
+    logical_type: Arc<LogicalType>,
 }
 
-impl Array for AnyArray {
-    type RefItem<'a> = ScalarRef<'a>;
+impl Array for VariantArray {
+    type RefItem<'a> = VariantRef<'a>;
 
     fn get(&self, idx: usize) -> Option<Self::RefItem<'_>> {
         self.valid.get(idx).and_then(|valid| {
@@ -32,12 +33,12 @@ impl Array for AnyArray {
         self.valid.len()
     }
 
-    fn physical_type(&self) -> PhysicalType {
-        PhysicalType::Any
+    fn logical_type(&self) -> &LogicalType {
+        &self.logical_type
     }
 
     fn compact(&self, visibility: &BitVec, new_len: usize) -> Self {
-        let mut builder = AnyArrayBuilder::with_capacity(new_len);
+        let mut builder = VariantArrayBuilder::with_capacity(new_len, self.logical_type().clone());
 
         for idx in visibility.iter_ones() {
             builder.push(self.get(idx));
@@ -47,7 +48,7 @@ impl Array for AnyArray {
     }
 }
 
-impl AnyArray {
+impl VariantArray {
     pub fn valid_map(&self) -> &BitVec {
         &self.valid
     }
@@ -58,30 +59,32 @@ impl AnyArray {
 }
 
 #[derive(Debug)]
-pub struct AnyArrayBuilder {
-    data: Vec<ScalarValue>,
+pub struct VariantArrayBuilder {
+    data: Vec<VariantValue>,
     valid: BitVec,
+    logical_type: Arc<LogicalType>,
 }
 
-impl AnyArrayBuilder {
-    pub fn with_capacity(capacity: usize) -> Self {
+impl VariantArrayBuilder {
+    pub fn with_capacity(capacity: usize, logical_type: LogicalType) -> Self {
         Self {
             data: Vec::with_capacity(capacity),
             valid: BitVec::with_capacity(capacity),
+            logical_type: Arc::new(logical_type),
         }
     }
 
-    pub fn push_n(&mut self, item: Option<ScalarRef<'_>>, repeat: usize) {
+    pub fn push_n(&mut self, item: Option<VariantRef<'_>>, repeat: usize) {
         if let Some(item) = item {
             self.data.extend(std::iter::repeat_n(item.to_owned_scalar(), repeat));
             self.valid.extend(std::iter::repeat_n(true, repeat));
         } else {
-            self.data.extend(std::iter::repeat_n(ScalarValue::default(), repeat));
+            self.data.extend(std::iter::repeat_n(VariantValue::default(), repeat));
             self.valid.extend(std::iter::repeat_n(false, repeat));
         }
     }
 
-    pub fn push(&mut self, item: Option<ScalarRef<'_>>) {
+    pub fn push(&mut self, item: Option<VariantRef<'_>>) {
         self.push_n(item, 1);
     }
 
@@ -90,10 +93,15 @@ impl AnyArrayBuilder {
         self.valid.len()
     }
 
-    pub fn finish(self) -> AnyArray {
-        AnyArray {
+    pub fn finish(self) -> VariantArray {
+        VariantArray {
             data: self.data.into(),
             valid: self.valid,
+            logical_type: self.logical_type,
         }
+    }
+
+    pub fn logical_type(&self) -> &LogicalType {
+        &self.logical_type
     }
 }

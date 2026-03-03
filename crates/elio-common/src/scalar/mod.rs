@@ -18,7 +18,7 @@ use enum_as_inner::EnumAsInner;
 use itertools::Itertools;
 
 use crate::array::{Array, ArrayImpl, StructArray};
-use crate::data_type::{DataType, F64};
+use crate::data_type::{F64, LogicalType};
 use crate::store_types::RelDirection;
 use crate::{IrToken, NodeId, RelationshipId};
 
@@ -60,7 +60,7 @@ pub trait ScalarRefVTable<'a>:
 
 /// ScalarTypes which are non nested and the data type can be known at compile time
 pub trait LeafScalarType: ScalarVTable {
-    const TYPE: DataType;
+    const TYPE: LogicalType;
 }
 
 impl ScalarVTable for ScalarValue {
@@ -80,8 +80,10 @@ impl<'a> ScalarRefVTable<'a> for ScalarRef<'a> {
 }
 
 impl LeafScalarType for ScalarValue {
-    const TYPE: DataType = DataType::Any;
+    const TYPE: LogicalType = LogicalType::ANY;
 }
+
+pub type VariantValue = ScalarValue;
 
 #[derive(derive_more::Display, Debug, Clone, Default, EnumAsInner, Eq, PartialEq, Hash)]
 pub enum ScalarValue {
@@ -183,6 +185,8 @@ impl_scalar_dispatch!(
     {List, ListValueRef<'a>},
     {Struct, StructValueRef<'a>}
 );
+
+pub type VariantRef<'a> = ScalarRef<'a>;
 
 #[derive(Debug, EnumAsInner, Clone, Copy, PartialEq, Eq, Hash, derive_more::Display)]
 pub enum ScalarRef<'a> {
@@ -348,28 +352,28 @@ macro_rules! impl_leaf_scalar_type {
     ($({$type:ty, $type_name:ident}),*) => {
         $(
             impl LeafScalarType for $type {
-                const TYPE: DataType = DataType::$type_name;
+                const TYPE: LogicalType = LogicalType::$type_name;
             }
         )*
     }
 }
 
 impl_leaf_scalar_type!(
-    {bool, Bool},
-    {i64, Integer},
-    {F64, Float},
-    {Date, Date},
-    {LocalTime, LocalTime},
-    {LocalDateTime, LocalDateTime},
-    {ZonedDateTime, ZonedDateTime},
-    {Duration, Duration},
-    {String, String},
-    {NodeId, VirtualNode},
-    {VirtualRel, VirtualRel},
-    {NodeValue, Node},
-    {VirtualPath, VirtualPath},
-    {RelValue, Rel},
-    {PathValue, Path}
+    {bool, BOOL},
+    {i64, INTEGER},
+    {F64, FLOAT},
+    {Date, DATE},
+    {LocalTime, LOCAL_TIME},
+    {LocalDateTime, LOCAL_DATE_TIME},
+    {ZonedDateTime, ZONED_DATE_TIME},
+    {Duration, DURATION},
+    {String, STRING},
+    {NodeId, VIRTUAL_NODE},
+    {VirtualRel, VIRTUAL_REL},
+    {NodeValue, NODE},
+    {VirtualPath, VIRTUAL_PATH},
+    {RelValue, REL},
+    {PathValue, PATH}
 );
 
 pub type Row = Vec<Option<ScalarValue>>;

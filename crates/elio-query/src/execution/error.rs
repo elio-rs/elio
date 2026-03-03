@@ -1,7 +1,7 @@
 use std::backtrace::Backtrace;
 use std::fmt::Display;
 
-use elio_common::array::PhysicalType;
+use elio_common::data_type::LogicalType;
 use elio_storage::error::GraphStoreError;
 
 use crate::execution::builder::BuildError;
@@ -79,7 +79,7 @@ pub enum ExecError {
     TypeMismatch {
         context: String,
         expected: String,
-        actual: PhysicalType,
+        actual: LogicalType,
         trace: Backtrace,
     },
     #[error("channel error: {0}")]
@@ -96,7 +96,7 @@ pub enum ExecError {
 }
 
 impl ExecError {
-    pub fn type_mismatch<T1: ToString, T2: ToString>(context: T1, expected: T2, actual: PhysicalType) -> Self {
+    pub fn type_mismatch<T1: ToString, T2: ToString>(context: T1, expected: T2, actual: LogicalType) -> Self {
         Self::TypeMismatch {
             context: context.to_string(),
             expected: expected.to_string(),

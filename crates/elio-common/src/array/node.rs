@@ -48,8 +48,8 @@ impl Array for NodeArray {
         self.valid.len()
     }
 
-    fn physical_type(&self) -> PhysicalType {
-        PhysicalType::Node
+    fn logical_type(&self) -> &LogicalType {
+        &LogicalType::NODE
     }
 
     fn compact(&self, visibility: &BitVec, new_len: usize) -> Self {
@@ -173,6 +173,10 @@ impl NodeArrayBuilder {
             valid,
         }
     }
+
+    pub fn logical_type(&self) -> &LogicalType {
+        &LogicalType::NODE
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -198,8 +202,8 @@ impl Array for VirtualNodeArray {
         self.valid.len()
     }
 
-    fn physical_type(&self) -> PhysicalType {
-        PhysicalType::VirtualNode
+    fn logical_type(&self) -> &LogicalType {
+        &LogicalType::VIRTUAL_NODE
     }
 
     fn compact(&self, visibility: &BitVec, new_len: usize) -> Self {
@@ -266,6 +270,10 @@ impl VirtualNodeArrayBuilder {
         let data = self.data.into();
         let valid = self.valid;
         VirtualNodeArray { data, valid }
+    }
+
+    pub fn logical_type(&self) -> &LogicalType {
+        &LogicalType::VIRTUAL_NODE
     }
 }
 

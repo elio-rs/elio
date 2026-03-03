@@ -10,7 +10,7 @@
 
 use std::sync::Arc;
 
-use elio_common::data_type::{DataType, F64};
+use elio_common::data_type::{F64, LogicalType};
 use elio_common::scalar::{Datum, DatumRef, ScalarValue};
 
 use crate::execution::error::EvalError;
@@ -90,8 +90,8 @@ pub(crate) fn register(registry: &mut FunctionRegistry) {
         name: "sum".to_string(),
         impls: vec![FuncImpl::new_agg(
             "sum",
-            vec![FuncImplArg::Exact(DataType::Any)],
-            FuncImplReturn::Exact(DataType::Any),
+            vec![FuncImplArg::Exact(LogicalType::ANY)],
+            FuncImplReturn::Exact(LogicalType::ANY),
             |_args| Ok(Arc::new(SumAggImpl)),
         )],
         is_agg: true,

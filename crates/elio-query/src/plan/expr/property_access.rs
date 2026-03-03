@@ -1,4 +1,4 @@
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 
 use crate::plan::expr::{Expr, ExprNode, IrToken};
 
@@ -7,11 +7,11 @@ pub struct PropertyAccess {
     pub expr: Box<Expr>,
     pub property: IrToken,
     // in most cases, the typ should be any, since we do not support constaint for now
-    typ: DataType,
+    typ: LogicalType,
 }
 
 impl PropertyAccess {
-    pub fn new_unchecked(expr: Box<Expr>, property: &IrToken, typ: &DataType) -> Self {
+    pub fn new_unchecked(expr: Box<Expr>, property: &IrToken, typ: &LogicalType) -> Self {
         Self {
             expr,
             property: property.to_owned(),
@@ -21,7 +21,7 @@ impl PropertyAccess {
 }
 
 impl ExprNode for PropertyAccess {
-    fn typ(&self) -> elio_common::data_type::DataType {
+    fn typ(&self) -> elio_common::data_type::LogicalType {
         self.typ.clone()
     }
 }

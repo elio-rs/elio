@@ -43,7 +43,7 @@ impl Executor for CreateRelExectuor {
                         ExecError::type_mismatch(
                             format!("create rel item {}", i),
                             "struct",
-                            prop.physical_type(),
+                            prop.logical_type().clone(),
                         ))?;
 
                     let start = chunk.column(item.start);
@@ -64,9 +64,9 @@ impl Executor for CreateRelExectuor {
                         }
                         (s, e) => {
                             let pt = if !matches!(s, ArrayImpl::Node(_) | ArrayImpl::VirtualNode(_)) {
-                                s.physical_type()
+                                s.logical_type().clone()
                             } else {
-                                e.physical_type()
+                                e.logical_type().clone()
                             };
                             Err(ExecError::type_mismatch(
                                 format!("create rel item {} node", i),

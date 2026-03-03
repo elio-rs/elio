@@ -1,5 +1,5 @@
 use elio_common::IrToken;
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 use elio_common::schema::Variable;
 use elio_common::variable::VariableName;
 use enum_as_inner::EnumAsInner;
@@ -50,13 +50,13 @@ pub enum Expr {
 pub type BoxedExpr = Box<Expr>;
 
 pub trait ExprNode: std::fmt::Debug + Clone {
-    fn typ(&self) -> DataType;
+    fn typ(&self) -> LogicalType;
 }
 
 macro_rules! impl_expr_node_for_enum {
     ($enum_name:ident, $($variant:ident),+) => {
         impl ExprNode for $enum_name {
-            fn typ(&self) -> DataType {
+            fn typ(&self) -> LogicalType {
                 match self {
                     $(
                         Self::$variant(expr) => expr.typ(),
@@ -97,7 +97,7 @@ impl Expr {
     }
 
     #[inline]
-    pub fn new_variable_ref(name: VariableName, typ: DataType) -> Self {
+    pub fn new_variable_ref(name: VariableName, typ: LogicalType) -> Self {
         Expr::VariableRef(VariableRef::new_unchecked(name, typ))
     }
 
@@ -134,7 +134,7 @@ impl Expr {
         Expr::FuncCall(FuncCall::equal_unchecked(vec![self, rhs]))
     }
 
-    pub fn property(self, prop: &IrToken, typ: &DataType) -> Self {
+    pub fn property(self, prop: &IrToken, typ: &LogicalType) -> Self {
         Expr::PropertyAccess(PropertyAccess::new_unchecked(self.boxed(), prop, typ))
     }
 

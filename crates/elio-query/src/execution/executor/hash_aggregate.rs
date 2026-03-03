@@ -128,7 +128,7 @@ impl GroupingSet {
         schema: &Schema,
         chunk_size: usize,
     ) -> Vec<DataChunk> {
-        let mut builder = DataChunkBuilder::new(schema.columns().iter().map(|c| c.typ.physical_type()), chunk_size);
+        let mut builder = DataChunkBuilder::new(schema.columns().iter().map(|c| c.typ.clone()), chunk_size);
         let mut chunks = Vec::new();
 
         for rc in self.rows.iter_mut() {

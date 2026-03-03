@@ -82,7 +82,7 @@ impl Executor for NodeIndexSeekExecutor {
                 // with input: for each input row, evaluate expressions and seek
                 let mapping = output_mapping.expect("output_mapping required when input is present");
                 let mut out_builder = DataChunkBuilder::new(
-                    schema.columns().iter().map(|col| col.typ.physical_type()),
+                    schema.columns().iter().map(|col| col.typ.clone()),
                     CHUNK_SIZE
                 );
 
