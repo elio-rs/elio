@@ -9,6 +9,7 @@ pub struct ListArray {
     offsets: Arc<[usize]>,
     child: Arc<ArrayImpl>,
     valid: BitVec,
+    logical_type: Arc<LogicalType>,
 }
 
 impl Array for ListArray {
@@ -38,12 +39,12 @@ impl Array for ListArray {
         self.valid.len()
     }
 
-    fn physical_type(&self) -> PhysicalType {
-        PhysicalType::List(Box::new(self.child.physical_type()))
+    fn logical_type(&self) -> &LogicalType {
+        &self.logical_type
     }
 
     fn compact(&self, visibility: &BitVec, new_len: usize) -> Self {
-        let mut builder = self.physical_type().array_builder(new_len).into_list().unwrap();
+        let mut builder = self.logical_type().array_builder(new_len).into_list().unwrap();
 
         for idx in visibility.iter_ones() {
             builder.push(self.get(idx));
@@ -55,7 +56,13 @@ impl Array for ListArray {
 
 impl ListArray {
     pub fn from_parts(offsets: Arc<[usize]>, child: Arc<ArrayImpl>, valid: BitVec) -> Self {
-        Self { offsets, child, valid }
+        let logical_type = LogicalType::new_list(child.logical_type().clone());
+        Self {
+            offsets,
+            child,
+            valid,
+            logical_type: Arc::new(logical_type),
+        }
     }
 
     pub fn into_parts(self) -> (Arc<[usize]>, Arc<ArrayImpl>, BitVec) {
@@ -85,14 +92,17 @@ pub struct ListArrayBuilder {
     offsets: Vec<usize>,
     child: Box<ArrayBuilderImpl>,
     valid: BitVec,
+    logical_type: Arc<LogicalType>,
 }
 
 impl ListArrayBuilder {
     pub fn new(child: Box<ArrayBuilderImpl>) -> Self {
+        let logical_type = LogicalType::new_list(child.logical_type().clone());
         Self {
             offsets: vec![0],
             child,
             valid: BitVec::new(),
+            logical_type: Arc::new(logical_type),
         }
     }
 
@@ -130,9 +140,19 @@ impl ListArrayBuilder {
 
     pub fn finish(self) -> ListArray {
         let offsets = self.offsets.into();
-        let child = self.child.finish().into();
+        let child: Arc<ArrayImpl> = self.child.finish().into();
         let valid = self.valid;
-        ListArray { offsets, child, valid }
+        let logical_type = LogicalType::new_list(child.logical_type().clone());
+        ListArray {
+            offsets,
+            child,
+            valid,
+            logical_type: Arc::new(logical_type),
+        }
+    }
+
+    pub fn logical_type(&self) -> &LogicalType {
+        &self.logical_type
     }
 }
 

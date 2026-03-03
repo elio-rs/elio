@@ -1,7 +1,7 @@
 use core::f64;
 use std::sync::Arc;
 
-use elio_common::data_type::{DataType, F64};
+use elio_common::data_type::{F64, LogicalType};
 use elio_common::{IrToken, TokenKind};
 use elio_parser::ast;
 use itertools::Itertools;
@@ -71,7 +71,7 @@ pub fn bind_expr(ectx: &ExprContext, outer_scope: &[Scope], expr: &ast::Expr) ->
             // resolve property keys
             let token: IrToken = ectx.bctx.resolve_token(key, TokenKind::PropertyKey);
             // TODO(pgao): maybe we can resolve the property types here
-            let pa = PropertyAccess::new_unchecked(expr.boxed(), &token, &DataType::Any);
+            let pa = PropertyAccess::new_unchecked(expr.boxed(), &token, &LogicalType::ANY);
             Ok(pa.into())
         }
         ast::Expr::Unary { op, oprand } => bind_unary(ectx, outer_scope, op, oprand),
@@ -90,14 +90,14 @@ fn bind_constant(_ectx: &ExprContext, lit: &ast::Literal) -> Result<Constant, Pl
             if let Ok(i) = i.parse::<i64>() {
                 Ok(Constant::integer(i))
             } else {
-                Err(SemanticError::invalid_literal(&DataType::Integer, &lit.to_string()).into())
+                Err(SemanticError::invalid_literal(&LogicalType::INTEGER, &lit.to_string()).into())
             }
         }
         ast::Literal::Float(f) => {
             if let Ok(f) = f.parse::<f64>() {
                 Ok(Constant::float(f.into()))
             } else {
-                Err(SemanticError::invalid_literal(&DataType::Float, &lit.to_string()).into())
+                Err(SemanticError::invalid_literal(&LogicalType::FLOAT, &lit.to_string()).into())
             }
         }
         ast::Literal::String(s) => Ok(Constant::string(s.clone())),
@@ -227,20 +227,20 @@ fn bind_list_expression(ectx: &ExprContext, outer_scope: &[Scope], items: &[ast:
     // Infer the element type
     let elem_type = if elements.is_empty() {
         // Empty list defaults to Any type
-        DataType::Any
+        LogicalType::ANY
     } else {
         // Find common type among all elements
         // For now, use the first non-Any element type, or Any if all are Any
-        let mut common_type = DataType::Any;
+        let mut common_type = LogicalType::ANY;
         for elem in &elements {
             let elem_typ = elem.typ();
-            if elem_typ != DataType::Any {
-                if common_type == DataType::Any {
+            if elem_typ != LogicalType::ANY {
+                if common_type == LogicalType::ANY {
                     common_type = elem_typ;
                 } else if common_type != elem_typ {
                     // Type mismatch - for now, fallback to Any
                     // TODO: implement proper type coercion
-                    common_type = DataType::Any;
+                    common_type = LogicalType::ANY;
                     break;
                 }
             }
@@ -304,7 +304,7 @@ fn resolve_func(
     ectx: &ExprContext,
     name: &str,
     args: &[Expr],
-) -> Result<(FuncImpl, bool, DataType, Vec<DataType>), PlanError> {
+) -> Result<(FuncImpl, bool, LogicalType, Vec<LogicalType>), PlanError> {
     let FunctionCatalog { name, func } = ectx
         .bctx
         .session()
@@ -315,7 +315,7 @@ fn resolve_func(
     let is_agg = func.is_agg;
 
     // Prepare argument types and null flags
-    let args_types: Vec<DataType> = args.iter().map(|x| x.typ()).collect_vec();
+    let args_types: Vec<LogicalType> = args.iter().map(|x| x.typ()).collect_vec();
     let is_untyped_null: Vec<bool> = args
         .iter()
         .map(|arg| {
@@ -349,7 +349,7 @@ fn resolve_func(
 }
 
 /// Coerce untyped null literals to typed nulls based on inferred types
-fn coerce_null_args(args: Vec<Expr>, coerced_types: &[DataType]) -> Vec<Expr> {
+fn coerce_null_args(args: Vec<Expr>, coerced_types: &[LogicalType]) -> Vec<Expr> {
     args.into_iter()
         .enumerate()
         .map(|(i, arg)| {
@@ -359,7 +359,7 @@ fn coerce_null_args(args: Vec<Expr>, coerced_types: &[DataType]) -> Vec<Expr> {
             {
                 let target_type = &coerced_types[i];
                 // Create typed null if we found a concrete type (not Any)
-                if target_type != &DataType::Any {
+                if target_type != &LogicalType::ANY {
                     return Expr::Constant(Constant::typed_null(target_type.clone()));
                 }
             }
@@ -372,7 +372,7 @@ pub fn bind_where(bctx: &BindContext, scope: &Scope, where_: &ast::Expr) -> Resu
     let ctx = where_.to_string();
     let ectx = bctx.derive_expr_context(scope, &ctx);
     let expr = bind_expr(&ectx, &bctx.outer_scopes, where_)?;
-    if expr.typ() != DataType::Bool {
+    if expr.typ() != LogicalType::BOOL {
         return Err(SemanticError::invalid_filter_expr_type(&expr.typ(), ectx.name).into());
     }
     Ok(expr.into())

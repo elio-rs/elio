@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use elio_common::IrToken;
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 use elio_common::schema::Variable;
 use elio_common::store_types::RelDirection;
 use elio_common::variable::VariableName;
@@ -21,10 +21,10 @@ impl MutatingPattern {
         match self {
             MutatingPattern::Create(create_pattern) => {
                 create_pattern.nodes.iter().for_each(|n| {
-                    vars.insert(Variable::new(&n.variable, &DataType::Node));
+                    vars.insert(Variable::new(&n.variable, &LogicalType::NODE));
                 });
                 create_pattern.rels.iter().for_each(|r| {
-                    vars.insert(Variable::new(&r.variable, &DataType::Rel));
+                    vars.insert(Variable::new(&r.variable, &LogicalType::REL));
                 });
             }
         }

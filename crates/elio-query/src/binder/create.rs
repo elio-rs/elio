@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 use elio_common::store_types::RelDirection;
 use elio_common::{EntityKind, IrToken, SemanticDirection, TokenKind};
 use elio_parser::ast::{self, NodePattern, RelationshipPattern, UpdatePattern};
@@ -134,7 +134,7 @@ fn bind_create_part(
                             symbol: Some(symbol.to_owned()),
                             variable: var_name.clone(),
                             expr: Default::default(),
-                            typ: DataType::Node,
+                            typ: LogicalType::NODE,
                             bound_expr: None,
                         };
                         create_scope.add_item(item);
@@ -162,7 +162,7 @@ fn bind_create_part(
                     symbol: None,
                     variable: var_name.clone(),
                     expr: Default::default(),
-                    typ: DataType::Node,
+                    typ: LogicalType::NODE,
                     bound_expr: None,
                 };
                 create_scope.add_item(item);
@@ -210,7 +210,7 @@ fn bind_create_part(
                     symbol: Some(symbol.to_owned()),
                     variable: var_name.clone(),
                     expr: Default::default(),
-                    typ: DataType::Rel,
+                    typ: LogicalType::REL,
                     bound_expr: None,
                 };
                 create_scope.add_item(item);
@@ -226,7 +226,7 @@ fn bind_create_part(
                     symbol: None,
                     variable: var_name.clone(),
                     expr: Default::default(),
-                    typ: DataType::Rel,
+                    typ: LogicalType::REL,
                     bound_expr: None,
                 };
                 create_scope.add_item(item);

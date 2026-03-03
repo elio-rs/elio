@@ -18,9 +18,9 @@
 //! what we know: signature input is any, output is any
 //! we should have an table describe the type -> Array -> ArrayBuilder mapping
 //!
-//! | physical type | Array              | ArrayBuilder             |
+//! | logical type | Array              | ArrayBuilder             |
 //! | --- | --- | --- |
-//! | any         | AnyArray             | AnyArrayBuilder          |
+//! | any         | VariantArray         | VariantArrayBuilder      |
 //! | bool        | BoolArray            | BoolArrayBuilder         |
 //! | noderef     | VirtualNodeArray     | VirtualNodeArrayBuilder  |
 //! | relref      | VirtualRelArray      | VirtualRelArrayBuilder   |
@@ -261,28 +261,28 @@ fn extract_sig(sig: &str) -> CypherFuncSig {
 fn gen_array_cast(arg_type: &str, idx: usize, output: &syn::Ident) -> proc_macro2::TokenStream {
     match arg_type {
         "any" => quote! {
-            let #output = args[#idx].as_any().expect(&format!("expected any array, got {:?}", args[#idx].physical_type()));
+            let #output = args[#idx].as_variant().expect(&format!("expected variant array, got {:?}", args[#idx].logical_type()));
         },
         "bool" => quote! {
-            let #output = args[#idx].as_bool().expect(&format!("expected bool array, got {:?}", args[#idx].physical_type()));
+            let #output = args[#idx].as_bool().expect(&format!("expected bool array, got {:?}", args[#idx].logical_type()));
         },
         "noderef" => quote! {
-            let #output= args[#idx].as_virtual_node().expect(&format!("expected noderef array, got {:?}", args[#idx].physical_type()));
+            let #output= args[#idx].as_virtual_node().expect(&format!("expected noderef array, got {:?}", args[#idx].logical_type()));
         },
         "relref" => quote! {
-            let #output = args[#idx].as_virtual_rel().expect(&format!("expected relref array, got {:?}", args[#idx].physical_type()));
+            let #output = args[#idx].as_virtual_rel().expect(&format!("expected relref array, got {:?}", args[#idx].logical_type()));
         },
         "pathref" => quote! {
-            let #output = args[#idx].as_virtual_path().expect(&format!("expected pathref array, got {:?}", args[#idx].physical_type()));
+            let #output = args[#idx].as_virtual_path().expect(&format!("expected pathref array, got {:?}", args[#idx].logical_type()));
         },
         "node" => quote! {
-            let #output = args[#idx].as_node().expect(&format!("expected node array, got {:?}", args[#idx].physical_type()));
+            let #output = args[#idx].as_node().expect(&format!("expected node array, got {:?}", args[#idx].logical_type()));
         },
         "rel" => quote! {
-            let #output = args[#idx].as_rel().expect(&format!("expected rel array, got {:?}", args[#idx].physical_type()));
+            let #output = args[#idx].as_rel().expect(&format!("expected rel array, got {:?}", args[#idx].logical_type()));
         },
         "path" => quote! {
-            let #output = args[#idx].as_path().expect(&format!("expected path array, got {:?}", args[#idx].physical_type()));
+            let #output = args[#idx].as_path().expect(&format!("expected path array, got {:?}", args[#idx].logical_type()));
         },
         _ => quote! {compile_error!("invalid signature type")},
     }
@@ -292,7 +292,7 @@ fn gen_array_cast(arg_type: &str, idx: usize, output: &syn::Ident) -> proc_macro
 fn gen_array_builder(ret_type: &str, output: &syn::Ident) -> proc_macro2::TokenStream {
     match ret_type {
         "any" => quote! {
-            let mut #output = AnyArrayBuilder::with_capacity(len);
+            let mut #output = VariantArrayBuilder::with_capacity(len, LogicalType::ANY);
         },
         "bool" => quote! {
             let mut #output = BoolArrayBuilder::with_capacity(len);

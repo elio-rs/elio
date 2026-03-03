@@ -6,11 +6,13 @@ use itertools::Itertools;
 
 use super::*;
 
+/// Strict Schema struct array
 #[derive(Debug, Clone)]
 pub struct StructArray {
     // We should guarantee that if parnet is null, then all the subfields must be null
     fields: Box<[(Arc<str>, ArrayRef)]>,
     valid: BitVec,
+    logical_type: Arc<LogicalType>,
 }
 
 impl Array for StructArray {
@@ -34,18 +36,12 @@ impl Array for StructArray {
         self.valid.len()
     }
 
-    fn physical_type(&self) -> PhysicalType {
-        PhysicalType::Struct(
-            self.fields
-                .iter()
-                .map(|(name, v)| (name.to_owned(), v.physical_type()))
-                .collect_vec()
-                .into_boxed_slice(),
-        )
+    fn logical_type(&self) -> &LogicalType {
+        &self.logical_type
     }
 
     fn compact(&self, visibility: &BitVec, new_len: usize) -> Self {
-        let mut builder = self.physical_type().array_builder(new_len).into_struct().unwrap();
+        let mut builder = self.logical_type().array_builder(new_len).into_struct().unwrap();
         for idx in visibility.iter_ones() {
             builder.push(self.get(idx));
         }
@@ -56,7 +52,16 @@ impl Array for StructArray {
 
 impl StructArray {
     pub fn from_parts(fields: Box<[(Arc<str>, ArrayRef)]>, valid: BitVec) -> Self {
-        Self { fields, valid }
+        let logical_type = LogicalType::new_struct(
+            fields
+                .iter()
+                .map(|(name, ty)| (name.clone(), ty.logical_type().clone())),
+        );
+        Self {
+            fields,
+            valid,
+            logical_type: Arc::new(logical_type),
+        }
     }
 
     pub fn fields(&self) -> &[(Arc<str>, ArrayRef)] {
@@ -90,13 +95,21 @@ impl StructArray {
 pub struct StructArrayBuilder {
     fields: HashMap<Arc<str>, ArrayBuilderImpl>,
     valid: BitVec,
+    logical_type: Arc<LogicalType>,
 }
 
 impl StructArrayBuilder {
     pub fn new(fields: impl Iterator<Item = (Arc<str>, ArrayBuilderImpl)>) -> Self {
+        let fields: HashMap<_, _> = fields.collect();
+        let logical_type = LogicalType::new_struct(
+            fields
+                .iter()
+                .map(|(name, builder)| (name.clone(), builder.logical_type().clone())),
+        );
         Self {
-            fields: fields.collect(),
+            fields,
             valid: BitVec::new(),
+            logical_type: Arc::new(logical_type),
         }
     }
 
@@ -140,6 +153,11 @@ impl StructArrayBuilder {
         StructArray {
             fields: fields.into_boxed_slice(),
             valid: self.valid,
+            logical_type: self.logical_type,
         }
+    }
+
+    pub fn logical_type(&self) -> &LogicalType {
+        &self.logical_type
     }
 }

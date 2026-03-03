@@ -1,4 +1,4 @@
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 use elio_common::schema::Variable;
 use elio_common::store_types::RelDirection;
 use itertools::Itertools;
@@ -35,7 +35,7 @@ fn plan_create_nodes(
         .map(|node| CreateNodeItem {
             labels: node.labels.clone().into_iter().collect(),
             properties: Expr::from(node.properties.clone()).boxed(),
-            variable: Variable::new(&node.variable.clone(), &DataType::Node),
+            variable: Variable::new(&node.variable.clone(), &LogicalType::NODE),
         })
         .collect_vec();
     let inner = CreateNodeInner {
@@ -63,10 +63,10 @@ fn plan_create_rels(
 
             CreateRelItem {
                 reltype: rel.reltype.clone(),
-                start_node: Variable::new(&start, &DataType::Node),
-                end_node: Variable::new(&end, &DataType::Node),
+                start_node: Variable::new(&start, &LogicalType::NODE),
+                end_node: Variable::new(&end, &LogicalType::NODE),
                 properties: Expr::from(rel.properties.clone()).boxed(),
-                variable: Variable::new(&rel.variable.clone(), &DataType::Rel),
+                variable: Variable::new(&rel.variable.clone(), &LogicalType::REL),
             }
         })
         .collect_vec();

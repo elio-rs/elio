@@ -44,7 +44,7 @@ impl Executor for CrossProductExecutor {
 
             // iterate over left side and produce cartesian product
             let mut out_builder = DataChunkBuilder::new(
-                schema.columns().iter().map(|col| col.typ.physical_type()),
+                schema.columns().iter().map(|col| col.typ.clone()),
                 CHUNK_SIZE
             );
 

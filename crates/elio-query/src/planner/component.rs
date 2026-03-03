@@ -2,7 +2,7 @@
 
 use std::collections::VecDeque;
 
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 use elio_common::schema::{Schema, Variable};
 use elio_common::variable::VariableName;
 use indexmap::IndexSet;
@@ -102,7 +102,7 @@ impl<'a> TraversalSolver<'a> {
         if stack.is_empty() && !qg.nodes.is_empty() {
             // Try to find an index for the first node
             let first = qg_nodes.next().unwrap();
-            let first = Variable::new(first, &DataType::VirtualNode);
+            let first = Variable::new(first, &LogicalType::VIRTUAL_NODE);
 
             // Check if we can use an index for this node
             let (plan, filter) = Self::try_create_index_seek(ctx, &first, &qg.filter, &imported).unwrap_or_else(|| {

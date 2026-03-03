@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::ops::Range;
 
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 use elio_common::schema::Variable;
 use elio_common::variable::VariableName;
 use elio_common::{IrToken, TokenKind};
@@ -182,7 +182,7 @@ pub(crate) fn bind_pattern_part(
 
     // named path
     let path_var = if let Some(name) = variable {
-        let (var, is_outer) = bind_variable(pctx, &mut scope, Some(name), &DataType::VirtualPath)?;
+        let (var, is_outer) = bind_variable(pctx, &mut scope, Some(name), &LogicalType::VIRTUAL_PATH)?;
         if is_outer {
             return Err(PlanError::semantic_err(
                 "Named path pattern cannot reference outer variable".to_string(),
@@ -286,7 +286,7 @@ fn bind_simple_pattern(
     } in nodes
     {
         // bind variable
-        let (var, is_outer) = bind_variable(pctx, &mut scope, variable.as_deref(), &DataType::VirtualNode)?;
+        let (var, is_outer) = bind_variable(pctx, &mut scope, variable.as_deref(), &LogicalType::VIRTUAL_NODE)?;
         if is_outer {
             outer.insert(var.name.clone());
         }
@@ -326,7 +326,7 @@ fn bind_simple_pattern(
         },
     ) in relationships.iter().enumerate()
     {
-        let (var, is_outer) = bind_variable(pctx, &mut scope, variable.as_deref(), &DataType::Rel)?;
+        let (var, is_outer) = bind_variable(pctx, &mut scope, variable.as_deref(), &LogicalType::REL)?;
 
         if is_outer {
             outer.insert(var.name.clone());
@@ -485,7 +485,7 @@ fn bind_quantified_path_pattern(
     if let Some(filter) = filter {
         let ectx = pctx.derive_expr_context(&inner_scope, "QuantifiedPathPattern Filter");
         let expr = bind_expr(&ectx, &[], filter)?;
-        if expr.typ() != DataType::Bool {
+        if expr.typ() != LogicalType::BOOL {
             return Err(PlanError::semantic_err(
                 "QuantifiedPathPattern filter must be boolean expression".to_string(),
             ));
@@ -515,7 +515,7 @@ fn bind_quantified_path_pattern(
             // safety: must be resolved, since do not allow implicit join in QPP
             .unwrap()
             .symbol;
-        let item = ScopeItem::new_variable(vg.group.clone(), symbol.as_deref(), DataType::VirtualNode);
+        let item = ScopeItem::new_variable(vg.group.clone(), symbol.as_deref(), LogicalType::VIRTUAL_NODE);
         scope.add_item(item);
     }
     for vg in qpp.rel_grouping.iter() {
@@ -524,7 +524,7 @@ fn bind_quantified_path_pattern(
             // safety: must be resolved, since do not allow implicit join in QPP
             .unwrap()
             .symbol;
-        let item = ScopeItem::new_variable(vg.group.clone(), symbol.as_deref(), DataType::Rel);
+        let item = ScopeItem::new_variable(vg.group.clone(), symbol.as_deref(), LogicalType::REL);
         scope.add_item(item);
     }
 
@@ -539,7 +539,7 @@ fn bind_variable(
     pctx: &PatternContext,
     scope: &mut Scope,
     name: Option<&str>, // None for anonymous variable
-    typ: &DataType,     // expected data type
+    typ: &LogicalType,  // expected data type
 ) -> Result<(Variable, bool), PlanError> {
     if let Some(name) = name {
         // named variable
@@ -596,7 +596,7 @@ fn bind_properties(
             let prop = Expr::PropertyAccess(PropertyAccess::new_unchecked(
                 Box::new(Expr::from_variable(var)),
                 &token,
-                &DataType::Any,
+                &LogicalType::ANY,
             ));
             let equal = prop.equal(value);
             filter.push(equal);

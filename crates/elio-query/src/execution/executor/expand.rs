@@ -43,7 +43,7 @@ impl<EXPANDKIND: ExpandKindStrategy> Executor for ExpandExecutor<EXPANDKIND> {
         let input_stream = self.input.open(qctx.clone())?;
 
         let stream = try_stream! {
-            let mut out_builder = DataChunkBuilder::new(schema.columns().iter().map(|col| col.typ.physical_type()), CHUNK_SIZE);
+            let mut out_builder = DataChunkBuilder::new(schema.columns().iter().map(|col| col.typ.clone()), CHUNK_SIZE);
             for await chunk in input_stream {
                 let outer = chunk?;
                 let outer = outer.compact();

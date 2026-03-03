@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 
 use crate::plan::expr::{Expr, ExprNode};
 
@@ -9,12 +9,12 @@ use crate::plan::expr::{Expr, ExprNode};
 #[derive(Debug, Hash, Clone, Eq, PartialEq)]
 pub struct CreateStruct {
     pub properties: Vec<(Arc<str>, Expr)>,
-    typ: DataType,
+    typ: LogicalType,
 }
 
 impl CreateStruct {
     pub fn new(properties: Vec<(Arc<str>, Expr)>) -> Self {
-        let typ = DataType::new_struct(properties.iter().map(|(name, expr)| (name.clone(), expr.typ())));
+        let typ = LogicalType::new_struct(properties.iter().map(|(name, expr)| (name.clone(), expr.typ())));
         Self { properties, typ }
     }
 
@@ -24,7 +24,7 @@ impl CreateStruct {
 }
 
 impl ExprNode for CreateStruct {
-    fn typ(&self) -> DataType {
+    fn typ(&self) -> LogicalType {
         self.typ.clone()
     }
 }

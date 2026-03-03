@@ -1,6 +1,6 @@
 use std::backtrace::Backtrace;
 
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 use elio_storage::error::GraphStoreError;
 use thiserror::Error;
 
@@ -78,7 +78,7 @@ impl SemanticError {
         Self::new(msg)
     }
 
-    pub fn invalid_literal(typ: &DataType, lit: &str) -> Self {
+    pub fn invalid_literal(typ: &LogicalType, lit: &str) -> Self {
         let msg = format!("Invalid literal {} for type {}", lit, typ);
         Self::new(msg)
     }
@@ -88,7 +88,7 @@ impl SemanticError {
         Self::new(msg)
     }
 
-    pub fn invalid_function_arg_types(func: &str, args: &[DataType], ctx: &str) -> Self {
+    pub fn invalid_function_arg_types(func: &str, args: &[LogicalType], ctx: &str) -> Self {
         let msg = format!(
             "Invalid argument types {} for function {} in {}",
             args.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", "),
@@ -98,7 +98,7 @@ impl SemanticError {
         Self::new(msg)
     }
 
-    pub fn invalid_filter_expr_type(typ: &DataType, ctx: &str) -> Self {
+    pub fn invalid_filter_expr_type(typ: &LogicalType, ctx: &str) -> Self {
         let msg = format!("Filter expression must be a boolean, got {} in {}", typ, ctx);
         Self::new(msg)
     }

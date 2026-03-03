@@ -1,4 +1,4 @@
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 use enum_as_inner::EnumAsInner;
 
 use crate::execution::expr::agg_call::AggInvocation;
@@ -63,7 +63,7 @@ impl FuncImpl {
 
 impl FuncImpl {
     // if match, return the return type
-    pub fn matches(&self, args: &[DataType]) -> Option<DataType> {
+    pub fn matches(&self, args: &[LogicalType]) -> Option<LogicalType> {
         if self.args.len() != args.len() {
             return None;
         }
@@ -89,9 +89,9 @@ impl FuncImpl {
     /// * `None` if match fails
     pub fn matches_with_null_coercion(
         &self,
-        args: &[DataType],
+        args: &[LogicalType],
         is_untyped_null: &[bool],
-    ) -> Option<(DataType, Vec<DataType>)> {
+    ) -> Option<(LogicalType, Vec<LogicalType>)> {
         if self.args.len() != args.len() || self.args.len() != is_untyped_null.len() {
             return None;
         }
@@ -105,15 +105,15 @@ impl FuncImpl {
                     FuncImplArg::Exact(dt) => dt.clone(),
                     FuncImplArg::Union(types) => {
                         // Use first type in union as default
-                        types.first().cloned().unwrap_or(DataType::Any)
+                        types.first().cloned().unwrap_or(LogicalType::ANY)
                     }
                     FuncImplArg::Templated(_) => {
                         // For templated args, keep as Any for now
-                        DataType::Any
+                        LogicalType::ANY
                     }
                     FuncImplArg::AnyList => {
                         // For AnyList with null, default to List<Any>
-                        DataType::new_list(DataType::Any)
+                        LogicalType::new_list(LogicalType::ANY)
                     }
                 }
             } else {
@@ -138,9 +138,9 @@ pub enum FuncImplArg {
     // UNION type will be mapped into Any data type when execution
     // here we use union type here only for semantic checking
     // the actual function implementation siguare will be Any
-    Union(Vec<DataType>),
+    Union(Vec<LogicalType>),
     /// Exact argument type, e.g. `Int` in `map(Int, [1, 2, 3])`
-    Exact(DataType),
+    Exact(LogicalType),
     /// Templated argument type, e.g. `add<T>(T, T)`
     Templated(String),
     /// Matches any List type, e.g. `list_index(List<T>, Int) -> T`
@@ -164,15 +164,15 @@ impl FuncImplArg {
 
     /// Check if the given data type matches this argument spec.
     /// Returns true if it matches.
-    pub fn matches_type(&self, dt: &DataType) -> bool {
+    pub fn matches_type(&self, dt: &LogicalType) -> bool {
         match self {
             FuncImplArg::Union(types) => types.contains(dt),
-            FuncImplArg::Exact(expected) => expected == dt || *expected == DataType::Any,
+            FuncImplArg::Exact(expected) => expected == dt || *expected == LogicalType::ANY,
             FuncImplArg::Templated(_) => {
                 // TODO(power): add type inference for templated arguments
                 false
             }
-            FuncImplArg::AnyList => matches!(dt, DataType::List(_)),
+            FuncImplArg::AnyList => dt.is_list(),
         }
     }
 }
@@ -180,7 +180,7 @@ impl FuncImplArg {
 #[derive(Clone, Debug)]
 pub enum FuncImplReturn {
     /// Exact return type, e.g. `add(Int, Int) -> Int`
-    Exact(DataType),
+    Exact(LogicalType),
     /// Templated return type, e.g. `add<T>(T, T) -> T`
     Templated(String),
     /// Return type is the same as the nth argument, e.g. `list_slice(List<T>, Int, Int) -> List<T>`
@@ -192,19 +192,19 @@ pub enum FuncImplReturn {
 
 impl FuncImplReturn {
     // resolve return type
-    pub fn resolve_ret(&self, args: &[DataType]) -> DataType {
+    pub fn resolve_ret(&self, args: &[LogicalType]) -> LogicalType {
         match self {
             FuncImplReturn::Exact(data_type) => data_type.clone(),
             FuncImplReturn::Templated(_t) => {
                 // TODO(power): add type inference for templated return type
                 unimplemented!()
             }
-            FuncImplReturn::SameAsArg(idx) => args.get(*idx).cloned().unwrap_or(DataType::Any),
+            FuncImplReturn::SameAsArg(idx) => args.get(*idx).cloned().unwrap_or(LogicalType::ANY),
             FuncImplReturn::ListElement(idx) => {
-                if let Some(DataType::List(inner)) = args.get(*idx) {
-                    (**inner).clone()
+                if let Some(inner) = args.get(*idx).and_then(|a| a.as_list()) {
+                    inner.clone()
                 } else {
-                    DataType::Any
+                    LogicalType::ANY
                 }
             }
         }
@@ -214,11 +214,11 @@ impl FuncImplReturn {
 #[macro_export]
 macro_rules! func_impl_arg {
     ({ exact $dt:ident }) => {
-        $crate::function::scalar::sig::FuncImplArg::Exact(DataType::$dt)
+        $crate::function::scalar::sig::FuncImplArg::Exact(elio_common::data_type::LogicalType::$dt)
     };
 
     ({ anyof $($dt:ident)|+ }) => {
-        $crate::function::scalar::sig::FuncImplArg::Union(vec![$(DataType::$dt),+])
+        $crate::function::scalar::sig::FuncImplArg::Union(vec![$(elio_common::data_type::LogicalType::$dt),+])
     };
 
     ({ anylist }) => {
@@ -243,13 +243,12 @@ macro_rules! define_function {
             name: $name.to_string(),
             impls: vec![
                 $({
-                    use $crate::function::scalar::sig::{FuncImplReturn};
-                    use elio_common::data_type::DataType;
+                    use $crate::function::scalar::sig::FuncImplReturn;
 
                     $crate::function::scalar::sig::FuncImpl::new_scalar(
                         $name,
                         vec![$($crate::func_impl_arg!($arg_type)),*],
-                        FuncImplReturn::Exact(DataType::$ret_type),
+                        FuncImplReturn::Exact(elio_common::data_type::LogicalType::$ret_type),
                         $func_impl,
                     )
                 },)+

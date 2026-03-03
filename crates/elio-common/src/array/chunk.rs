@@ -4,7 +4,7 @@ use bitvec::vec::BitVec;
 use itertools::Itertools;
 
 use super::*;
-use crate::array::{ArrayBuilderImpl, ArrayImpl, ArrayRef, PhysicalType};
+use crate::array::{ArrayBuilderImpl, ArrayImpl, ArrayRef};
 use crate::schema::Schema;
 
 #[derive(Clone)]
@@ -26,7 +26,7 @@ impl DataChunk {
         let columns = schema
             .columns()
             .iter()
-            .map(|col| col.typ.physical_type().array_builder(0))
+            .map(|col| col.typ.array_builder(0))
             .map(|b| Arc::new(b.finish()))
             .collect_vec();
         Self {
@@ -134,7 +134,7 @@ impl<'a> Iterator for ChunkIter<'a> {
 
 pub struct DataChunkBuilder {
     // array data types
-    types: Vec<PhysicalType>,
+    types: Vec<LogicalType>,
     // chunk capacity, if full build the data chunk
     capacity: usize,
 
@@ -143,7 +143,7 @@ pub struct DataChunkBuilder {
 }
 
 impl DataChunkBuilder {
-    pub fn new(types: impl Iterator<Item = PhysicalType>, capacity: usize) -> Self {
+    pub fn new(types: impl Iterator<Item = LogicalType>, capacity: usize) -> Self {
         let types = types.collect_vec();
         let columns = types.iter().map(|t| t.array_builder(capacity)).collect_vec();
         Self {
@@ -155,7 +155,7 @@ impl DataChunkBuilder {
     }
 
     pub fn new_from_schema(schema: &Schema, capacity: usize) -> Self {
-        let types = schema.columns().iter().map(|c| c.typ.physical_type());
+        let types = schema.columns().iter().map(|c| c.typ.clone());
         Self::new(types, capacity)
     }
 

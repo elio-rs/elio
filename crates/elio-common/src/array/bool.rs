@@ -1,6 +1,7 @@
 use bitvec::vec::BitVec;
 
-use crate::array::{Array, PhysicalType};
+use crate::array::Array;
+use crate::data_type::LogicalType;
 
 #[derive(Debug, Clone)]
 pub struct BoolArray {
@@ -25,8 +26,8 @@ impl Array for BoolArray {
         self.valid.len()
     }
 
-    fn physical_type(&self) -> PhysicalType {
-        PhysicalType::Bool
+    fn logical_type(&self) -> &LogicalType {
+        &LogicalType::BOOL
     }
 
     fn compact(&self, visibility: &BitVec, new_len: usize) -> Self {
@@ -96,6 +97,10 @@ impl BoolArrayBuilder {
         let valid = self.valid;
         BoolArray { data, valid }
     }
+
+    pub fn logical_type(&self) -> &LogicalType {
+        &LogicalType::BOOL
+    }
 }
 
 #[cfg(test)]
@@ -128,14 +133,6 @@ mod tests {
         builder.push(None);
         let arr = builder.finish();
         assert_eq!(arr.len(), 2);
-    }
-
-    #[test]
-    fn test_bool_array_physical_type() {
-        let mut builder = BoolArrayBuilder::with_capacity(0);
-        builder.push(Some(true));
-        let arr = builder.finish();
-        assert_eq!(arr.physical_type(), PhysicalType::Bool);
     }
 
     #[test]

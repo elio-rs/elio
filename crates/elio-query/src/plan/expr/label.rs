@@ -1,5 +1,5 @@
 use elio_common::IrToken;
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 
 use crate::plan::expr::{Expr, ExprNode};
 
@@ -10,8 +10,8 @@ pub struct HasLabel {
 }
 
 impl ExprNode for HasLabel {
-    fn typ(&self) -> DataType {
-        DataType::Bool
+    fn typ(&self) -> LogicalType {
+        LogicalType::BOOL
     }
 }
 

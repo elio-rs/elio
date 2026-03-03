@@ -1,7 +1,7 @@
 use bitvec::vec::BitVec;
 use elio_common::array::chunk::DataChunk;
 use elio_common::array::{ArrayImpl, ArrayRef};
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 
 use crate::execution::error::EvalError;
 use crate::execution::expr::{EvalCtx, Expression, SharedExpression};
@@ -14,11 +14,11 @@ pub type ScalarInvocation = fn(&[ArrayRef], vis: &BitVec, len: usize) -> Result<
 pub struct ScalarCallExpr {
     pub inputs: Vec<SharedExpression>,
     pub func: ScalarInvocation,
-    pub typ: DataType,
+    pub typ: LogicalType,
 }
 
 impl Expression for ScalarCallExpr {
-    fn typ(&self) -> &DataType {
+    fn typ(&self) -> &LogicalType {
         &self.typ
     }
 

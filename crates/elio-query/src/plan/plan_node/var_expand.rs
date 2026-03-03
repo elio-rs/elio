@@ -72,10 +72,10 @@ impl InnerNode for VarExpandInner {
         let mut schema = Schema::from_arc(self.input.schema());
         schema.add_column(Variable::new(
             &self.rel_pattern.variable,
-            &DataType::new_list(DataType::Rel),
+            &LogicalType::new_list(LogicalType::REL),
         ));
         if matches!(self.kind, ExpandKind::All) {
-            schema.add_column(Variable::new(&self.to, &DataType::VirtualNode));
+            schema.add_column(Variable::new(&self.to, &LogicalType::VIRTUAL_NODE));
         }
         PlanBase::new(Arc::new(schema), self.input.ctx())
     }

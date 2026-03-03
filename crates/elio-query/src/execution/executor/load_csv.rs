@@ -84,7 +84,7 @@ fn load_csv_blocking(
 
     // only at runtime, we can know the physical type, so, here we just output an Any Array.
     // TODO(pgao): this can be optimized.
-    let mut builder = DataChunkBuilder::new(std::iter::once(format.output_type().physical_type()), CHUNK_SIZE);
+    let mut builder = DataChunkBuilder::new(std::iter::once(format.output_type()), CHUNK_SIZE);
 
     for result in csv_reader.records() {
         let record = result.map_err(|e| ExecError::io_error(e.to_string()))?;

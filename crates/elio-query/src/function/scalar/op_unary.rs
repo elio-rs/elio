@@ -4,6 +4,7 @@
 
 use bitvec::prelude::*;
 use elio_common::array::*;
+use elio_common::data_type::LogicalType;
 use elio_common::scalar::*;
 use elio_expr_macros::cypher_func;
 
@@ -41,8 +42,8 @@ pub(crate) fn register(registry: &mut FunctionRegistry) {
     let add = define_function!(
         name: "unary_add",
         impls: [
-            {args: [{anyof Integer | Float}], ret: Any, func: any_unary_add_batch },
-            {args: [{exact Any}], ret: Any, func: any_unary_add_batch}
+            {args: [{anyof INTEGER | FLOAT}], ret: ANY, func: any_unary_add_batch },
+            {args: [{exact ANY}], ret: ANY, func: any_unary_add_batch}
         ],
         is_agg: false
     );
@@ -51,8 +52,8 @@ pub(crate) fn register(registry: &mut FunctionRegistry) {
     let sub = define_function!(
         name: "unary_substract",
         impls: [
-            {args: [{anyof Integer | Float}], ret: Any, func: any_unary_subtract_batch},
-            {args: [{exact Any}], ret: Any, func: any_unary_subtract_batch}
+            {args: [{anyof INTEGER | FLOAT}], ret: ANY, func: any_unary_subtract_batch},
+            {args: [{exact ANY}], ret: ANY, func: any_unary_subtract_batch}
         ],
         is_agg: false
     );

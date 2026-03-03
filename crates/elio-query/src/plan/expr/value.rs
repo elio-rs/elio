@@ -1,4 +1,4 @@
-use elio_common::data_type::{DataType, F64};
+use elio_common::data_type::{F64, LogicalType};
 use elio_common::scalar::ScalarValue;
 
 use crate::plan::expr::{Expr, ExprNode};
@@ -6,35 +6,35 @@ use crate::plan::expr::{Expr, ExprNode};
 #[derive(Debug, Hash, Clone, Eq, PartialEq)]
 pub struct Constant {
     pub data: Option<ScalarValue>,
-    pub typ: Option<DataType>,
+    pub typ: Option<LogicalType>,
 }
 
 impl Constant {
     pub fn boolean(b: bool) -> Self {
         Self {
             data: Some(ScalarValue::Bool(b)),
-            typ: Some(DataType::Bool),
+            typ: Some(LogicalType::BOOL),
         }
     }
 
     pub fn integer(i: i64) -> Self {
         Self {
             data: Some(ScalarValue::Integer(i)),
-            typ: Some(DataType::Integer),
+            typ: Some(LogicalType::INTEGER),
         }
     }
 
     pub fn float(f: F64) -> Self {
         Self {
             data: Some(ScalarValue::Float(f)),
-            typ: Some(DataType::Float),
+            typ: Some(LogicalType::FLOAT),
         }
     }
 
     pub fn string(s: String) -> Self {
         Self {
             data: Some(ScalarValue::String(s)),
-            typ: Some(DataType::String),
+            typ: Some(LogicalType::STRING),
         }
     }
 
@@ -42,7 +42,7 @@ impl Constant {
         Self { data: None, typ: None }
     }
 
-    pub fn typed_null(typ: DataType) -> Self {
+    pub fn typed_null(typ: LogicalType) -> Self {
         Self {
             data: None,
             typ: Some(typ),
@@ -65,8 +65,8 @@ impl Constant {
 }
 
 impl ExprNode for Constant {
-    fn typ(&self) -> DataType {
-        self.typ.clone().unwrap_or(DataType::Any)
+    fn typ(&self) -> LogicalType {
+        self.typ.clone().unwrap_or(LogicalType::ANY)
     }
 }
 

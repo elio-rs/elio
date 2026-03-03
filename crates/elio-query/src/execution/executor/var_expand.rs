@@ -48,7 +48,7 @@ impl<PATHMODE: PathContainer, EXPANDKIND: ExpandKindStrategy> Executor for VarEx
         let expand_kind_filter = self.expand_kind_filter.clone();
 
         let stream = try_stream! {
-            let mut out_builder = DataChunkBuilder::new(schema.columns().iter().map(|col| col.typ.physical_type()), CHUNK_SIZE);
+            let mut out_builder = DataChunkBuilder::new(schema.columns().iter().map(|col| col.typ.clone()), CHUNK_SIZE);
             for await chunk in input_stream{
                 let outer = chunk?;
                 let outer = outer.compact();

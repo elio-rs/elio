@@ -1,4 +1,4 @@
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 
 use crate::plan::expr::{Expr, ExprNode};
 
@@ -13,7 +13,7 @@ pub struct CreateList {
     /// List elements
     pub elements: Vec<Expr>,
     /// The resolved list type (e.g., List<Int64>)
-    typ: DataType,
+    typ: LogicalType,
 }
 
 impl CreateList {
@@ -22,13 +22,13 @@ impl CreateList {
     /// # Arguments
     /// * `elements` - The list elements
     /// * `elem_type` - The common element type (should be pre-computed by the binder)
-    pub fn new(elements: Vec<Expr>, elem_type: DataType) -> Self {
-        let typ = DataType::new_list(elem_type);
+    pub fn new(elements: Vec<Expr>, elem_type: LogicalType) -> Self {
+        let typ = LogicalType::new_list(elem_type);
         Self { elements, typ }
     }
 
     /// Create an empty list with the specified element type.
-    pub fn empty(elem_type: DataType) -> Self {
+    pub fn empty(elem_type: LogicalType) -> Self {
         Self::new(vec![], elem_type)
     }
 
@@ -38,11 +38,8 @@ impl CreateList {
     }
 
     /// Returns the element type of the list.
-    pub fn elem_type(&self) -> DataType {
-        match &self.typ {
-            DataType::List(inner) => (**inner).clone(),
-            _ => unreachable!("CreateList should have list type"),
-        }
+    pub fn elem_type(&self) -> LogicalType {
+        self.typ.as_list().cloned().expect("CreateList should have list type")
     }
 
     /// Pretty print the list expression.
@@ -55,7 +52,7 @@ impl CreateList {
 }
 
 impl ExprNode for CreateList {
-    fn typ(&self) -> DataType {
+    fn typ(&self) -> LogicalType {
         self.typ.clone()
     }
 }

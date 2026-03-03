@@ -3,7 +3,7 @@ use std::sync::Arc;
 use bitvec::vec::BitVec;
 use elio_common::array::chunk::DataChunk;
 use elio_common::array::{ArrayRef, NodeArray, VirtualNodeArray};
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 use elio_common::{TokenId, TokenKind};
 
 use crate::execution::error::EvalError;
@@ -38,7 +38,7 @@ pub trait EvalCtx {
 
 // an evaluatable expression
 pub trait Expression: Send + Sync + 'static + std::fmt::Debug {
-    fn typ(&self) -> &DataType;
+    fn typ(&self) -> &LogicalType;
     fn eval_batch(&self, chunk: &DataChunk, ctx: &dyn EvalCtx) -> Result<ArrayRef, EvalError>;
     fn into_shared(self) -> SharedExpression
     where

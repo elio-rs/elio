@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use elio_common::IrToken;
 use elio_common::array::chunk::DataChunk;
-use elio_common::array::{AnyArray, AnyArrayBuilder, Array, ArrayImpl, ArrayRef, StructArray};
-use elio_common::data_type::DataType;
+use elio_common::array::{Array, ArrayImpl, ArrayRef, StructArray, VariantArray, VariantArrayBuilder};
+use elio_common::data_type::LogicalType;
 use elio_common::scalar::{ScalarRef, StructValueRef};
 
 use crate::execution::error::EvalError;
@@ -20,25 +20,18 @@ use crate::execution::expr::{EvalCtx, Expression, SharedExpression};
 pub struct FieldAccessExpr {
     pub input: SharedExpression,
     key: IrToken,
-    pub typ: DataType,
-    // physical_type: PhysicalType,
+    pub typ: LogicalType,
 }
 
 impl FieldAccessExpr {
-    pub fn new(input: SharedExpression, key: IrToken, typ: DataType) -> Self {
-        // let physical_type = typ.physical_type();
-        Self {
-            input,
-            key,
-            typ,
-            // physical_type,
-        }
+    pub fn new(input: SharedExpression, key: IrToken, typ: LogicalType) -> Self {
+        Self { input, key, typ }
     }
 }
 
 // TODO(pgao): materialize node at the initialize of expression evaluation to reduce reduandent storage access
 impl Expression for FieldAccessExpr {
-    fn typ(&self) -> &DataType {
+    fn typ(&self) -> &LogicalType {
         &self.typ
     }
 
@@ -74,7 +67,7 @@ impl Expression for FieldAccessExpr {
         }
 
         // any. When load from csv, the input is Any Array.
-        if let ArrayImpl::Any(input) = input.as_ref() {
+        if let ArrayImpl::Variant(input) = input.as_ref() {
             let output = access_properties_from_any(input.iter(), input.len(), key)?;
             return Ok(Arc::new(output.into()));
         }
@@ -92,24 +85,26 @@ fn struct_field_access(input: &StructArray, field: &str) -> Result<ArrayRef, Eva
         .cloned()
 }
 
+/// Outputs Variant Array
 fn access_properties<'a>(
     props_iter: impl Iterator<Item = Option<StructValueRef<'a>>>,
     len: usize,
     key: &str,
-) -> AnyArray {
-    let mut builder = AnyArrayBuilder::with_capacity(len);
+) -> VariantArray {
+    let mut builder = VariantArrayBuilder::with_capacity(len, LogicalType::ANY);
     props_iter.for_each(|props| {
         builder.push(props.and_then(|p| p.field_at(key)));
     });
     builder.finish()
 }
 
+/// Outputs variant array
 fn access_properties_from_any<'a>(
     input: impl Iterator<Item = Option<ScalarRef<'a>>>,
     len: usize,
     key: &str,
-) -> Result<AnyArray, EvalError> {
-    let mut builder = AnyArrayBuilder::with_capacity(len);
+) -> Result<VariantArray, EvalError> {
+    let mut builder = VariantArrayBuilder::with_capacity(len, LogicalType::ANY);
     for item in input {
         match item {
             Some(value) => {

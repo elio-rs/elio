@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::data_type::DataType;
+use crate::data_type::LogicalType;
 use crate::variable::VariableName;
 
 pub type Name2ColumnMap = HashMap<VariableName, usize>;
@@ -68,11 +68,11 @@ impl FromIterator<Variable> for Schema {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Variable {
     pub name: VariableName,
-    pub typ: DataType,
+    pub typ: LogicalType,
 }
 
 impl Variable {
-    pub fn new(name: &VariableName, typ: &DataType) -> Self {
+    pub fn new(name: &VariableName, typ: &LogicalType) -> Self {
         Self {
             name: name.clone(),
             typ: typ.clone(),

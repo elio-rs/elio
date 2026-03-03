@@ -9,7 +9,7 @@
 
 use bitvec::prelude::*;
 use elio_common::array::*;
-use elio_common::data_type::F64;
+use elio_common::data_type::{F64, LogicalType};
 use elio_common::scalar::*;
 use elio_expr_macros::cypher_func;
 
@@ -115,8 +115,8 @@ pub(crate) fn register(registry: &mut FunctionRegistry) {
     let to_boolean = define_function!(
         name: &"toBoolean".to_lowercase(),
         impls: [
-            {args: [{exact Bool}], ret: Bool, func: boolean_to_boolean_batch},
-            {args: [{exact Any}], ret: Bool, func: any_to_boolean_batch}
+            {args: [{exact BOOL}], ret: BOOL, func: boolean_to_boolean_batch},
+            {args: [{exact ANY}], ret: BOOL, func: any_to_boolean_batch}
         ],
         is_agg: false
     );
@@ -125,8 +125,8 @@ pub(crate) fn register(registry: &mut FunctionRegistry) {
     let to_integer = define_function!(
         name: &"toInteger".to_lowercase(),
         impls: [
-            {args: [{exact Bool}], ret: Any, func: boolean_to_integer_batch},
-            {args: [{exact Any}], ret: Any, func: any_to_integer_batch}
+            {args: [{exact BOOL}], ret: ANY, func: boolean_to_integer_batch},
+            {args: [{exact ANY}], ret: ANY, func: any_to_integer_batch}
         ],
         is_agg: false
     );
@@ -135,8 +135,8 @@ pub(crate) fn register(registry: &mut FunctionRegistry) {
     let to_float = define_function!(
         name: &"toFloat".to_lowercase(),
         impls: [
-            {args: [{exact Bool}], ret: Any, func: boolean_to_float_batch},
-            {args: [{exact Any}], ret: Any, func: any_to_float_batch}
+            {args: [{exact BOOL}], ret: ANY, func: boolean_to_float_batch},
+            {args: [{exact ANY}], ret: ANY, func: any_to_float_batch}
         ],
         is_agg: false
     );
@@ -145,8 +145,8 @@ pub(crate) fn register(registry: &mut FunctionRegistry) {
     let to_string = define_function!(
         name: &"toString".to_lowercase(),
         impls: [
-            {args: [{exact Bool}], ret: Any, func: boolean_to_string_batch},
-            {args: [{exact Any}], ret: Any, func: any_to_string_batch}
+            {args: [{exact BOOL}], ret: ANY, func: boolean_to_string_batch},
+            {args: [{exact ANY}], ret: ANY, func: any_to_string_batch}
         ],
         is_agg: false
     );

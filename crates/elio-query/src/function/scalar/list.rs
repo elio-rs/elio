@@ -5,7 +5,7 @@
 
 use bitvec::vec::BitVec;
 use elio_common::array::*;
-use elio_common::data_type::DataType;
+use elio_common::data_type::LogicalType;
 use elio_common::scalar::{ListValueRef, ScalarRef, ScalarVTable};
 
 use crate::execution::error::EvalError;
@@ -18,11 +18,11 @@ use crate::function::scalar::sig::{FuncDef, FuncImpl, FuncImplArg, FuncImplRetur
 pub fn list_index_batch(args: &[ArrayRef], vis: &BitVec, len: usize) -> Result<ArrayImpl, EvalError> {
     let list_arr = args[0]
         .as_list()
-        .unwrap_or_else(|| panic!("expected list array got {:?} array", args[0].physical_type()));
-    let idx_arr = args[1].as_any().expect("expected any array for index");
+        .unwrap_or_else(|| panic!("expected list array got {:?} array", args[0].logical_type()));
+    let idx_arr = args[1].as_variant().expect("expected variant array for index");
 
     // Output is element type, use AnyArrayBuilder since element type is dynamic
-    let mut builder = AnyArrayBuilder::with_capacity(len);
+    let mut builder = VariantArrayBuilder::with_capacity(len, LogicalType::ANY);
 
     // Compute valid rows (both list and index must be non-null)
     let valid_rows = vis.clone() & list_arr.valid_map().clone() & idx_arr.valid_map().clone();
@@ -71,12 +71,12 @@ pub fn list_index_batch(args: &[ArrayRef], vis: &BitVec, len: usize) -> Result<A
 // args[0]: AnyArray
 pub fn any_list_index_batch(args: &[ArrayRef], vis: &BitVec, len: usize) -> Result<ArrayImpl, EvalError> {
     let any_arr = args[0]
-        .as_any()
-        .unwrap_or_else(|| panic!("expected any array got {:?} array", args[0].physical_type()));
-    let idx_arr = args[1].as_any().expect("expected any array for index");
+        .as_variant()
+        .unwrap_or_else(|| panic!("expected any array got {:?} array", args[0].logical_type()));
+    let idx_arr = args[1].as_variant().expect("expected any array for index");
 
     // Output is element type, use AnyArrayBuilder since element type is dynamic
-    let mut builder = AnyArrayBuilder::with_capacity(len);
+    let mut builder = VariantArrayBuilder::with_capacity(len, LogicalType::ANY);
 
     // Compute valid rows (both list and index must be non-null)
     let valid_rows = vis.clone() & any_arr.valid_map().clone() & idx_arr.valid_map().clone();
@@ -135,13 +135,13 @@ pub fn any_list_index_batch(args: &[ArrayRef], vis: &BitVec, len: usize) -> Resu
 /// If start is null, defaults to 0. If end is null, defaults to list length.
 pub fn list_slice_batch(args: &[ArrayRef], vis: &BitVec, len: usize) -> Result<ArrayImpl, EvalError> {
     let list_arr = args[0].as_list().expect("expected list array");
-    let start_arr = args[1].as_any().expect("expected any array for start");
-    let end_arr = args[2].as_any().expect("expected any array for end");
+    let start_arr = args[1].as_variant().expect("expected any array for start");
+    let end_arr = args[2].as_variant().expect("expected any array for end");
 
     // Get the inner type from the input list to create matching output builder
-    let inner_physical_type = list_arr.child().physical_type();
-    let output_physical_type = PhysicalType::List(Box::new(inner_physical_type));
-    let mut builder = output_physical_type.array_builder(len).into_list().unwrap();
+    let inner_logical_type = list_arr.child().logical_type();
+    let output_logical_type = LogicalType::new_list(inner_logical_type.clone());
+    let mut builder = output_logical_type.array_builder(len).into_list().unwrap();
 
     // Only list must be non-null; start/end can be null (will use defaults)
     let valid_rows = vis.clone() & list_arr.valid_map().clone();
@@ -219,25 +219,31 @@ pub(crate) fn register(registry: &mut FunctionRegistry) {
         impls: vec![
             FuncImpl::new_scalar(
                 "list_index",
-                vec![FuncImplArg::AnyList, FuncImplArg::Exact(DataType::Integer)],
+                vec![FuncImplArg::AnyList, FuncImplArg::Exact(LogicalType::INTEGER)],
                 FuncImplReturn::ListElement(0),
                 list_index_batch,
             ),
             FuncImpl::new_scalar(
                 "list_index",
-                vec![FuncImplArg::AnyList, FuncImplArg::Exact(DataType::Any)],
+                vec![FuncImplArg::AnyList, FuncImplArg::Exact(LogicalType::ANY)],
                 FuncImplReturn::ListElement(0),
                 list_index_batch,
             ),
             FuncImpl::new_scalar(
                 "list_index",
-                vec![FuncImplArg::Exact(DataType::Any), FuncImplArg::Exact(DataType::Integer)],
+                vec![
+                    FuncImplArg::Exact(LogicalType::ANY),
+                    FuncImplArg::Exact(LogicalType::INTEGER),
+                ],
                 FuncImplReturn::ListElement(0),
                 any_list_index_batch,
             ),
             FuncImpl::new_scalar(
                 "list_index",
-                vec![FuncImplArg::Exact(DataType::Any), FuncImplArg::Exact(DataType::Any)],
+                vec![
+                    FuncImplArg::Exact(LogicalType::ANY),
+                    FuncImplArg::Exact(LogicalType::ANY),
+                ],
                 FuncImplReturn::ListElement(0),
                 any_list_index_batch,
             ),
@@ -254,8 +260,8 @@ pub(crate) fn register(registry: &mut FunctionRegistry) {
                 "list_slice",
                 vec![
                     FuncImplArg::AnyList,
-                    FuncImplArg::Exact(DataType::Integer),
-                    FuncImplArg::Exact(DataType::Integer),
+                    FuncImplArg::Exact(LogicalType::INTEGER),
+                    FuncImplArg::Exact(LogicalType::INTEGER),
                 ],
                 FuncImplReturn::SameAsArg(0),
                 list_slice_batch,
@@ -264,8 +270,8 @@ pub(crate) fn register(registry: &mut FunctionRegistry) {
                 "list_slice",
                 vec![
                     FuncImplArg::AnyList,
-                    FuncImplArg::Exact(DataType::Any),
-                    FuncImplArg::Exact(DataType::Any),
+                    FuncImplArg::Exact(LogicalType::ANY),
+                    FuncImplArg::Exact(LogicalType::ANY),
                 ],
                 FuncImplReturn::SameAsArg(0),
                 list_slice_batch,

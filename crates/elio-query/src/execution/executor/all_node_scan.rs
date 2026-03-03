@@ -83,7 +83,7 @@ impl Executor for AllNodeScanExectuor {
                 // with input: for each input chunk, rescan all nodes
                 let mapping = output_mapping.unwrap();
                 let mut out_builder = DataChunkBuilder::new(
-                    schema.columns().iter().map(|col| col.typ.physical_type()),
+                    schema.columns().iter().map(|col| col.typ.clone()),
                     CHUNK_SIZE
                 );
 

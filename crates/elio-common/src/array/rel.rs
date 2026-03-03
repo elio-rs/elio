@@ -48,8 +48,8 @@ impl Array for RelArray {
         self.valid.len()
     }
 
-    fn physical_type(&self) -> PhysicalType {
-        PhysicalType::Rel
+    fn logical_type(&self) -> &LogicalType {
+        &LogicalType::REL
     }
 
     fn compact(&self, visibility: &BitVec, new_len: usize) -> Self {
@@ -173,6 +173,10 @@ impl RelArrayBuilder {
             valid,
         }
     }
+
+    pub fn logical_type(&self) -> &LogicalType {
+        &LogicalType::REL
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -215,8 +219,8 @@ impl Array for VirtualRelArray {
         self.valid.len()
     }
 
-    fn physical_type(&self) -> PhysicalType {
-        PhysicalType::VirtualRel
+    fn logical_type(&self) -> &LogicalType {
+        &LogicalType::VIRTUAL_REL
     }
 
     fn compact(&self, visibility: &BitVec, new_len: usize) -> Self {
@@ -230,10 +234,6 @@ impl Array for VirtualRelArray {
 }
 
 impl VirtualRelArray {
-    pub fn physical_type(&self) -> PhysicalType {
-        PhysicalType::VirtualRel
-    }
-
     pub fn valid_map(&self) -> &BitVec {
         &self.valid
     }
@@ -310,6 +310,10 @@ impl VirtualRelArrayBuilder {
             end_ids,
             valid,
         }
+    }
+
+    pub fn logical_type(&self) -> &LogicalType {
+        &LogicalType::VIRTUAL_REL
     }
 }
 
