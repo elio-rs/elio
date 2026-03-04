@@ -107,7 +107,6 @@ fn plan_aggregate(
 
         for (var, expr) in aggregate.iter() {
             let agg_call = expr.as_agg_call().unwrap();
-            let _typ = agg_call.typ();
             let mut new_children = vec![];
             for child in expr.children() {
                 if let Some(child_var) = child.as_variable_ref() {

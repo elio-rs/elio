@@ -1,7 +1,5 @@
 use crate::function::ScalarFunctionRegistry;
 
-// pub mod sig;
-
 pub mod compare;
 pub mod convert;
 pub mod list;

@@ -90,7 +90,6 @@ impl Database {
                     .get_function(name)
                     .map(|func| FunctionCatalogEntry::Agg(func.clone()))
             })
-            .or(None)
     }
 }
 

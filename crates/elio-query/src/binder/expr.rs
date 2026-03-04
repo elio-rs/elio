@@ -304,6 +304,9 @@ fn bind_func_call(
     let args = coerce_null_args(args, &coerced_types);
     match func_impl {
         ResolvedFunction::Scalar(scalar_function) => {
+            if distinct {
+                return Err(SemanticError::distinct_not_allowed(name).into());
+            }
             let scalar_call = ScalarCall::new_unchecked(scalar_function, None, args);
             Ok(scalar_call.into())
         }

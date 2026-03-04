@@ -9,7 +9,7 @@ use crate::function::sig::{AggFunctionSet, ScalarFunction, ScalarFunctionSet};
 
 #[derive(Clone, Debug)]
 pub struct ScalarFunctionRegistry {
-    pub entries: HashMap<String, ScalarFunctionSet>,
+    entries: HashMap<String, ScalarFunctionSet>,
 }
 
 impl Default for ScalarFunctionRegistry {
@@ -51,7 +51,7 @@ impl ScalarFunctionRegistry {
 
 #[derive(Clone, Debug)]
 pub struct AggFunctionRegistry {
-    pub entries: HashMap<String, AggFunctionSet>,
+    entries: HashMap<String, AggFunctionSet>,
 }
 
 impl AggFunctionRegistry {

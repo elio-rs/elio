@@ -50,9 +50,9 @@ pub(crate) fn register(registry: &mut ScalarFunctionRegistry) {
     ));
     registry.insert(add);
 
-    let mut subtract = ScalarFunctionSet::new("unary_substract");
+    let mut subtract = ScalarFunctionSet::new("unary_subtract");
     subtract.add_function(scalar_function!(
-        "unary_substract",
+        "unary_subtract",
         [LogicalType::ANY] -> LogicalType::ANY,
         |_| Ok(Arc::new(any_unary_subtract_batch))
     ));

@@ -23,11 +23,6 @@ where
     }
 }
 
-// used to invoke the function call
-pub type ScalarInvocation = fn(&[ArrayRef], vis: &BitVec, len: usize) -> Result<ArrayImpl, EvalError>;
-
-// scalar function call expression
-
 #[derive(Educe)]
 #[educe(Debug)]
 pub struct ScalarCallExpr {
