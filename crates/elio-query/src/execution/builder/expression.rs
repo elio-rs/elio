@@ -73,7 +73,7 @@ fn build_func_call(ctx: &BuildExprContext<'_>, func_call: &expr::ScalarCall) -> 
         .collect::<Result<Vec<_>, _>>()?;
 
     let function_data = func_call.function_data.clone().unwrap_or(Box::new(()));
-    let function_exec = (func_call.function.execute_builder)(function_data)?;
+    let function_exec = (func_call.function.exec_builder)(function_data)?;
 
     Ok(ScalarCallExpr {
         inputs: args,

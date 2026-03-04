@@ -682,7 +682,7 @@ fn build_aggregate(
         agg_args.push(arg_idx);
 
         let function_data = function_data.clone().unwrap_or(Box::new(()));
-        let agg_exec = (function.execute_builder)(function_data)?;
+        let agg_exec = (function.exec_builder)(function_data)?;
         aggs.push(agg_exec);
     }
 
