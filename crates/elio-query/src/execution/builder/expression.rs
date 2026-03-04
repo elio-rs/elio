@@ -27,8 +27,8 @@ pub(crate) fn build_expression(ctx: &BuildExprContext<'_>, expr: &Expr) -> Resul
         Expr::VariableRef(variable_ref) => build_variable(ctx, variable_ref),
         Expr::PropertyAccess(property_access) => build_property_access(ctx, property_access),
         Expr::Constant(constant) => build_constant(ctx, constant),
-        Expr::ScalarCall(func_call) => build_func_call(ctx, func_call),
-        Expr::AggCall(_agg_call) => todo!(),
+        Expr::ScalarCall(scalar_call) => build_scalar_call(ctx, scalar_call),
+        Expr::AggCall(_agg_call) => unreachable!("agg_call should be wrapped in AggregateExecutor"),
         Expr::Subquery(_subquery) => todo!(),
         Expr::HasLabel(has_label) => build_has_label(ctx, has_label),
         Expr::CreateStruct(create_map) => build_create_map(ctx, create_map),
@@ -65,20 +65,23 @@ fn build_constant(_ctx: &BuildExprContext<'_>, constant: &Constant) -> Result<Sh
     .into_shared())
 }
 
-fn build_func_call(ctx: &BuildExprContext<'_>, func_call: &expr::ScalarCall) -> Result<SharedExpression, BuildError> {
-    let args = func_call
+fn build_scalar_call(
+    ctx: &BuildExprContext<'_>,
+    scalar_call: &expr::ScalarCall,
+) -> Result<SharedExpression, BuildError> {
+    let args = scalar_call
         .args
         .iter()
         .map(|expr| build_expression(ctx, expr))
         .collect::<Result<Vec<_>, _>>()?;
 
-    let function_data = func_call.function_data.clone().unwrap_or(Box::new(()));
-    let function_exec = (func_call.function.exec_builder)(function_data)?;
+    let function_data = scalar_call.function_data.clone().unwrap_or(Box::new(()));
+    let function_exec = (scalar_call.function.exec_builder)(function_data)?;
 
     Ok(ScalarCallExpr {
         inputs: args,
         function_exec,
-        typ: func_call.typ(),
+        typ: scalar_call.typ(),
     }
     .into_shared())
 }
