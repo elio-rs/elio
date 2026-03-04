@@ -9,12 +9,16 @@
 //!
 //! This implementation follows 3 value logic.
 
+use std::sync::Arc;
+
 use bitvec::prelude::*;
 use elio_common::array::*;
+use elio_common::data_type::LogicalType;
 
-use crate::define_function;
 use crate::execution::error::EvalError;
-use crate::function::scalar::FunctionRegistry;
+use crate::function::ScalarFunctionRegistry;
+use crate::function::sig::ScalarFunctionSet;
+use crate::scalar_function;
 
 // if either one of the input is null, return null
 fn bool_and_batch(args: &[ArrayRef], _vis: &BitVec, _len: usize) -> Result<ArrayImpl, EvalError> {
@@ -68,23 +72,52 @@ fn bool_is_not_null_batch(args: &[ArrayRef], _vis: &BitVec, len: usize) -> Resul
     Ok(BoolArray::from_parts(out_data, out_valid).into())
 }
 
-pub(crate) fn register(registry: &mut FunctionRegistry) {
-    let and = define_function!( name: "and", impls: [ {args: [{exact BOOL}, {exact BOOL}], ret: BOOL, func: bool_and_batch}],is_agg: false);
+pub(crate) fn register(registry: &mut ScalarFunctionRegistry) {
+    let mut and = ScalarFunctionSet::new("and");
+    and.add_function(scalar_function!(
+        "and",
+        [LogicalType::BOOL, LogicalType::BOOL] -> LogicalType::BOOL,
+        |_| Ok(Arc::new(bool_and_batch))
+    ));
     registry.insert(and);
 
-    let or = define_function!( name: "or", impls: [ {args: [{exact BOOL}, {exact BOOL}], ret: BOOL, func: bool_or_batch}],is_agg: false);
+    let mut or = ScalarFunctionSet::new("or");
+    or.add_function(scalar_function!(
+        "or",
+        [LogicalType::BOOL, LogicalType::BOOL] -> LogicalType::BOOL,
+        |_| Ok(Arc::new(bool_or_batch))
+    ));
     registry.insert(or);
 
-    let xor = define_function!( name: "xor", impls: [ {args: [{exact BOOL}, {exact BOOL}], ret: BOOL, func: bool_xor_batch}],is_agg: false);
+    let mut xor = ScalarFunctionSet::new("xor");
+    xor.add_function(scalar_function!(
+        "xor",
+        [LogicalType::BOOL, LogicalType::BOOL] -> LogicalType::BOOL,
+        |_| Ok(Arc::new(bool_xor_batch))
+    ));
     registry.insert(xor);
 
-    let not =
-        define_function!( name: "not", impls: [ {args: [{exact BOOL}], ret: BOOL, func: bool_not_batch}],is_agg: false);
+    let mut not = ScalarFunctionSet::new("not");
+    not.add_function(scalar_function!(
+        "not",
+        [LogicalType::BOOL] -> LogicalType::BOOL,
+        |_| Ok(Arc::new(bool_not_batch))
+    ));
     registry.insert(not);
 
-    let is_null = define_function!( name: "is_null", impls: [ {args: [{exact BOOL}], ret: BOOL, func: bool_is_null_batch}],is_agg: false);
+    let mut is_null = ScalarFunctionSet::new("is_null");
+    is_null.add_function(scalar_function!(
+        "is_null",
+        [LogicalType::BOOL] -> LogicalType::BOOL,
+        |_| Ok(Arc::new(bool_is_null_batch))
+    ));
     registry.insert(is_null);
 
-    let is_not_null = define_function!( name: "is_not_null", impls: [ {args: [{exact BOOL}], ret: BOOL, func: bool_is_not_null_batch}],is_agg: false);
+    let mut is_not_null = ScalarFunctionSet::new("is_not_null");
+    is_not_null.add_function(scalar_function!(
+        "is_not_null",
+        [LogicalType::BOOL] -> LogicalType::BOOL,
+        |_| Ok(Arc::new(bool_is_not_null_batch))
+    ));
     registry.insert(is_not_null);
 }

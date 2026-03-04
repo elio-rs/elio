@@ -12,7 +12,7 @@ impl Expr {
             }
             Expr::PropertyAccess(property_access) => vars.extend(property_access.expr.collect_variables()),
             Expr::Constant(_) => {}
-            Expr::FuncCall(func_call) => {
+            Expr::ScalarCall(func_call) => {
                 vars.extend(func_call.args.iter().flat_map(|arg| arg.collect_variables()));
             }
             Expr::AggCall(agg_call) => {

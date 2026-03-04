@@ -14,7 +14,7 @@ pub trait ExprVisitor<C = ()> {
             Expr::VariableRef(e) => self.visit_variable_ref(e, ctx),
             Expr::PropertyAccess(e) => self.visit_property_access(e, ctx),
             Expr::Constant(e) => self.visit_constant(e, ctx),
-            Expr::FuncCall(e) => self.visit_func_call(e, ctx),
+            Expr::ScalarCall(e) => self.visit_func_call(e, ctx),
             Expr::AggCall(e) => self.visit_agg_call(e, ctx),
             Expr::Subquery(e) => self.visit_subquery(e, ctx),
             Expr::HasLabel(e) => self.visit_has_label(e, ctx),
@@ -43,7 +43,7 @@ pub trait ExprVisitor<C = ()> {
         Self::Output::default()
     }
 
-    fn visit_func_call(&mut self, expr: &FuncCall, ctx: &C) -> Self::Output {
+    fn visit_func_call(&mut self, expr: &ScalarCall, ctx: &C) -> Self::Output {
         for arg in expr.args.iter() {
             self.visit(arg, ctx);
         }
@@ -96,7 +96,7 @@ pub trait ExprRewriter {
             Expr::VariableRef(e) => self.rewrite_variable_ref(e),
             Expr::PropertyAccess(e) => self.rewrite_property_access(e),
             Expr::Constant(e) => self.rewrite_constant(e),
-            Expr::FuncCall(e) => self.rewrite_func_call(e),
+            Expr::ScalarCall(e) => self.rewrite_func_call(e),
             Expr::AggCall(e) => self.rewrite_agg_call(e),
             Expr::Subquery(e) => self.rewrite_subquery(e),
             Expr::HasLabel(e) => self.rewrite_has_label(e),
@@ -122,8 +122,8 @@ pub trait ExprRewriter {
         Expr::Constant(expr)
     }
 
-    fn rewrite_func_call(&mut self, expr: FuncCall) -> Expr {
-        self.rewrite_children(Expr::FuncCall(expr))
+    fn rewrite_func_call(&mut self, expr: ScalarCall) -> Expr {
+        self.rewrite_children(Expr::ScalarCall(expr))
     }
 
     fn rewrite_agg_call(&mut self, expr: AggCall) -> Expr {

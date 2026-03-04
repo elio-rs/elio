@@ -4,7 +4,7 @@ use elio_common::{IrToken, TokenKind};
 
 use crate::binder::expr::ExprContext;
 use crate::binder::scope::Scope;
-use crate::function::scalar::sig::FuncDef;
+use crate::catalog::FunctionCatalogEntry;
 use crate::plan::session::PlannerSession;
 use crate::plan::variable::VariableGenerator;
 mod builder;
@@ -51,8 +51,8 @@ impl<'a> BindContext<'a> {
         self.sctx
     }
 
-    pub fn resolve_function(&self, name: &str) -> Option<&FuncDef> {
-        self.session().catalog().resolve_function(name).map(|x| &x.func)
+    pub fn resolve_function(&self, name: &str) -> Option<FunctionCatalogEntry> {
+        self.session().catalog().resolve_function(name)
     }
 
     pub fn resolve_token(&self, token: &str, token_kind: TokenKind) -> IrToken {

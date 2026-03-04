@@ -118,8 +118,8 @@ fn extract_sargable_predicate(
 
     let mut result = vec![];
     for expr in predicate.iter() {
-        if let Expr::FuncCall(func_call) = expr {
-            match func_call.func.to_lowercase().as_str() {
+        if let Expr::ScalarCall(func_call) = expr {
+            match func_call.function.name.to_lowercase().as_str() {
                 "eq" if func_call.args.len() == 2 => {
                     let (prop_access, value) = match (&func_call.args[0], &func_call.args[1]) {
                         (Expr::PropertyAccess(pa), val) => (pa, val),

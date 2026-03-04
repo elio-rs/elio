@@ -3,7 +3,6 @@
 pub mod error;
 pub mod result;
 pub mod session;
-use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -12,12 +11,11 @@ use elio_storage::graph::GraphStore;
 use elio_storage::kv::KvEngine;
 use elio_storage::token::TokenStore;
 use elio_storage::transaction::manager::TransactionManager;
-use hashbrown::HashMap;
 
-use crate::catalog::FunctionCatalog;
+use crate::catalog::FunctionCatalogEntry;
 use crate::database::error::Error;
 use crate::database::session::Session;
-use crate::function::FUNCTION_REGISTRY;
+use crate::function::{AGG_FUNCTION_REGISTRY, AggFunctionRegistry, SCALAR_FUNCTION_REGISTRY, ScalarFunctionRegistry};
 
 #[derive(Clone)]
 pub struct DatabaseConfig {
@@ -41,7 +39,10 @@ pub struct Database {
     token_store: Arc<TokenStore>,
     // catalog_state: Arc<CatalogState>,
     transaction_manager: Arc<TransactionManager>,
-    functions: HashMap<String, FunctionCatalog>,
+    // Currently we put functions here since they are static over the database lifetime
+    // and have nothing todo with transaction.
+    scalar_functions: ScalarFunctionRegistry,
+    agg_functions: AggFunctionRegistry,
     #[allow(unused)]
     config: DatabaseConfig,
 }
@@ -53,20 +54,17 @@ impl Database {
         let graph_store = Arc::new(GraphStore::new(kv_engine.clone(), token_store.clone())?);
         let catalog_state = Arc::new(CatalogState::new(kv_engine.clone())?);
         let transaction_manager = Arc::new(TransactionManager::new(kv_engine.clone(), catalog_state.clone()));
-        let functions = {
-            let mut map = HashMap::new();
-            for (name, def) in FUNCTION_REGISTRY.deref().name2def.iter() {
-                let func = FunctionCatalog::new(name.to_string(), def.clone());
-                map.insert(name.to_string(), func);
-            }
-            map
-        };
+        // initialize function registries
+        let scalar_functions = SCALAR_FUNCTION_REGISTRY.clone();
+        let agg_functions = AGG_FUNCTION_REGISTRY.clone();
+
         Ok(Arc::new(Self {
             graph_store,
             token_store,
             // catalog_state,
             transaction_manager,
-            functions,
+            scalar_functions,
+            agg_functions,
             config: config.clone(),
         }))
     }
@@ -83,8 +81,16 @@ impl Database {
         &self.transaction_manager
     }
 
-    pub fn get_function_by_name(&self, name: &str) -> Option<&FunctionCatalog> {
-        self.functions.get(&name.trim().to_lowercase())
+    pub fn get_function_by_name(&self, name: &str) -> Option<FunctionCatalogEntry> {
+        self.scalar_functions
+            .get_function(name)
+            .map(|func| FunctionCatalogEntry::Scalar(func.clone()))
+            .or_else(|| {
+                self.agg_functions
+                    .get_function(name)
+                    .map(|func| FunctionCatalogEntry::Agg(func.clone()))
+            })
+            .or(None)
     }
 }
 

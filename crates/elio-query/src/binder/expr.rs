@@ -4,18 +4,18 @@ use std::sync::Arc;
 use elio_common::data_type::{F64, LogicalType};
 use elio_common::{IrToken, TokenKind};
 use elio_parser::ast;
+use enum_as_inner::EnumAsInner;
 use itertools::Itertools;
 use ordered_float::Float;
 use paste::paste;
 
 use crate::binder::BindContext;
 use crate::binder::scope::Scope;
-use crate::catalog::FunctionCatalog;
-use crate::function::scalar::sig::FuncImpl;
+use crate::function::sig::{AggFunction, ScalarFunction};
 use crate::not_supported;
 use crate::plan::error::{PlanError, SemanticError};
 use crate::plan::expr::value::Constant;
-use crate::plan::expr::{AggCall, CreateList, Expr, ExprNode, FilterExprs, FuncCall, PropertyAccess, VariableRef};
+use crate::plan::expr::{AggCall, CreateList, Expr, ExprNode, FilterExprs, PropertyAccess, ScalarCall, VariableRef};
 
 #[derive(Clone)]
 pub struct ExprContext<'a> {
@@ -136,13 +136,19 @@ fn bind_unary(
 
     // SAFETY: builtin operator are always ok
     let func_name = op.as_func_name();
-    let (func_impl, _is_agg, typ, coerced_types) = resolve_func(ectx, func_name, &args)?;
-
+    let (func_impl, _typ, coerced_types) = resolve_func(ectx, func_name, &args)?;
     // Coerce untyped null arguments to typed nulls
     let args = coerce_null_args(args, &coerced_types);
-
-    let func_call = FuncCall::new_unchecked(func_name.to_string(), func_impl.func_id, args, typ);
-    Ok(func_call.into())
+    match func_impl {
+        ResolvedFunction::Scalar(scalar_function) => {
+            let scalar_call = ScalarCall::new_unchecked(scalar_function, None, args);
+            Ok(scalar_call.into())
+        }
+        ResolvedFunction::Agg(agg_function) => {
+            let agg_call = AggCall::new_unchecked(agg_function, None, args, false);
+            Ok(agg_call.into())
+        }
+    }
 }
 
 fn bind_binary(
@@ -158,13 +164,20 @@ fn bind_binary(
 
     // SAFETY: builtin operator are always ok
     let func_name = op.as_func_name();
-    let (func_impl, _is_agg, typ, coerced_types) = resolve_func(ectx, func_name, &args)?;
+    let (func_impl, _typ, coerced_types) = resolve_func(ectx, func_name, &args)?;
 
     // Coerce untyped null arguments to typed nulls
     let args = coerce_null_args(args, &coerced_types);
-
-    let func_call = FuncCall::new_unchecked(func_name.to_string(), func_impl.func_id, args, typ);
-    Ok(func_call.into())
+    match func_impl {
+        ResolvedFunction::Scalar(scalar_function) => {
+            let scalar_call = ScalarCall::new_unchecked(scalar_function, None, args);
+            Ok(scalar_call.into())
+        }
+        ResolvedFunction::Agg(agg_function) => {
+            let agg_call = AggCall::new_unchecked(agg_function, None, args, false);
+            Ok(agg_call.into())
+        }
+    }
 }
 
 fn bind_list_index(
@@ -177,11 +190,12 @@ fn bind_list_index(
     let index_expr = bind_expr(ectx, outer_scope, index)?;
     let args = vec![list_expr, index_expr];
 
-    let (func_impl, _is_agg, typ, coerced_types) = resolve_func(ectx, "list_index", &args)?;
+    let (func_impl, _typ, coerced_types) = resolve_func(ectx, "list_index", &args)?;
     let args = coerce_null_args(args, &coerced_types);
 
-    let func_call = FuncCall::new_unchecked("list_index".to_string(), func_impl.func_id, args, typ);
-    Ok(func_call.into())
+    let func_impl = func_impl.into_scalar().expect("list_index should be scalar function");
+    let scalar_call = ScalarCall::new_unchecked(func_impl, None, args);
+    Ok(scalar_call.into())
 }
 
 fn bind_list_slice(
@@ -210,11 +224,12 @@ fn bind_list_slice(
 
     let args = vec![list_expr, start_expr, end_expr];
 
-    let (func_impl, _is_agg, typ, coerced_types) = resolve_func(ectx, "list_slice", &args)?;
+    let (func_impl, _typ, coerced_types) = resolve_func(ectx, "list_slice", &args)?;
     let args = coerce_null_args(args, &coerced_types);
 
-    let func_call = FuncCall::new_unchecked("list_slice".to_string(), func_impl.func_id, args, typ);
-    Ok(func_call.into())
+    let func_impl = func_impl.into_scalar().expect("list_slice should be scalar function");
+    let scalar_call = ScalarCall::new_unchecked(func_impl, None, args);
+    Ok(scalar_call.into())
 }
 
 fn bind_list_expression(ectx: &ExprContext, outer_scope: &[Scope], items: &[ast::Expr]) -> Result<Expr, PlanError> {
@@ -258,18 +273,18 @@ fn bind_func_call(
     distinct: bool,
     args: &[ast::Expr],
 ) -> Result<Expr, PlanError> {
-    let FunctionCatalog { name, func } = ectx
+    let entry = ectx
         .bctx
         .session()
         .catalog()
         .resolve_function(name)
         .ok_or(PlanError::from(SemanticError::unknown_function(name, ectx.name)))?;
 
-    if func.is_agg && ectx.sema_flags.reject_aggregate() {
+    if entry.is_agg() && ectx.sema_flags.reject_aggregate() {
         return Err(SemanticError::agg_not_allowed(name, ectx.name).into());
     }
 
-    let inner_ectx = if func.is_agg {
+    let inner_ectx = if entry.is_agg() {
         let mut inner_ectx = ectx.clone();
         // aggregation function cannot be nested
         inner_ectx.sema_flags.set_reject_aggregate(true);
@@ -283,36 +298,39 @@ fn bind_func_call(
         .map(|x| bind_expr(&inner_ectx, outer_scope, x))
         .collect::<Result<Vec<_>, _>>()?;
 
-    let (func_impl, is_agg, typ, coerced_types) = resolve_func(ectx, name, &args)?;
+    let (func_impl, _typ, coerced_types) = resolve_func(ectx, name, &args)?;
 
     // Coerce untyped null arguments to typed nulls
     let args = coerce_null_args(args, &coerced_types);
-
-    if is_agg {
-        let agg = AggCall::new_unchecked(name.to_string(), func_impl.func_id, args, distinct, typ);
-        Ok(agg.into())
-    } else {
-        if distinct {
-            return Err(SemanticError::distinct_not_allowed(name).into());
+    match func_impl {
+        ResolvedFunction::Scalar(scalar_function) => {
+            let scalar_call = ScalarCall::new_unchecked(scalar_function, None, args);
+            Ok(scalar_call.into())
         }
-        let func_call = FuncCall::new_unchecked(name.to_string(), func_impl.func_id, args, typ);
-        Ok(func_call.into())
+        ResolvedFunction::Agg(agg_function) => {
+            let agg_call = AggCall::new_unchecked(agg_function, None, args, distinct);
+            Ok(agg_call.into())
+        }
     }
+}
+
+#[derive(EnumAsInner, Debug)]
+enum ResolvedFunction {
+    Scalar(ScalarFunction),
+    Agg(AggFunction),
 }
 
 fn resolve_func(
     ectx: &ExprContext,
     name: &str,
     args: &[Expr],
-) -> Result<(FuncImpl, bool, LogicalType, Vec<LogicalType>), PlanError> {
-    let FunctionCatalog { name, func } = ectx
+) -> Result<(ResolvedFunction, LogicalType, Vec<LogicalType>), PlanError> {
+    let entry = ectx
         .bctx
         .session()
         .catalog()
         .resolve_function(name)
         .ok_or(PlanError::from(SemanticError::unknown_function(name, ectx.name)))?;
-
-    let is_agg = func.is_agg;
 
     // Prepare argument types and null flags
     let args_types: Vec<LogicalType> = args.iter().map(|x| x.typ()).collect_vec();
@@ -330,16 +348,37 @@ fn resolve_func(
     let has_untyped_null = is_untyped_null.iter().any(|&x| x);
 
     // Select function implementation
-    for func_impl in func.impls.iter() {
-        if has_untyped_null {
-            // Try matching with null coercion
-            if let Some((ret, coerced_types)) = func_impl.matches_with_null_coercion(&args_types, &is_untyped_null) {
-                return Ok((func_impl.clone(), is_agg, ret, coerced_types));
+    match entry {
+        crate::catalog::FunctionCatalogEntry::Scalar(scalar_function_set) => {
+            for func_impl in scalar_function_set.functions.iter() {
+                if has_untyped_null {
+                    // try matching with null coercion
+                    if let Some((ret, coerced_types)) =
+                        func_impl.matches_with_null_coercion(&args_types, &is_untyped_null)
+                    {
+                        return Ok((ResolvedFunction::Scalar(func_impl.clone()), ret, coerced_types));
+                    }
+                } else {
+                    // try matching without null coercion
+                    if let Some(ret) = func_impl.matches(&args_types) {
+                        return Ok((ResolvedFunction::Scalar(func_impl.clone()), ret, args_types.clone()));
+                    }
+                }
             }
-        } else {
-            // No untyped nulls, use regular matching
-            if let Some(ret) = func_impl.matches(&args_types) {
-                return Ok((func_impl.clone(), is_agg, ret, args_types.clone()));
+        }
+        crate::catalog::FunctionCatalogEntry::Agg(agg_function_set) => {
+            for func_impl in agg_function_set.functions.iter() {
+                if has_untyped_null {
+                    if let Some((ret, coerced_types)) =
+                        func_impl.matches_with_null_coercion(&args_types, &is_untyped_null)
+                    {
+                        return Ok((ResolvedFunction::Agg(func_impl.clone()), ret, coerced_types));
+                    }
+                } else {
+                    if let Some(ret) = func_impl.matches(&args_types) {
+                        return Ok((ResolvedFunction::Agg(func_impl.clone()), ret, args_types.clone()));
+                    }
+                }
             }
         }
     }

@@ -2,15 +2,18 @@
 //!  - unary_add
 //!  - unary_subtract
 
+use std::sync::Arc;
+
 use bitvec::prelude::*;
 use elio_common::array::*;
 use elio_common::data_type::LogicalType;
 use elio_common::scalar::*;
 use elio_expr_macros::cypher_func;
 
-use crate::define_function;
 use crate::execution::error::EvalError;
-use crate::function::scalar::FunctionRegistry;
+use crate::function::ScalarFunctionRegistry;
+use crate::function::sig::ScalarFunctionSet;
+use crate::scalar_function;
 
 #[cypher_func(batch_name = "any_unary_add_batch", sig = "(any) -> any")]
 fn any_unary_add(arg: ScalarRef<'_>) -> Result<ScalarValue, EvalError> {
@@ -38,24 +41,20 @@ fn any_unary_subtract(arg: ScalarRef<'_>) -> Result<ScalarValue, EvalError> {
     }
 }
 
-pub(crate) fn register(registry: &mut FunctionRegistry) {
-    let add = define_function!(
-        name: "unary_add",
-        impls: [
-            {args: [{anyof INTEGER | FLOAT}], ret: ANY, func: any_unary_add_batch },
-            {args: [{exact ANY}], ret: ANY, func: any_unary_add_batch}
-        ],
-        is_agg: false
-    );
+pub(crate) fn register(registry: &mut ScalarFunctionRegistry) {
+    let mut add = ScalarFunctionSet::new("unary_add");
+    add.add_function(scalar_function!(
+        "unary_add",
+        [LogicalType::ANY] -> LogicalType::ANY,
+        |_| Ok(Arc::new(any_unary_add_batch))
+    ));
     registry.insert(add);
 
-    let sub = define_function!(
-        name: "unary_substract",
-        impls: [
-            {args: [{anyof INTEGER | FLOAT}], ret: ANY, func: any_unary_subtract_batch},
-            {args: [{exact ANY}], ret: ANY, func: any_unary_subtract_batch}
-        ],
-        is_agg: false
-    );
-    registry.insert(sub);
+    let mut subtract = ScalarFunctionSet::new("unary_substract");
+    subtract.add_function(scalar_function!(
+        "unary_substract",
+        [LogicalType::ANY] -> LogicalType::ANY,
+        |_| Ok(Arc::new(any_unary_subtract_batch))
+    ));
+    registry.insert(subtract);
 }

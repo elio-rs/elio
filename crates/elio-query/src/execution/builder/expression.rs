@@ -6,7 +6,6 @@ use crate::execution::expr::{
     ConstantExpr, CreateListExpr, CreateStructExpr, Expression, FieldAccessExpr, HasLabelExpr, ProjectPathExpr,
     ScalarCallExpr, SharedExpression, VariableRefExpr,
 };
-use crate::function::FUNCTION_REGISTRY;
 use crate::plan::expr;
 use crate::plan::expr::{Constant, CreateList, CreateStruct, Expr, ExprNode, PropertyAccess, VariableRef};
 
@@ -28,7 +27,7 @@ pub(crate) fn build_expression(ctx: &BuildExprContext<'_>, expr: &Expr) -> Resul
         Expr::VariableRef(variable_ref) => build_variable(ctx, variable_ref),
         Expr::PropertyAccess(property_access) => build_property_access(ctx, property_access),
         Expr::Constant(constant) => build_constant(ctx, constant),
-        Expr::FuncCall(func_call) => build_func_call(ctx, func_call),
+        Expr::ScalarCall(func_call) => build_func_call(ctx, func_call),
         Expr::AggCall(_agg_call) => todo!(),
         Expr::Subquery(_subquery) => todo!(),
         Expr::HasLabel(has_label) => build_has_label(ctx, has_label),
@@ -66,21 +65,19 @@ fn build_constant(_ctx: &BuildExprContext<'_>, constant: &Constant) -> Result<Sh
     .into_shared())
 }
 
-fn build_func_call(ctx: &BuildExprContext<'_>, func_call: &expr::FuncCall) -> Result<SharedExpression, BuildError> {
+fn build_func_call(ctx: &BuildExprContext<'_>, func_call: &expr::ScalarCall) -> Result<SharedExpression, BuildError> {
     let args = func_call
         .args
         .iter()
         .map(|expr| build_expression(ctx, expr))
         .collect::<Result<Vec<_>, _>>()?;
 
-    let func_impl = FUNCTION_REGISTRY.get_func_impl(&func_call.func_id);
+    let function_data = func_call.function_data.clone().unwrap_or(Box::new(()));
+    let function_exec = (func_call.function.execute_builder)(function_data)?;
 
     Ok(ScalarCallExpr {
         inputs: args,
-        func: *func_impl
-            .func_invoke
-            .as_scalar()
-            .expect("function implementation should be scalar"),
+        function_exec,
         typ: func_call.typ(),
     }
     .into_shared())

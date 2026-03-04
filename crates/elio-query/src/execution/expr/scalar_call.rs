@@ -1,4 +1,7 @@
+use std::sync::Arc;
+
 use bitvec::vec::BitVec;
+use educe::Educe;
 use elio_common::array::chunk::DataChunk;
 use elio_common::array::{ArrayImpl, ArrayRef};
 use elio_common::data_type::LogicalType;
@@ -6,14 +9,31 @@ use elio_common::data_type::LogicalType;
 use crate::execution::error::EvalError;
 use crate::execution::expr::{EvalCtx, Expression, SharedExpression};
 
+pub trait ScalarFunctionExec: Send + Sync + 'static {
+    fn execute(&self, inputs: &[ArrayRef], vis: &BitVec, len: usize) -> Result<ArrayImpl, EvalError>;
+}
+
+/// For simple function, we just use the pure function pointer
+impl<T: Fn(&[ArrayRef], &BitVec, usize) -> Result<ArrayImpl, EvalError>> ScalarFunctionExec for T
+where
+    T: Send + Sync + 'static,
+{
+    fn execute(&self, inputs: &[ArrayRef], vis: &BitVec, len: usize) -> Result<ArrayImpl, EvalError> {
+        (self)(inputs, vis, len)
+    }
+}
+
 // used to invoke the function call
 pub type ScalarInvocation = fn(&[ArrayRef], vis: &BitVec, len: usize) -> Result<ArrayImpl, EvalError>;
 
 // scalar function call expression
-#[derive(Debug)]
+
+#[derive(Educe)]
+#[educe(Debug)]
 pub struct ScalarCallExpr {
     pub inputs: Vec<SharedExpression>,
-    pub func: ScalarInvocation,
+    #[educe(Debug(ignore))]
+    pub function_exec: Arc<dyn ScalarFunctionExec>,
     pub typ: LogicalType,
 }
 
@@ -30,7 +50,7 @@ impl Expression for ScalarCallExpr {
             .collect::<Result<Vec<_>, _>>()?;
         let vis = chunk.visibility();
         let len = chunk.len();
-        let res = (self.func)(&args, vis, len)?;
+        let res = self.function_exec.execute(&args, vis, len)?;
         Ok(res.into())
     }
 }

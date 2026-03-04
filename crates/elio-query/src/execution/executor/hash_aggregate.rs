@@ -13,7 +13,8 @@ use hashbrown::raw::RawTable;
 use super::*;
 use crate::execution::error::EvalError;
 use crate::execution::executor::apply::OutputColumnSource;
-use crate::execution::expr::agg_call::{AggFuncImpl, AggFuncState};
+use crate::execution::expr::AggFunctionExec;
+use crate::execution::expr::agg_call::AggFunctionState;
 
 /// HashAggregate inputs must be column references.
 #[derive(Educe)]
@@ -27,7 +28,7 @@ pub struct HashAggregateExecutor {
     /// mapping from output columns to either group key idx (Left) or agg idx (Right)
     pub(crate) output_mapping: Vec<OutputColumnSource>,
     #[educe(Debug(ignore))]
-    pub(crate) aggs: Vec<Arc<dyn AggFuncImpl>>,
+    pub(crate) aggs: Vec<Arc<dyn AggFunctionExec>>,
     pub(crate) schema: Arc<Schema>,
 }
 
@@ -37,7 +38,7 @@ pub struct HashAggregateExecutor {
 pub struct RowContainer {
     pub keys: Vec<Datum>,
     #[educe(Debug(ignore))]
-    pub states: Vec<Box<dyn AggFuncState>>,
+    pub states: Vec<Box<dyn AggFunctionState>>,
 }
 
 type RowIdx = usize;
@@ -45,14 +46,14 @@ type RowIdx = usize;
 // holds an set of RowContainers, which contains the group_keys and aggregate states.
 pub struct GroupingSet {
     pub agg_args: Vec<Vec<usize>>,
-    pub aggs: Vec<Arc<dyn AggFuncImpl>>,
+    pub aggs: Vec<Arc<dyn AggFunctionExec>>,
     pub rows: Vec<RowContainer>,
     // hash table to map the group key to the row index in rows.
     pub index: RawTable<RowIdx>,
 }
 
 impl GroupingSet {
-    pub fn new(agg_args: Vec<Vec<usize>>, aggs: Vec<Arc<dyn AggFuncImpl>>) -> Self {
+    pub fn new(agg_args: Vec<Vec<usize>>, aggs: Vec<Arc<dyn AggFunctionExec>>) -> Self {
         Self {
             agg_args,
             aggs,
@@ -82,7 +83,7 @@ impl GroupingSet {
 
     /// get states by given row index
     #[inline]
-    pub fn states_mut(&mut self, row_idx: RowIdx) -> &mut [Box<dyn AggFuncState>] {
+    pub fn states_mut(&mut self, row_idx: RowIdx) -> &mut [Box<dyn AggFunctionState>] {
         &mut self.rows[row_idx].states
     }
 
