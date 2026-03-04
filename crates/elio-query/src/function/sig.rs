@@ -54,10 +54,10 @@ impl FunctionData for () {
 /// Used to bind and parse the function data from ast
 pub type FunctionBindCallback = fn(args: &[ast::Expr]) -> Result<Box<dyn FunctionData>, PlanError>;
 /// Used to build executable class.
-pub type ScalarFunctionExecBuild =
+pub type ScalarFunctionExecBuilder =
     fn(function_data: Box<dyn FunctionData>) -> Result<Arc<dyn ScalarFunctionExec>, BuildError>;
 /// Used to build executable class for aggregate function.
-pub type AggFunctionExecBuild =
+pub type AggFunctionExecBuilder =
     fn(function_data: Box<dyn FunctionData>) -> Result<Arc<dyn AggFunctionExec>, BuildError>;
 
 #[derive(Clone, Debug)]
@@ -93,7 +93,7 @@ pub struct ScalarFunction {
     pub bind_callback: Option<FunctionBindCallback>,
     //--- execution
     #[educe(Debug(ignore), Hash(ignore), PartialEq(ignore))]
-    pub execute_builder: ScalarFunctionExecBuild,
+    pub exec_builder: ScalarFunctionExecBuilder,
 }
 
 impl ScalarFunction {
@@ -142,7 +142,7 @@ pub struct AggFunction {
     pub bind_callback: Option<FunctionBindCallback>,
     //--- execution
     #[educe(Debug(ignore), Hash(ignore), PartialEq(ignore))]
-    pub execute_builder: AggFunctionExecBuild,
+    pub exec_builder: AggFunctionExecBuilder,
 }
 
 impl AggFunction {
@@ -169,7 +169,7 @@ macro_rules! scalar_function {
             varargs: None,
             return_type: $ret,
             bind_callback: None,
-            execute_builder: $exec,
+            exec_builder: $exec,
         }
     };
     // [args] varargs(type) -> return_type, exec_builder
@@ -180,7 +180,7 @@ macro_rules! scalar_function {
             varargs: Some($va),
             return_type: $ret,
             bind_callback: None,
-            execute_builder: $exec,
+            exec_builder: $exec,
         }
     };
     // [args] -> return_type, bind_callback, exec_builder
@@ -191,7 +191,7 @@ macro_rules! scalar_function {
             varargs: None,
             return_type: $ret,
             bind_callback: Some($bind),
-            execute_builder: $exec,
+            exec_builder: $exec,
         }
     };
     // [args] varargs(type) -> return_type, bind_callback, exec_builder
@@ -202,7 +202,7 @@ macro_rules! scalar_function {
             varargs: Some($va),
             return_type: $ret,
             bind_callback: Some($bind),
-            execute_builder: $exec,
+            exec_builder: $exec,
         }
     };
 }
@@ -217,7 +217,7 @@ macro_rules! agg_function {
             varargs: None,
             return_type: $ret,
             bind_callback: None,
-            execute_builder: $exec,
+            exec_builder: $exec,
         }
     };
     // [args] varargs(type) -> return_type, exec_builder
@@ -228,7 +228,7 @@ macro_rules! agg_function {
             varargs: Some($va),
             return_type: $ret,
             bind_callback: None,
-            execute_builder: $exec,
+            exec_builder: $exec,
         }
     };
     // [args] -> return_type, bind_callback, exec_builder
@@ -239,7 +239,7 @@ macro_rules! agg_function {
             varargs: None,
             return_type: $ret,
             bind_callback: Some($bind),
-            execute_builder: $exec,
+            exec_builder: $exec,
         }
     };
     // [args] varargs(type) -> return_type, bind_callback, exec_builder
@@ -250,7 +250,7 @@ macro_rules! agg_function {
             varargs: Some($va),
             return_type: $ret,
             bind_callback: Some($bind),
-            execute_builder: $exec,
+            exec_builder: $exec,
         }
     };
 }

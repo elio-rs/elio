@@ -218,8 +218,7 @@ pub(crate) fn register(registry: &mut ScalarFunctionRegistry) {
     let mut list_index = ScalarFunctionSet::new("list_index");
     list_index.add_function(scalar_function!(
         "list_index",
-        // TODO(pgao): change to list(any), integer
-        [LogicalType::new_list(LogicalType::ANY), LogicalType::INTEGER] -> LogicalType::ANY,
+        [LogicalType::new_list(LogicalType::ANY), LogicalType::ANY] -> LogicalType::ANY,
         |_| Ok(Arc::new(list_index_batch))
     ));
     registry.insert(list_index);
@@ -227,8 +226,7 @@ pub(crate) fn register(registry: &mut ScalarFunctionRegistry) {
     let mut list_slice = ScalarFunctionSet::new("list_slice");
     list_slice.add_function(scalar_function!(
         "list_slice",
-        // TODO(pgao): change to list(any), integer, integer
-        [LogicalType::new_list(LogicalType::ANY), LogicalType::INTEGER, LogicalType::INTEGER] -> LogicalType::new_list(LogicalType::ANY),
+        [LogicalType::new_list(LogicalType::ANY), LogicalType::ANY, LogicalType::ANY] -> LogicalType::new_list(LogicalType::ANY),
         |_| Ok(Arc::new(list_slice_batch))
     ));
     registry.insert(list_slice);
