@@ -29,8 +29,6 @@ use crate::execution::executor::var_expand::{
 };
 use crate::execution::executor::*;
 use crate::execution::expr::SharedExpression;
-use crate::function::FUNCTION_REGISTRY;
-use crate::function::scalar::sig::FuncInvoke;
 use crate::plan::expr::{self, AggCall, Expr, VariableRef};
 use crate::plan::ir::query_project::LoadFormat;
 use crate::plan::plan_node::{self, CreateNode, PlanExpr, PlanNode, Project};
@@ -657,7 +655,8 @@ fn build_aggregate(
 
     for (_var, expr) in node.inner().aggregate.iter() {
         let Expr::AggCall(AggCall {
-            func_id,
+            function,
+            function_data,
             args,
             distinct,
             ..
@@ -682,22 +681,9 @@ fn build_aggregate(
             .collect::<Result<_, _>>()?;
         agg_args.push(arg_idx);
 
-        // TODO(pgao): get function from catalogs, not from FUNCTION_REGISTRY
-        let func_impl = FUNCTION_REGISTRY.get_func_impl(func_id);
-        // TODO(pgao): avoid this match here.
-        let FuncInvoke::Agg(invoker) = &func_impl.func_invoke else {
-            return Err(BuildError::MalformedPlan(
-                format!("function {} is not an aggregate", func_id),
-                Backtrace::capture(),
-            ));
-        };
-        let agg_impl = invoker(&[]).map_err(|e| {
-            BuildError::MalformedPlan(
-                format!("init aggregate {} failed: {}", func_id, e),
-                Backtrace::capture(),
-            )
-        })?;
-        aggs.push(agg_impl);
+        let function_data = function_data.clone().unwrap_or(Box::new(()));
+        let agg_exec = (function.execute_builder)(function_data)?;
+        aggs.push(agg_exec);
     }
 
     // output mapping follows logical schema order (could interleave group/agg).

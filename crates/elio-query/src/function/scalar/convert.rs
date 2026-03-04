@@ -7,15 +7,18 @@
 //! NB: Currently we do not support integer/float/string array
 //!     so the results will be an AnyArray.
 
+use std::sync::Arc;
+
 use bitvec::prelude::*;
 use elio_common::array::*;
 use elio_common::data_type::{F64, LogicalType};
 use elio_common::scalar::*;
 use elio_expr_macros::cypher_func;
 
-use crate::define_function;
 use crate::execution::error::EvalError;
-use crate::function::scalar::FunctionRegistry;
+use crate::function::ScalarFunctionRegistry;
+use crate::function::sig::ScalarFunctionSet;
+use crate::scalar_function;
 
 #[cypher_func(batch_name = "boolean_to_boolean_batch", sig = "(bool) -> bool")]
 fn boolean_to_boolean(b: bool) -> bool {
@@ -111,44 +114,56 @@ fn any_to_string(arg: ScalarRef<'_>) -> Option<ScalarValue> {
     }
 }
 
-pub(crate) fn register(registry: &mut FunctionRegistry) {
-    let to_boolean = define_function!(
-        name: &"toBoolean".to_lowercase(),
-        impls: [
-            {args: [{exact BOOL}], ret: BOOL, func: boolean_to_boolean_batch},
-            {args: [{exact ANY}], ret: BOOL, func: any_to_boolean_batch}
-        ],
-        is_agg: false
-    );
+pub(crate) fn register(registry: &mut ScalarFunctionRegistry) {
+    let mut to_boolean = ScalarFunctionSet::new("toboolean");
+    to_boolean.add_function(scalar_function!(
+        "toboolean",
+        [LogicalType::BOOL] -> LogicalType::BOOL,
+        |_| Ok(Arc::new(boolean_to_boolean_batch))
+    ));
+    to_boolean.add_function(scalar_function!(
+        "toboolean",
+        [LogicalType::ANY] -> LogicalType::BOOL,
+        |_| Ok(Arc::new(any_to_boolean_batch))
+    ));
     registry.insert(to_boolean);
 
-    let to_integer = define_function!(
-        name: &"toInteger".to_lowercase(),
-        impls: [
-            {args: [{exact BOOL}], ret: ANY, func: boolean_to_integer_batch},
-            {args: [{exact ANY}], ret: ANY, func: any_to_integer_batch}
-        ],
-        is_agg: false
-    );
+    let mut to_integer = ScalarFunctionSet::new("tointeger");
+    to_integer.add_function(scalar_function!(
+        "tointeger",
+        [LogicalType::BOOL] -> LogicalType::ANY,
+        |_| Ok(Arc::new(boolean_to_integer_batch))
+    ));
+    to_integer.add_function(scalar_function!(
+        "tointeger",
+        [LogicalType::ANY] -> LogicalType::ANY,
+        |_| Ok(Arc::new(any_to_integer_batch))
+    ));
     registry.insert(to_integer);
 
-    let to_float = define_function!(
-        name: &"toFloat".to_lowercase(),
-        impls: [
-            {args: [{exact BOOL}], ret: ANY, func: boolean_to_float_batch},
-            {args: [{exact ANY}], ret: ANY, func: any_to_float_batch}
-        ],
-        is_agg: false
-    );
+    let mut to_float = ScalarFunctionSet::new("tofloat");
+    to_float.add_function(scalar_function!(
+        "tofloat",
+        [LogicalType::BOOL] -> LogicalType::ANY,
+        |_| Ok(Arc::new(boolean_to_float_batch))
+    ));
+    to_float.add_function(scalar_function!(
+        "tofloat",
+        [LogicalType::ANY] -> LogicalType::ANY,
+        |_| Ok(Arc::new(any_to_float_batch))
+    ));
     registry.insert(to_float);
 
-    let to_string = define_function!(
-        name: &"toString".to_lowercase(),
-        impls: [
-            {args: [{exact BOOL}], ret: ANY, func: boolean_to_string_batch},
-            {args: [{exact ANY}], ret: ANY, func: any_to_string_batch}
-        ],
-        is_agg: false
-    );
+    let mut to_string = ScalarFunctionSet::new("tostring");
+    to_string.add_function(scalar_function!(
+        "tostring",
+        [LogicalType::BOOL] -> LogicalType::ANY,
+        |_| Ok(Arc::new(boolean_to_string_batch))
+    ));
+    to_string.add_function(scalar_function!(
+        "tostring",
+        [LogicalType::ANY] -> LogicalType::ANY,
+        |_| Ok(Arc::new(any_to_string_batch))
+    ));
     registry.insert(to_string);
 }

@@ -42,15 +42,18 @@
 //!
 //! Duration Functions:
 
+use std::sync::Arc;
+
 use bitvec::prelude::*;
 use elio_common::array::*;
 use elio_common::data_type::LogicalType;
 use elio_common::scalar::*;
 use elio_expr_macros::cypher_func;
 
-use crate::define_function;
 use crate::execution::error::EvalError;
-use crate::function::scalar::FunctionRegistry;
+use crate::function::ScalarFunctionRegistry;
+use crate::function::sig::ScalarFunctionSet;
+use crate::scalar_function;
 
 #[cypher_func(batch_name = "date_batch", sig = "(any) -> any")]
 fn date(arg: ScalarRef<'_>) -> Result<ScalarValue, EvalError> {
@@ -164,44 +167,64 @@ fn any_duration(arg: ScalarRef<'_>) -> Result<ScalarValue, EvalError> {
     }
 }
 
-pub(crate) fn register(registry: &mut FunctionRegistry) {
-    let date = define_function!( name: "date", impls: 
-    [
-        { args: [{anyof STRING | DATE | LOCAL_DATE_TIME | ZONED_DATE_TIME| ANY}], ret: ANY, func: date_batch},
-        { args: [], ret: ANY, func: current_date_batch}
-    ],
-    is_agg: false);
-
-    let local_time = define_function!( name: "localtime", impls: 
-    [
-        { args: [{anyof STRING | LOCAL_TIME | LOCAL_DATE_TIME | ZONED_DATE_TIME| ANY}], ret: ANY, func: local_time_batch},
-        { args: [], ret: ANY, func: current_local_time_batch}
-    ],
-    is_agg: false);
-
-    let local_date_time = define_function!( name: "localdatetime", impls: 
-    [
-        { args: [{anyof STRING | LOCAL_DATE_TIME | ZONED_DATE_TIME| ANY}], ret: ANY, func: local_date_time_batch},
-        { args: [], ret: ANY, func: current_local_date_time_batch}
-    ],
-    is_agg: false);
-
-    let date_time = define_function!( name: "datetime", impls: 
-    [
-        { args: [{anyof STRING | ZONED_DATE_TIME | ANY}], ret: ANY, func: zoned_date_time_batch},
-        { args: [], ret: ANY, func: current_zoned_date_time_batch}
-    ],
-    is_agg: false);
-
-    let duration = define_function!( name: "duration", impls: 
-    [
-        { args: [{anyof STRING | DURATION}], ret: ANY, func: duration_batch}
-    ],
-    is_agg: false);
-
+pub(crate) fn register(registry: &mut ScalarFunctionRegistry) {
+    let mut date = ScalarFunctionSet::new("date");
+    date.add_function(scalar_function!(
+        "date",
+        [LogicalType::ANY] -> LogicalType::ANY,
+        |_| Ok(Arc::new(date_batch))
+    ));
+    date.add_function(scalar_function!(
+        "date",
+        [] -> LogicalType::ANY,
+        |_| Ok(Arc::new(current_date_batch))
+    ));
     registry.insert(date);
+
+    let mut local_time = ScalarFunctionSet::new("localtime");
+    local_time.add_function(scalar_function!(
+        "localtime",
+        [LogicalType::ANY] -> LogicalType::ANY,
+        |_| Ok(Arc::new(local_time_batch))
+    ));
+    local_time.add_function(scalar_function!(
+        "localtime",
+        [] -> LogicalType::ANY,
+        |_| Ok(Arc::new(current_local_time_batch))
+    ));
     registry.insert(local_time);
+
+    let mut local_date_time = ScalarFunctionSet::new("localdatetime");
+    local_date_time.add_function(scalar_function!(
+        "localdatetime",
+        [LogicalType::ANY] -> LogicalType::ANY,
+        |_| Ok(Arc::new(local_date_time_batch))
+    ));
+    local_date_time.add_function(scalar_function!(
+        "localdatetime",
+        [] -> LogicalType::ANY,
+        |_| Ok(Arc::new(current_local_date_time_batch))
+    ));
     registry.insert(local_date_time);
+
+    let mut date_time = ScalarFunctionSet::new("datetime");
+    date_time.add_function(scalar_function!(
+        "datetime",
+        [LogicalType::ANY] -> LogicalType::ANY,
+        |_| Ok(Arc::new(zoned_date_time_batch))
+    ));
+    date_time.add_function(scalar_function!(
+        "datetime",
+        [] -> LogicalType::ANY,
+        |_| Ok(Arc::new(current_zoned_date_time_batch))
+    ));
     registry.insert(date_time);
+
+    let mut duration = ScalarFunctionSet::new("duration");
+    duration.add_function(scalar_function!(
+        "duration",
+        [LogicalType::ANY] -> LogicalType::ANY,
+        |_| Ok(Arc::new(duration_batch))
+    ));
     registry.insert(duration);
 }

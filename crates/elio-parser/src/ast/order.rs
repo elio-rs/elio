@@ -15,11 +15,3 @@ pub struct SortItem {
     pub expr: Box<Expr>,
     pub direction: SortDirection,
 }
-
-// TODO(pgao): move to common
-// #[derive(Clone, Copy, Debug, Eq, PartialEq, Display, Default)]
-// pub enum SortDirection {
-//     #[default]
-//     Asc,
-//     Desc,
-// }

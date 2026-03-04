@@ -10,7 +10,7 @@ use elio_storage::transaction::Transaction;
 use elio_storage::transaction::manager::TransactionMode;
 use hashbrown::HashMap;
 
-use crate::catalog::FunctionCatalog;
+use crate::catalog::FunctionCatalogEntry;
 use crate::database::Database;
 use crate::database::error::Error;
 use crate::database::result::{EmptyResultHandle, ExplainResultHandle, ResultHandle, TaskHandleBridge};
@@ -58,7 +58,7 @@ impl PlannerSession for QueryContext {
 }
 
 impl PlannerCatalog for QueryContext {
-    fn resolve_function(&self, name: &str) -> Option<&FunctionCatalog> {
+    fn resolve_function(&self, name: &str) -> Option<FunctionCatalogEntry> {
         self.db.get_function_by_name(name)
     }
 

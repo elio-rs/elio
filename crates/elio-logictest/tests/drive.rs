@@ -15,7 +15,7 @@ static RT: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
         .unwrap()
 });
 
-datatest_stable::harness! {{test=run_slt_file, root="tests/", pattern=r".*slt"},}
+datatest_stable::harness! {{test=run_slt_file, root="tests/", pattern=r".*\.slt$"},}
 
 fn run_slt_file(path: &Path) -> datatest_stable::Result<()> {
     let make_conn = || async {

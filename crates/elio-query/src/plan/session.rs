@@ -4,7 +4,7 @@ use elio_parser::ast;
 use elio_parser::parser::cypher_parser;
 
 use crate::binder::query::bind_root_query;
-use crate::catalog::FunctionCatalog;
+use crate::catalog::FunctionCatalogEntry;
 use crate::catalog::error::CatalogError;
 use crate::optimizer::optimize_query;
 use crate::plan::error::PlanError;
@@ -21,7 +21,7 @@ pub trait PlannerSession {
 
 /// Catalog information used by planner
 pub trait PlannerCatalog {
-    fn resolve_function(&self, name: &str) -> Option<&FunctionCatalog>;
+    fn resolve_function(&self, name: &str) -> Option<FunctionCatalogEntry>;
     fn find_unique_index(&self, label_id: LabelId, property_key_ids: &[PropertyKeyId]) -> Option<IndexHint>;
 }
 

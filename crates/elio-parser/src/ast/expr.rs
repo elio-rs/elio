@@ -270,7 +270,7 @@ macro_rules! binary_operator {
 
 unary_operator! {
     UnaryAdd => "+", Associativity::Prefix, "unary_add",
-    UnarySubtract => "-", Associativity::Prefix, "unary_substract",
+    UnarySubtract => "-", Associativity::Prefix, "unary_subtract",
     Not => "NOT", Associativity::Prefix, "not",
     IsNull => "IS NULL",   Associativity::Postfix, "is_null",
     IsNotNull => "IS NOT NULL",   Associativity::Postfix, "is_not_null",

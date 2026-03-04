@@ -13,10 +13,12 @@ use std::sync::Arc;
 use elio_common::data_type::{F64, LogicalType};
 use elio_common::scalar::{Datum, DatumRef, ScalarValue};
 
+use crate::agg_function;
 use crate::execution::error::EvalError;
-use crate::execution::expr::agg_call::{AggFuncImpl, AggFuncState};
-use crate::function::FunctionRegistry;
-use crate::function::scalar::sig::{FuncDef, FuncImpl, FuncImplArg, FuncImplReturn};
+use crate::execution::expr::AggFunctionExec;
+use crate::execution::expr::agg_call::AggFunctionState;
+use crate::function::AggFunctionRegistry;
+use crate::function::sig::AggFunctionSet;
 
 struct SumState {
     acc: ScalarValue,
@@ -30,17 +32,17 @@ impl SumState {
     }
 }
 
-impl AggFuncState for SumState {}
+impl AggFunctionState for SumState {}
 
 #[derive(Debug)]
-pub struct SumAggImpl;
+struct SumAggFunctionExec;
 
-impl AggFuncImpl for SumAggImpl {
-    fn create_state(&self) -> Box<dyn AggFuncState> {
+impl AggFunctionExec for SumAggFunctionExec {
+    fn create_state(&self) -> Box<dyn AggFunctionState> {
         Box::new(SumState::new())
     }
 
-    fn update_state(&self, state: &mut Box<dyn AggFuncState>, row: &[DatumRef]) -> Result<(), EvalError> {
+    fn update_state(&self, state: &mut Box<dyn AggFunctionState>, row: &[DatumRef]) -> Result<(), EvalError> {
         assert_eq!(row.len(), 1);
         // ignore nulls
         let Some(val) = row[0] else {
@@ -79,21 +81,18 @@ impl AggFuncImpl for SumAggImpl {
         Ok(())
     }
 
-    fn extract_value(&self, state: &mut Box<dyn AggFuncState>) -> Datum {
+    fn extract_value(&self, state: &mut Box<dyn AggFunctionState>) -> Datum {
         let state = state.downcast_mut::<SumState>().expect("expected sum state");
         Some(state.acc.clone())
     }
 }
 
-pub(crate) fn register(registry: &mut FunctionRegistry) {
-    registry.insert(FuncDef {
-        name: "sum".to_string(),
-        impls: vec![FuncImpl::new_agg(
-            "sum",
-            vec![FuncImplArg::Exact(LogicalType::ANY)],
-            FuncImplReturn::Exact(LogicalType::ANY),
-            |_args| Ok(Arc::new(SumAggImpl)),
-        )],
-        is_agg: true,
-    });
+pub(crate) fn register(registry: &mut AggFunctionRegistry) {
+    let mut sum = AggFunctionSet::new("sum");
+    sum.add_function(agg_function!(
+        "sum",
+        [LogicalType::ANY] -> LogicalType::ANY,
+        |_args| Ok(Arc::new(SumAggFunctionExec))
+    ));
+    registry.insert(sum);
 }

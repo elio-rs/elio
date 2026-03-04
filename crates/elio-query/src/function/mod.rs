@@ -1,67 +1,89 @@
-//! Physical expressions
 pub mod agg;
 pub mod scalar;
-
-// the following function should be defined in cypher
-// compile an planner expr to executable expr
-// pub fn compile_expr(expr: Expr) -> Result<ExprImpl, EvalError> {
-//     todo!()
-// }
+pub mod sig;
 
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
-use crate::function::scalar::sig::{self, FuncDef, FuncImpl};
+use crate::function::sig::{AggFunctionSet, ScalarFunction, ScalarFunctionSet};
 
-// Global Function Registry
-pub struct FunctionRegistry {
-    pub name2def: HashMap<String, FuncDef>,
-    pub id2impl: HashMap<String, sig::FuncImpl>,
+#[derive(Clone, Debug)]
+pub struct ScalarFunctionRegistry {
+    entries: HashMap<String, ScalarFunctionSet>,
 }
 
-impl FunctionRegistry {
-    pub fn insert(&mut self, func: FuncDef) {
-        for impl_ in func.impls.iter() {
-            self.id2impl.insert(impl_.func_id.clone(), impl_.clone());
+impl Default for ScalarFunctionRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ScalarFunctionRegistry {
+    pub fn new() -> Self {
+        Self {
+            entries: HashMap::new(),
         }
-        self.name2def.insert(func.name.clone(), func);
     }
 
-    pub fn get_and_func_impl(&self) -> &FuncImpl {
-        // SAFETY:
-        //    there's only 1 and impl
-        self.name2def.get("and").unwrap().impls.first().unwrap()
+    pub fn insert(&mut self, func: ScalarFunctionSet) {
+        self.entries.insert(func.name.to_string(), func);
     }
 
-    pub fn get_or_func_impl(&self) -> &FuncImpl {
-        // SAFETY:
-        //    there's only 1 or impl
-        self.name2def.get("or").unwrap().impls.first().unwrap()
+    pub fn get_function(&self, name: &str) -> Option<&ScalarFunctionSet> {
+        self.entries.get(&name.to_lowercase())
     }
 
-    pub fn get_equal_func_impl(&self) -> &FuncImpl {
-        // SAFETY:
-        //    there's only 1 equal impl
-        self.name2def.get("eq").unwrap().impls.first().unwrap()
+    pub fn get_and_function(&self) -> ScalarFunction {
+        // NB: we assume there is only one and function
+        self.get_function("and").unwrap().functions.first().unwrap().clone()
     }
 
-    pub fn get_func_impl(&self, func_id: &str) -> &FuncImpl {
-        // SAFETY:
-        //    only called in expression builder, planner will guarantee the function exists
-        self.id2impl.get(func_id).unwrap()
+    pub fn get_or_function(&self) -> ScalarFunction {
+        // NB: we assume there is only one or function
+        self.get_function("or").unwrap().functions.first().unwrap().clone()
+    }
+
+    pub fn get_eq_function(&self) -> ScalarFunction {
+        // NB: we assume there is only one eq function
+        self.get_function("eq").unwrap().functions.first().unwrap().clone()
     }
 }
 
-pub static FUNCTION_REGISTRY: LazyLock<FunctionRegistry> = LazyLock::new(|| {
-    let mut registry = FunctionRegistry {
-        name2def: HashMap::new(),
-        id2impl: HashMap::new(),
-    };
+#[derive(Clone, Debug)]
+pub struct AggFunctionRegistry {
+    entries: HashMap<String, AggFunctionSet>,
+}
 
-    // register scalar functions
+impl AggFunctionRegistry {
+    pub fn new() -> Self {
+        Self {
+            entries: HashMap::new(),
+        }
+    }
+
+    pub fn insert(&mut self, func: AggFunctionSet) {
+        self.entries.insert(func.name.to_string(), func);
+    }
+
+    pub fn get_function(&self, name: &str) -> Option<&AggFunctionSet> {
+        self.entries.get(&name.to_lowercase())
+    }
+}
+
+impl Default for AggFunctionRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub static SCALAR_FUNCTION_REGISTRY: LazyLock<ScalarFunctionRegistry> = LazyLock::new(|| {
+    let mut registry = ScalarFunctionRegistry::new();
     scalar::register(&mut registry);
+    registry
+});
 
-    // register agg functions
+pub static AGG_FUNCTION_REGISTRY: LazyLock<AggFunctionRegistry> = LazyLock::new(|| {
+    let mut registry = AggFunctionRegistry::new();
     agg::register(&mut registry);
     registry
 });

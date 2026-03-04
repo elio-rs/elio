@@ -3,16 +3,19 @@
 //! - list_index: Get element at index from list
 //! - list_slice: Get a slice of list
 
+use std::sync::Arc;
+
 use bitvec::vec::BitVec;
 use elio_common::array::*;
 use elio_common::data_type::LogicalType;
 use elio_common::scalar::{ListValueRef, ScalarRef, ScalarVTable};
 
 use crate::execution::error::EvalError;
-use crate::function::scalar::FunctionRegistry;
-use crate::function::scalar::sig::{FuncDef, FuncImpl, FuncImplArg, FuncImplReturn};
+use crate::function::ScalarFunctionRegistry;
+use crate::function::sig::ScalarFunctionSet;
+use crate::scalar_function;
 
-/// list_index(list, index) -> element
+/// list_index(list, variant)
 /// Returns the element at the given index (0-based).
 /// Negative indices count from the end (-1 is the last element).
 pub fn list_index_batch(args: &[ArrayRef], vis: &BitVec, len: usize) -> Result<ArrayImpl, EvalError> {
@@ -68,7 +71,7 @@ pub fn list_index_batch(args: &[ArrayRef], vis: &BitVec, len: usize) -> Result<A
     Ok(builder.finish().into())
 }
 
-// args[0]: AnyArray
+/// list_index(variant, variant)
 pub fn any_list_index_batch(args: &[ArrayRef], vis: &BitVec, len: usize) -> Result<ArrayImpl, EvalError> {
     let any_arr = args[0]
         .as_variant()
@@ -211,73 +214,22 @@ pub fn list_slice_batch(args: &[ArrayRef], vis: &BitVec, len: usize) -> Result<A
     Ok(builder.finish().into())
 }
 
-pub(crate) fn register(registry: &mut FunctionRegistry) {
-    // list_index(List<T>, Int|Any) -> T
-    // Accept Any for index because unary operations (like -1) return Any type
-    let list_index_def = FuncDef {
-        name: "list_index".to_string(),
-        impls: vec![
-            FuncImpl::new_scalar(
-                "list_index",
-                vec![FuncImplArg::AnyList, FuncImplArg::Exact(LogicalType::INTEGER)],
-                FuncImplReturn::ListElement(0),
-                list_index_batch,
-            ),
-            FuncImpl::new_scalar(
-                "list_index",
-                vec![FuncImplArg::AnyList, FuncImplArg::Exact(LogicalType::ANY)],
-                FuncImplReturn::ListElement(0),
-                list_index_batch,
-            ),
-            FuncImpl::new_scalar(
-                "list_index",
-                vec![
-                    FuncImplArg::Exact(LogicalType::ANY),
-                    FuncImplArg::Exact(LogicalType::INTEGER),
-                ],
-                FuncImplReturn::ListElement(0),
-                any_list_index_batch,
-            ),
-            FuncImpl::new_scalar(
-                "list_index",
-                vec![
-                    FuncImplArg::Exact(LogicalType::ANY),
-                    FuncImplArg::Exact(LogicalType::ANY),
-                ],
-                FuncImplReturn::ListElement(0),
-                any_list_index_batch,
-            ),
-        ],
-        is_agg: false,
-    };
-    registry.insert(list_index_def);
+pub(crate) fn register(registry: &mut ScalarFunctionRegistry) {
+    let mut list_index = ScalarFunctionSet::new("list_index");
+    list_index.add_function(scalar_function!(
+        "list_index",
+        // TODO(pgao): change to list(any), integer
+        [LogicalType::new_list(LogicalType::ANY), LogicalType::INTEGER] -> LogicalType::ANY,
+        |_| Ok(Arc::new(list_index_batch))
+    ));
+    registry.insert(list_index);
 
-    // list_slice(List<T>, Int|Any, Int|Any) -> List<T>
-    let list_slice_def = FuncDef {
-        name: "list_slice".to_string(),
-        impls: vec![
-            FuncImpl::new_scalar(
-                "list_slice",
-                vec![
-                    FuncImplArg::AnyList,
-                    FuncImplArg::Exact(LogicalType::INTEGER),
-                    FuncImplArg::Exact(LogicalType::INTEGER),
-                ],
-                FuncImplReturn::SameAsArg(0),
-                list_slice_batch,
-            ),
-            FuncImpl::new_scalar(
-                "list_slice",
-                vec![
-                    FuncImplArg::AnyList,
-                    FuncImplArg::Exact(LogicalType::ANY),
-                    FuncImplArg::Exact(LogicalType::ANY),
-                ],
-                FuncImplReturn::SameAsArg(0),
-                list_slice_batch,
-            ),
-        ],
-        is_agg: false,
-    };
-    registry.insert(list_slice_def);
+    let mut list_slice = ScalarFunctionSet::new("list_slice");
+    list_slice.add_function(scalar_function!(
+        "list_slice",
+        // TODO(pgao): change to list(any), integer, integer
+        [LogicalType::new_list(LogicalType::ANY), LogicalType::INTEGER, LogicalType::INTEGER] -> LogicalType::new_list(LogicalType::ANY),
+        |_| Ok(Arc::new(list_slice_batch))
+    ));
+    registry.insert(list_slice);
 }

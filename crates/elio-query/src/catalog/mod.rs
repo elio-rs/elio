@@ -1,4 +1,11 @@
 pub mod error;
-pub mod func;
 pub mod index;
-pub use func::FunctionCatalog;
+use enum_as_inner::EnumAsInner;
+
+use crate::function::sig::{AggFunctionSet, ScalarFunctionSet};
+
+#[derive(EnumAsInner)]
+pub enum FunctionCatalogEntry {
+    Scalar(ScalarFunctionSet),
+    Agg(AggFunctionSet),
+}

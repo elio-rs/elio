@@ -8,11 +8,11 @@ pub mod agg_call;
 pub mod create_list;
 pub mod create_map;
 pub mod filters;
-/// Logical expr
-pub mod func_call;
 pub mod label;
 pub mod project_path;
 pub mod property_access;
+/// Logical expr
+pub mod scalar_call;
 pub mod subquery;
 pub mod utils;
 pub mod value;
@@ -22,10 +22,10 @@ pub use agg_call::*;
 pub use create_list::*;
 pub use create_map::*;
 pub use filters::*;
-pub use func_call::*;
 pub use label::*;
 pub use project_path::*;
 pub use property_access::*;
+pub use scalar_call::*;
 pub use subquery::*;
 pub use value::*;
 pub use variable_ref::*;
@@ -37,7 +37,7 @@ pub enum Expr {
     VariableRef(VariableRef),
     PropertyAccess(PropertyAccess),
     Constant(Constant),
-    FuncCall(FuncCall),
+    ScalarCall(ScalarCall),
     AggCall(AggCall),
     Subquery(Subquery),
     HasLabel(HasLabel),
@@ -81,7 +81,7 @@ impl_expr_node_for_enum!(
     VariableRef,
     PropertyAccess,
     Constant,
-    FuncCall,
+    ScalarCall,
     AggCall,
     Subquery,
     HasLabel,
@@ -123,15 +123,15 @@ impl Expr {
     // SAFETY:
     //   caller should guarantee inputs are bool
     pub fn and(self, rhs: Self) -> Self {
-        Expr::FuncCall(FuncCall::and_unchecked(vec![self, rhs]))
+        Expr::ScalarCall(ScalarCall::and_unchecked(vec![self, rhs]))
     }
 
     pub fn or(self, rhs: Self) -> Self {
-        Expr::FuncCall(FuncCall::or_unchecked(vec![self, rhs]))
+        Expr::ScalarCall(ScalarCall::or_unchecked(vec![self, rhs]))
     }
 
     pub fn equal(self, rhs: Self) -> Self {
-        Expr::FuncCall(FuncCall::equal_unchecked(vec![self, rhs]))
+        Expr::ScalarCall(ScalarCall::equal_unchecked(vec![self, rhs]))
     }
 
     pub fn property(self, prop: &IrToken, typ: &LogicalType) -> Self {
@@ -155,17 +155,17 @@ impl Expr {
                 format!("{}.{}", property_access.expr.pretty(), property_access.property)
             }
             Expr::Constant(constant) => constant.pretty(),
-            Expr::FuncCall(func_call) => {
+            Expr::ScalarCall(func_call) => {
                 format!(
                     "{}({})",
-                    func_call.func,
+                    func_call.function.name,
                     func_call.args.iter().map(|a| a.pretty()).collect::<Vec<_>>().join(", ")
                 )
             }
             Expr::AggCall(agg_call) => {
                 format!(
                     "{}({}{})",
-                    agg_call.func,
+                    agg_call.function.name,
                     if agg_call.distinct { "DISTINCT " } else { "" },
                     agg_call.args.iter().map(|a| a.pretty()).collect::<Vec<_>>().join(", ")
                 )
@@ -198,7 +198,7 @@ impl Expr {
             Expr::VariableRef(_) => vec![],
             Expr::PropertyAccess(access) => vec![access.expr.as_ref()],
             Expr::Constant(_) => vec![],
-            Expr::FuncCall(call) => call.args.iter().collect(),
+            Expr::ScalarCall(call) => call.args.iter().collect(),
             Expr::AggCall(call) => call.args.iter().collect(),
             Expr::Subquery(_) => vec![],
             Expr::HasLabel(has_label) => vec![has_label.entity.as_ref()],
@@ -214,7 +214,7 @@ impl Expr {
             Expr::VariableRef(_) => vec![],
             Expr::PropertyAccess(access) => vec![access.expr.as_mut()],
             Expr::Constant(_) => vec![],
-            Expr::FuncCall(call) => call.args.iter_mut().collect(),
+            Expr::ScalarCall(call) => call.args.iter_mut().collect(),
             Expr::AggCall(call) => call.args.iter_mut().collect(),
             Expr::Subquery(_) => vec![],
             Expr::HasLabel(has_label) => vec![has_label.entity.as_mut()],
@@ -237,25 +237,24 @@ impl Expr {
                 let child = f(expr);
                 Expr::PropertyAccess(PropertyAccess::new_unchecked(child.boxed(), &property, &typ))
             }
-            Expr::FuncCall(call) => {
-                let typ = call.typ();
-                let FuncCall {
-                    func, func_id, args, ..
+            Expr::ScalarCall(call) => {
+                let ScalarCall {
+                    args,
+                    function,
+                    function_data,
                 } = call;
                 let args = args.into_iter().map(&mut f).collect();
-                Expr::FuncCall(FuncCall::new_unchecked(func, func_id, args, typ))
+                Expr::ScalarCall(ScalarCall::new_unchecked(function, function_data, args))
             }
             Expr::AggCall(call) => {
-                let typ = call.typ();
                 let AggCall {
-                    func,
-                    func_id,
+                    function,
+                    function_data,
                     args,
                     distinct,
-                    ..
                 } = call;
                 let args = args.into_iter().map(&mut f).collect();
-                Expr::AggCall(AggCall::new_unchecked(func, func_id, args, distinct, typ))
+                Expr::AggCall(AggCall::new_unchecked(function, function_data, args, distinct))
             }
             Expr::HasLabel(has_label) => {
                 let entity = f(*has_label.entity);

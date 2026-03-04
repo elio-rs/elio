@@ -6,9 +6,11 @@ use async_trait::async_trait;
 use elio_common::catalog::IndexHint;
 use elio_common::{LabelId, PropertyKeyId, TokenId, TokenKind};
 use elio_parser::ast;
-use elio_query::catalog::FunctionCatalog;
+use elio_query::catalog::FunctionCatalogEntry;
 use elio_query::catalog::error::CatalogError;
-use elio_query::function::FUNCTION_REGISTRY;
+use elio_query::function::{
+    AGG_FUNCTION_REGISTRY, AggFunctionRegistry, SCALAR_FUNCTION_REGISTRY, ScalarFunctionRegistry,
+};
 use elio_query::plan::session::{self, PlanLevel, PlannerCatalog, PlannerSession, PlannerToken};
 use elio_query::planner::PlannerContext;
 use itertools::Itertools;
@@ -29,7 +31,8 @@ struct MockIndexKey {
 
 #[derive(Debug)]
 pub struct MockCatalog {
-    functions: HashMap<String, FunctionCatalog>,
+    scalar_functions: ScalarFunctionRegistry,
+    agg_functions: AggFunctionRegistry,
     tokens: Mutex<HashMap<TokenKey, TokenId>>,
     /// Mock indexes: (label_id, property_key_ids) -> (index_name)
     indexes: Mutex<HashMap<MockIndexKey, String>>,
@@ -37,21 +40,9 @@ pub struct MockCatalog {
 
 impl Default for MockCatalog {
     fn default() -> Self {
-        let functions = FUNCTION_REGISTRY
-            .name2def
-            .iter()
-            .map(|(k, v)| {
-                (
-                    k.clone(),
-                    FunctionCatalog {
-                        name: k.clone(),
-                        func: v.clone(),
-                    },
-                )
-            })
-            .collect();
         Self {
-            functions,
+            scalar_functions: SCALAR_FUNCTION_REGISTRY.clone(),
+            agg_functions: AGG_FUNCTION_REGISTRY.clone(),
             tokens: Default::default(),
             indexes: Default::default(),
         }
@@ -158,8 +149,17 @@ impl MockPlannerSession {
 }
 
 impl PlannerCatalog for MockPlannerSession {
-    fn resolve_function(&self, name: &str) -> Option<&FunctionCatalog> {
-        self.catalog.functions.get(&name.trim().to_lowercase())
+    fn resolve_function(&self, name: &str) -> Option<FunctionCatalogEntry> {
+        self.catalog
+            .scalar_functions
+            .get_function(&name.to_lowercase())
+            .map(|func| FunctionCatalogEntry::Scalar(func.clone()))
+            .or_else(|| {
+                self.catalog
+                    .agg_functions
+                    .get_function(&name.to_lowercase())
+                    .map(|func| FunctionCatalogEntry::Agg(func.clone()))
+            })
     }
 
     fn find_unique_index(

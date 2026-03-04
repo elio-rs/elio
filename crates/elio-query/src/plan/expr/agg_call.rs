@@ -1,33 +1,35 @@
 use elio_common::data_type::LogicalType;
 
+use crate::function::sig::{AggFunction, FunctionData};
 use crate::plan::expr::{Expr, ExprNode};
 
 #[derive(Debug, Hash, Clone, Eq, PartialEq)]
 pub struct AggCall {
-    /// function name
-    pub func: String,
-    /// function implementation id
-    pub func_id: String,
+    pub function: AggFunction,
+    pub function_data: Option<Box<dyn FunctionData>>,
     pub args: Vec<Expr>,
     pub distinct: bool,
-    typ: LogicalType,
 }
 
 impl AggCall {
-    pub fn new_unchecked(func: String, func_id: String, args: Vec<Expr>, distinct: bool, typ: LogicalType) -> Self {
+    pub fn new_unchecked(
+        function: AggFunction,
+        function_data: Option<Box<dyn FunctionData>>,
+        args: Vec<Expr>,
+        distinct: bool,
+    ) -> Self {
         Self {
-            func,
-            func_id,
+            function,
+            function_data,
             args,
             distinct,
-            typ,
         }
     }
 }
 
 impl ExprNode for AggCall {
     fn typ(&self) -> LogicalType {
-        self.typ.clone()
+        self.function.return_type.clone()
     }
 }
 
