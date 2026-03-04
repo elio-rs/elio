@@ -1,0 +1,24 @@
+- sql: |
+    UNWIND [1, 2, 3] AS x RETURN x
+  desc: unwind a literal list
+  tasks:
+    - bind
+    - plan
+- sql: |
+    MATCH (a) WITH a, a.friends AS friends UNWIND friends AS f RETURN a, f
+  desc: unwind a variable from with clause
+  tasks:
+    - bind
+    - plan
+- sql: |
+    UNWIND [1, 2, 3] AS x WITH x WHERE x > 1 RETURN x
+  desc: unwind with where filter
+  tasks:
+    - bind
+    - plan
+- sql: |
+    UNWIND [[1, 2], [3, 4]] AS x UNWIND x AS y RETURN y
+  desc: nested unwind
+  tasks:
+    - bind
+    - plan

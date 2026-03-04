@@ -27,6 +27,7 @@ pub trait PlanRewriter {
             PlanExpr::Sort(p) => self.rewrite_sort(p),
             PlanExpr::Filter(p) => self.rewrite_filter(p),
             PlanExpr::Pagination(p) => self.rewrite_pagination(p),
+            PlanExpr::Unwind(p) => self.rewrite_unwind(p),
             PlanExpr::Empty(p) => self.rewrite_empty(p),
             PlanExpr::BlackHole(p) => self.rewrite_black_hole(p),
         }
@@ -110,6 +111,10 @@ pub trait PlanRewriter {
 
     fn rewrite_pagination(&mut self, plan: Pagination) -> PlanExpr {
         self.rewrite_children(PlanExpr::Pagination(plan))
+    }
+
+    fn rewrite_unwind(&mut self, plan: Unwind) -> PlanExpr {
+        self.rewrite_children(PlanExpr::Unwind(plan))
     }
 
     fn rewrite_empty(&mut self, plan: Empty) -> PlanExpr {

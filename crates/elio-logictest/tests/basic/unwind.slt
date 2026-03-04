@@ -1,0 +1,84 @@
+# Test UNWIND clause
+
+# Basic unwind of literal integer list
+query A
+UNWIND [1, 2, 3] AS x RETURN x
+----
+1
+2
+3
+
+# Unwind string list
+query A
+UNWIND ['a', 'b', 'c'] AS x RETURN x
+----
+'a'
+'b'
+'c'
+
+# Unwind single element list
+query A
+UNWIND [42] AS x RETURN x
+----
+42
+
+# Unwind empty list produces no rows
+query A
+UNWIND [] AS x RETURN x
+----
+
+# Unwind with expression
+query A
+UNWIND [1 + 1, 2 * 3, 10 - 5] AS x RETURN x
+----
+2
+6
+5
+
+# Unwind with WHERE filter
+query A
+UNWIND [1, 2, 3, 4, 5] AS x WITH x WHERE x > 3 RETURN x
+----
+4
+5
+
+# Unwind with projection
+query AA
+UNWIND [10, 20, 30] AS x RETURN x, x * 2
+----
+10	20
+20	40
+30	60
+
+# Nested unwind
+query A
+UNWIND [[1, 2], [3, 4]] AS x UNWIND x AS y RETURN y
+----
+1
+2
+3
+4
+
+# Unwind null produces one row with null
+query A
+UNWIND null AS x RETURN x
+----
+null
+
+# Unwind with MATCH context
+query A
+CREATE (a:Animal{name: 'Cat', tags: ['cute', 'furry']}) RETURN *
+----
+{id: 1, labels: [Animal], props: {name: 'Cat', tags: ['cute', 'furry']}}
+
+query AA
+MATCH (a:Animal) UNWIND a.tags AS tag RETURN a.name, tag
+----
+'Cat'	'cute'
+'Cat'	'furry'
+
+# Unwind with aggregation (sum)
+query A
+UNWIND [1, 2, 3, 4, 5] AS x RETURN sum(x)
+----
+15

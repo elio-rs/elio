@@ -24,6 +24,7 @@ use crate::execution::executor::pagination::PaginationExecutor;
 use crate::execution::executor::produce_result::ProduceResultExecutor;
 use crate::execution::executor::project::ProjectExecutor;
 use crate::execution::executor::unit::UnitExecutor;
+use crate::execution::executor::unwind::UnwindExecutor;
 use crate::execution::executor::var_expand::{
     ExpandAllImpl, ExpandIntoImpl, TRAIL_PATH_MODE_FACTORY, VarExpandExecutor, WALK_PATH_MODE_FACTORY,
 };
@@ -115,6 +116,7 @@ fn build_node(ctx: &mut ExecutorBuildContext, node: &PlanExpr) -> Result<SharedE
         PlanExpr::Sort(_sort) => todo!(),
         PlanExpr::Filter(filter) => build_filter(ctx, filter, inputs),
         PlanExpr::Pagination(pagination) => build_pagination(ctx, pagination, inputs),
+        PlanExpr::Unwind(unwind) => build_unwind(ctx, unwind, inputs),
         PlanExpr::Empty(_empty) => todo!(),
         PlanExpr::BlackHole(black_hole) => build_black_hole(ctx, black_hole, inputs),
     }
@@ -805,6 +807,27 @@ fn build_pagination(
         offset: pagination.inner().offset,
         limit: pagination.inner().limit,
         schema: pagination.schema().clone(),
+    }
+    .into_shared())
+}
+
+fn build_unwind(
+    ctx: &mut ExecutorBuildContext,
+    node: &plan_node::Unwind,
+    inputs: Vec<SharedExecutor>,
+) -> Result<SharedExecutor, BuildError> {
+    assert_eq!(inputs.len(), 1);
+    let [input]: [SharedExecutor; 1] = inputs.try_into().unwrap();
+
+    let schema = input.schema().clone();
+    let ectx = BuildExprContext::new(&schema, ctx);
+
+    let expr = build_expression(&ectx, &node.inner().expr)?;
+
+    Ok(UnwindExecutor {
+        input,
+        expr,
+        schema: node.schema().clone(),
     }
     .into_shared())
 }

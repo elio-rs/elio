@@ -32,6 +32,7 @@ pub mod produce_result;
 pub mod project;
 pub mod sort;
 pub mod unit;
+pub mod unwind;
 pub mod var_expand;
 pub use aggregate::*;
 pub use all_node_scan::*;
@@ -53,6 +54,7 @@ pub use produce_result::*;
 pub use project::*;
 pub use sort::*;
 pub use unit::*;
+pub use unwind::*;
 pub use var_expand::*;
 
 #[derive(Default, Debug, Clone, Copy, derive_more::Display)]
@@ -86,6 +88,7 @@ pub enum PlanExpr {
     Sort(Sort),
     Filter(Filter),
     Pagination(Pagination),
+    Unwind(Unwind),
     Empty(Empty),
     BlackHole(BlackHole),
 }
@@ -167,6 +170,7 @@ impl_plan_node_common!(Distinct, DistinctInner);
 impl_plan_node_common!(Sort, SortInner);
 impl_plan_node_common!(Filter, FilterInner);
 impl_plan_node_common!(Pagination, PaginationInner);
+impl_plan_node_common!(Unwind, UnwindInner);
 impl_plan_node_common!(Empty, EmptyInner);
 impl_plan_node_common!(BlackHole, BlackHoleInner);
 impl_plan_node_common!(ProduceResult, ProduceResultInner);
@@ -227,6 +231,7 @@ impl_plan_expr_dispatch!(
     Sort,
     Filter,
     Pagination,
+    Unwind,
     Empty,
     BlackHole,
     ProduceResult
@@ -419,6 +424,11 @@ impl PlanExpr {
                 let PaginationInner { input, offset, limit } = plan.into_inner();
                 let input = Box::new(f(*input)?);
                 Ok(Pagination::new(PaginationInner { input, offset, limit }).into())
+            }
+            PlanExpr::Unwind(plan) => {
+                let UnwindInner { input, expr, variable } = plan.into_inner();
+                let input = Box::new(f(*input)?);
+                Ok(Unwind::new(UnwindInner { input, expr, variable }).into())
             }
             PlanExpr::Empty(plan) => Ok(PlanExpr::Empty(plan)),
             PlanExpr::BlackHole(plan) => {

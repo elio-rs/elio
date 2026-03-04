@@ -28,6 +28,7 @@ pub mod produce_result;
 pub mod project;
 pub mod relscan;
 pub mod unit;
+pub mod unwind;
 pub mod var_expand;
 
 pub type DataChunkStream = Pin<Box<dyn Stream<Item = Result<DataChunk, ExecError>> + Send>>;
