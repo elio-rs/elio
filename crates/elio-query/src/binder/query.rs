@@ -1,3 +1,4 @@
+use elio_common::schema::Variable;
 use elio_common::variable::VariableName;
 use elio_parser::ast;
 use indexmap::IndexMap;
@@ -5,12 +6,15 @@ use indexmap::IndexMap;
 use crate::binder::BindContext;
 use crate::binder::builder::IrSingleQueryBuilder;
 use crate::binder::create::bind_create;
+use crate::binder::expr::bind_expr;
 use crate::binder::load::bind_load;
 use crate::binder::match_::bind_match;
 use crate::binder::project_body::bind_return_items;
-use crate::binder::scope::Scope;
+use crate::binder::scope::{Scope, ScopeItem};
 use crate::plan::error::{PlanError, SemanticError};
+use crate::plan::expr::ExprNode;
 use crate::plan::ir::query::{IrQuery, IrQueryRoot, IrSingleQuery};
+use crate::plan::ir::query_project::{QueryProjection, Unwind};
 use crate::plan::session::PlannerSession;
 
 #[derive(Debug, Clone, derive_more::Display)]
@@ -19,6 +23,7 @@ pub enum ClauseKind {
     Match,
     With,
     Return,
+    Unwind,
 }
 
 pub fn bind_root_query(sctx: &dyn PlannerSession, query: &ast::RegularQuery) -> Result<IrQueryRoot, PlanError> {
@@ -84,7 +89,7 @@ fn bind_single_query(bctx: &BindContext, query: &ast::SingleQuery) -> Result<(Ir
             ast::Clause::Match(match_clause) => bind_match(bctx, &mut builder, in_scope, match_clause)?,
             ast::Clause::With(with_clause) => bind_with(bctx, &mut builder, in_scope, with_clause)?,
             ast::Clause::Return(return_clause) => bind_return(bctx, &mut builder, in_scope, return_clause)?,
-            ast::Clause::Unwind(_unwind_clause) => todo!(),
+            ast::Clause::Unwind(unwind_clause) => bind_unwind(bctx, &mut builder, in_scope, unwind_clause)?,
         };
     }
     // fix: if clause does not ends with return, then return an empty in scope
@@ -137,6 +142,48 @@ fn bind_with(
     // start a new part
     builder.new_tail(scope.items.iter().map(|item| item.as_variable()).collect());
     Ok(scope)
+}
+
+fn bind_unwind(
+    bctx: &BindContext,
+    builder: &mut IrSingleQueryBuilder,
+    in_scope: Scope,
+    unwind @ ast::UnwindClause { expr, variable }: &ast::UnwindClause,
+) -> Result<Scope, PlanError> {
+    let ctx_name = unwind.to_string();
+
+    // semantic check: variable name must not conflict with existing variables
+    if in_scope.resolve_symbol(variable).is_some() {
+        return Err(SemanticError::variable_already_defined(variable, &ctx_name).into());
+    }
+
+    // bind the expression in the current scope
+    let ectx = bctx.derive_expr_context(&in_scope, &ctx_name);
+    let bound_expr = bind_expr(&ectx, &bctx.outer_scopes, expr)?;
+
+    // determine the element type: if expr is List(T), element is T; otherwise expr_type
+    let expr_type = bound_expr.typ();
+    let element_type = expr_type.as_list().cloned().unwrap_or(expr_type);
+
+    let var_name = bctx.variable_generator.named(variable);
+    let var = Variable::new(&var_name, &element_type);
+
+    let ir_unwind = Unwind {
+        variable: var,
+        expr: bound_expr,
+    };
+    builder
+        .tail_mut()
+        .unwrap()
+        .with_projection(QueryProjection::Unwind(ir_unwind));
+
+    let mut out_scope = in_scope;
+    let item = ScopeItem::new_variable(var_name, Some(variable), element_type);
+    out_scope.add_item(item);
+
+    builder.new_tail(out_scope.items.iter().map(|item| item.as_variable()).collect());
+
+    Ok(out_scope)
 }
 
 fn bind_return(

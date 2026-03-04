@@ -52,7 +52,7 @@ make build
 ### Interactive CLI
 
 ```bash
-cargo run -p cmd
+cargo run -p elio-cmd
 ```
 
 ```

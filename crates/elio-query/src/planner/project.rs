@@ -13,7 +13,7 @@ use crate::plan::ir::query_project::{
 };
 use crate::plan::plan_node::{
     Aggregate, AggregateInner, Distinct, DistinctInner, Filter, FilterInner, PaginationInner, PlanExpr, Project,
-    ProjectInner, Sort, SortInner,
+    ProjectInner, Sort, SortInner, UnwindInner,
 };
 use crate::planner::PlannerContext;
 
@@ -204,10 +204,15 @@ fn plan_distinct(
 
 fn plan_unwind(
     _ctx: &mut PlannerContext,
-    _root: Box<PlanExpr>,
-    _unwind @ Unwind { .. }: &Unwind,
+    root: Box<PlanExpr>,
+    Unwind { variable, expr }: &Unwind,
 ) -> Result<Box<PlanExpr>, PlanError> {
-    Err(PlanError::not_supported("unwind clause not implemented yet."))
+    let inner = UnwindInner {
+        input: root,
+        expr: expr.clone(),
+        variable: variable.clone(),
+    };
+    Ok(crate::plan::plan_node::Unwind::new(inner).into())
 }
 
 // WITH a, a.id + 1 AS b, c ORDER BY c.id + 1 ASC

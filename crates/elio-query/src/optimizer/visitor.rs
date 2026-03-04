@@ -30,6 +30,7 @@ pub trait PlanVisitor<C = ()> {
             PlanExpr::Sort(p) => self.visit_sort(p, ctx),
             PlanExpr::Filter(p) => self.visit_filter(p, ctx),
             PlanExpr::Pagination(p) => self.visit_pagination(p, ctx),
+            PlanExpr::Unwind(p) => self.visit_unwind(p, ctx),
             PlanExpr::Empty(p) => self.visit_empty(p, ctx),
             PlanExpr::BlackHole(p) => self.visit_black_hole(p, ctx),
         }
@@ -116,6 +117,10 @@ pub trait PlanVisitor<C = ()> {
 
     fn visit_pagination(&mut self, plan: &Pagination, ctx: &C) -> Self::Output {
         self.visit_children(&PlanExpr::Pagination(plan.clone()), ctx)
+    }
+
+    fn visit_unwind(&mut self, plan: &Unwind, ctx: &C) -> Self::Output {
+        self.visit_children(&PlanExpr::Unwind(plan.clone()), ctx)
     }
 
     fn visit_empty(&mut self, _plan: &Empty, _ctx: &C) -> Self::Output {
