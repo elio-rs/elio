@@ -5,8 +5,8 @@ MATCH (n:User {id: '123'}) RETURN n
 RootPlan { names: [n] }
 └─ProduceResult { return_columns: n@0 }
   └─Project { exprs: [n@0 AS n@0] }
-    └─Filter { condition: n@0:User AND eq(n@0.id, '123') }
-      └─AllNodeScan { variable: n@0 }
+    └─Filter { condition: eq(n@0.id, '123') }
+      └─NodeByLabelScan { variable: n@0, label: User }
 */
 
 -- create unique constraint

@@ -95,6 +95,35 @@ fn extract_label_predicate(target_var: &Variable, predicate: &FilterExprs) -> In
     result
 }
 
+/// Information for a label scan candidate
+#[derive(Debug)]
+pub struct LabelScanCandidate {
+    pub variable: VariableName,
+    pub label: IrToken,
+    pub solved_predicate: FilterExprs,
+}
+
+/// Find a label scan candidate for the given node variable.
+/// Accepts both resolved and unresolved labels — for unresolved labels,
+/// the executor will return empty results at execution time.
+pub fn find_label_scan_candidate(filter: &FilterExprs, node_var: &Variable) -> Option<LabelScanCandidate> {
+    for expr in filter.iter() {
+        if let Expr::HasLabel(HasLabel { entity, label_or_rel }) = expr
+            && let Expr::VariableRef(var_ref) = entity.as_ref()
+            && var_ref.name == node_var.name
+        {
+            let has_label_expr = Expr::new_has_label(node_var.clone(), label_or_rel.clone());
+
+            return Some(LabelScanCandidate {
+                variable: node_var.name.clone(),
+                label: label_or_rel.clone(),
+                solved_predicate: FilterExprs::from(has_label_expr),
+            });
+        }
+    }
+    None
+}
+
 // var.prop = value
 // sovled_filter is the orignal expression that can be solved by this predicate
 #[derive(Debug)]

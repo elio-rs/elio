@@ -9,6 +9,7 @@ pub trait PlanRewriter {
     fn dispatch(&mut self, plan: PlanExpr) -> PlanExpr {
         match plan {
             PlanExpr::AllNodeScan(p) => self.rewrite_all_node_scan(p),
+            PlanExpr::NodeByLabelScan(p) => self.rewrite_node_by_label_scan(p),
             PlanExpr::NodeIndexSeek(p) => self.rewrite_node_index_seek(p),
             PlanExpr::GetProperty(p) => self.rewrite_get_property(p),
             PlanExpr::Expand(p) => self.rewrite_expand(p),
@@ -39,6 +40,10 @@ pub trait PlanRewriter {
 
     fn rewrite_all_node_scan(&mut self, plan: AllNodeScan) -> PlanExpr {
         self.rewrite_children(PlanExpr::AllNodeScan(plan))
+    }
+
+    fn rewrite_node_by_label_scan(&mut self, plan: NodeByLabelScan) -> PlanExpr {
+        self.rewrite_children(PlanExpr::NodeByLabelScan(plan))
     }
 
     fn rewrite_node_index_seek(&mut self, plan: NodeIndexSeek) -> PlanExpr {

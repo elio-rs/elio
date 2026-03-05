@@ -46,10 +46,10 @@ RootPlan { names: [row, f, p] }
       └─Apply
         ├─Load { source_url: https://example.com/data.csv, variable: row@0, format: CsvLoadFormat { header: true, delimiter: , } }
         └─CrossProduct
-          ├─Filter { condition: f@1:Forum AND eq(f@1.id, tointeger(row@0.Forum.id)) }
-          │ └─AllNodeScan { variable: f@1, arguments: [row@0] }
-          └─Filter { condition: p@2:Post AND eq(p@2.id, tointeger(row@0.Post.id)) }
-            └─AllNodeScan { variable: p@2, arguments: [row@0] }
+          ├─Filter { condition: eq(f@1.id, tointeger(row@0.Forum.id)) }
+          │ └─NodeByLabelScan { variable: f@1, label: Forum, arguments: [row@0] }
+          └─Filter { condition: eq(p@2.id, tointeger(row@0.Post.id)) }
+            └─NodeByLabelScan { variable: p@2, label: Post, arguments: [row@0] }
 */
 
 -- Create a unique constraint on the forum id

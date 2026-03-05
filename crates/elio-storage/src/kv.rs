@@ -26,7 +26,7 @@ impl KvEngine {
             rocksdb::ColumnFamilyDescriptor::new(cf_catalog::CF_NAME, rocksdb::Options::default()),
             rocksdb::ColumnFamilyDescriptor::new(cf_meta::CF_NAME, rocksdb::Options::default()),
             rocksdb::ColumnFamilyDescriptor::new(cf_topology::CF_NAME, rocksdb::Options::default()),
-            rocksdb::ColumnFamilyDescriptor::new(cf_property::CF_NAME, rocksdb::Options::default()),
+            rocksdb::ColumnFamilyDescriptor::new(cf_data::CF_NAME, rocksdb::Options::default()),
             rocksdb::ColumnFamilyDescriptor::new(cf_indexdata::CF_NAME, rocksdb::Options::default()),
         ];
         let db = match RocksKV::open_cf_descriptors(&opts, path, cf_descriptors) {
@@ -37,7 +37,7 @@ impl KvEngine {
                 db.create_cf(cf_catalog::CF_NAME, &cf_opts)?;
                 db.create_cf(cf_meta::CF_NAME, &cf_opts)?;
                 db.create_cf(cf_topology::CF_NAME, &cf_opts)?;
-                db.create_cf(cf_property::CF_NAME, &cf_opts)?;
+                db.create_cf(cf_data::CF_NAME, &cf_opts)?;
                 db.create_cf(cf_indexdata::CF_NAME, &cf_opts)?;
                 db
             }
@@ -76,10 +76,12 @@ pub(crate) mod cf_topology {
     pub const REL_KEY_PREFIX: u8 = 0x01;
 }
 
-pub(crate) mod cf_property {
+pub(crate) mod cf_data {
+    pub const CF_NAME: &str = "cf_data";
     // node property
-    pub const CF_NAME: &str = "cf_property";
     pub const NODE_KEY_PREFIX: &[u8; 1] = &[0x01];
+    // label index
+    pub const LABEL_INDEX_PREFIX: u8 = 0x02;
 }
 
 // index data

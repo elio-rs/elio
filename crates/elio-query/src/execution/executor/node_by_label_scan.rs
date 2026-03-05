@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use async_stream::try_stream;
+use elio_common::IrToken;
 use elio_common::array::chunk::{DataChunk, DataChunkBuilder};
 use elio_common::schema::Schema;
 use elio_storage::transaction::NodeScanOptions;
@@ -14,39 +15,49 @@ use crate::execution::executor::apply::OutputColumnSource;
 const CHANNEL_BUFFER_SIZE: usize = 128;
 
 #[derive(Debug)]
-pub struct AllNodeScanExectuor {
+pub struct NodeByLabelScanExecutor {
     pub schema: Arc<Schema>,
+    pub label: IrToken,
     pub input: Option<SharedExecutor>,
     pub output_mapping: Option<Vec<OutputColumnSource>>,
 }
 
-impl AllNodeScanExectuor {
-    pub fn new(schema: Arc<Schema>) -> Self {
+impl NodeByLabelScanExecutor {
+    pub fn new(schema: Arc<Schema>, label: IrToken) -> Self {
         Self {
             schema,
+            label,
             input: None,
             output_mapping: None,
         }
     }
 
-    pub fn with_input(schema: Arc<Schema>, input: SharedExecutor, output_mapping: Vec<OutputColumnSource>) -> Self {
+    pub fn with_input(
+        schema: Arc<Schema>,
+        label: IrToken,
+        input: SharedExecutor,
+        output_mapping: Vec<OutputColumnSource>,
+    ) -> Self {
         Self {
             schema,
+            label,
             input: Some(input),
             output_mapping: Some(output_mapping),
         }
     }
 }
 
-/// Scan all nodes from storage, returns a receiver for node chunks
-fn scan_nodes(qctx: &Arc<QueryContext>) -> mpsc::Receiver<Result<DataChunk, ExecError>> {
+fn scan_nodes_by_label(
+    qctx: &Arc<QueryContext>,
+    label_id: elio_common::TokenId,
+) -> mpsc::Receiver<Result<DataChunk, ExecError>> {
     let (tx, rx) = mpsc::channel::<Result<DataChunk, ExecError>>(CHANNEL_BUFFER_SIZE);
     let txn = qctx.tx.clone();
     let graph_store = qctx.db.graph_store().clone();
 
     tokio::task::spawn_blocking(move || {
         let opts = NodeScanOptions { batch_size: CHUNK_SIZE };
-        let mut iter = match graph_store.node_scan(&txn, opts) {
+        let mut iter = match graph_store.node_scan_by_label(&txn, label_id, opts) {
             Ok(iter) => iter,
             Err(e) => {
                 let _ = tx.blocking_send(Err(e.into()));
@@ -72,15 +83,21 @@ fn scan_nodes(qctx: &Arc<QueryContext>) -> mpsc::Receiver<Result<DataChunk, Exec
     rx
 }
 
-impl Executor for AllNodeScanExectuor {
+impl Executor for NodeByLabelScanExecutor {
     fn open(&self, ctx: Arc<QueryContext>) -> Result<DataChunkStream, ExecError> {
         let schema = self.schema.clone();
+        let label = self.label.clone();
         let input = self.input.clone();
         let output_mapping = self.output_mapping.clone();
 
         let stream = try_stream! {
+            // For unresolved labels, no nodes can match — yield nothing
+            let label_id = match &label {
+                IrToken::Resolved { token, .. } => *token,
+                IrToken::Unresolved(_) => return,
+            };
+
             if let Some(input) = input {
-                // with input: for each input chunk, rescan all nodes
                 let mapping = output_mapping.unwrap();
                 let mut out_builder = DataChunkBuilder::new(
                     schema.columns().iter().map(|col| col.typ.clone()),
@@ -93,12 +110,10 @@ impl Executor for AllNodeScanExectuor {
                 while let Some(input_chunk_result) = input_stream.next().await {
                     let input_chunk = input_chunk_result?.compact();
 
-                    // rescan nodes for this input chunk
-                    let mut rx = scan_nodes(&ctx);
+                    let mut rx = scan_nodes_by_label(&ctx, label_id);
                     while let Some(node_chunk_result) = rx.recv().await {
                         let node_chunk = node_chunk_result?.compact();
 
-                        // cross product: input_chunk × node_chunk
                         for input_row in input_chunk.iter() {
                             for node_row in node_chunk.iter() {
                                 let mut output_row = Vec::with_capacity(mapping.len());
@@ -121,8 +136,7 @@ impl Executor for AllNodeScanExectuor {
                     yield chunk;
                 }
             } else {
-                // no input: just scan and yield
-                let mut rx = scan_nodes(&ctx);
+                let mut rx = scan_nodes_by_label(&ctx, label_id);
                 while let Some(chunk_result) = rx.recv().await {
                     yield chunk_result?;
                 }
@@ -138,6 +152,6 @@ impl Executor for AllNodeScanExectuor {
     }
 
     fn name(&self) -> &'static str {
-        "AllNodeScan"
+        "NodeByLabelScan"
     }
 }

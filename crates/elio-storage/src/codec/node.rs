@@ -11,14 +11,14 @@ use elio_common::mapb::{PropertyMapMut, PropertyMapRef};
 use elio_common::scalar::StructValueRef;
 use elio_common::{LabelId, NodeId, TokenId};
 
-use crate::kv::cf_property;
+use crate::kv::cf_data;
 
 pub struct NodeFormat;
 
 impl NodeFormat {
     pub fn encode_node_key(node_id: NodeId) -> Bytes {
         let mut key = BytesMut::new();
-        key.put_slice(cf_property::NODE_KEY_PREFIX);
+        key.put_slice(cf_data::NODE_KEY_PREFIX);
         // use big endian to let nodes ordered by node id
         key.put_u64(*node_id);
         key.freeze()
