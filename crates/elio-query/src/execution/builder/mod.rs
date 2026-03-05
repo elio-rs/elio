@@ -99,9 +99,7 @@ fn build_node(ctx: &mut ExecutorBuildContext, node: &PlanExpr) -> Result<SharedE
 
     match node {
         PlanExpr::AllNodeScan(all_node_scan) => build_all_node_scan(ctx, all_node_scan, inputs),
-        PlanExpr::NodeByLabelScan(node_by_label_scan) => {
-            build_node_by_label_scan(ctx, node_by_label_scan, inputs)
-        }
+        PlanExpr::NodeByLabelScan(node_by_label_scan) => build_node_by_label_scan(ctx, node_by_label_scan, inputs),
         PlanExpr::NodeIndexSeek(node_index_seek) => build_node_index_seek(ctx, node_index_seek, inputs),
         PlanExpr::GetProperty(_get_property) => todo!(),
         PlanExpr::Expand(expand) => build_expand(ctx, expand, inputs),
