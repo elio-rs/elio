@@ -78,12 +78,6 @@ elio> MATCH (n:Person) WHERE n.age > 25 RETURN n.name
 Executed in 0.002s
 ```
 
-### Use a Persistent Database
-
-```bash
-cargo run -p cmd -- --db-path ./my_graph.elio
-```
-
 ## Cypher Examples
 
 ```cypher

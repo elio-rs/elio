@@ -6,3 +6,6 @@ Cargo.lock
 
 # generated test db folder
 .elio/
+# copilot
+.claude/
+CLAUDE.md
