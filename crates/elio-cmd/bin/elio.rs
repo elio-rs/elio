@@ -169,10 +169,16 @@ async fn run_repl(sess: Arc<Session>) {
 fn statements_from_file(path: &PathBuf) -> Result<Vec<String>, String> {
     let content = fs::read_to_string(path).map_err(|e| format!("Failed to read file {}: {}", path.display(), e))?;
 
+    let filtered: String = content
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
     let mut statements = Vec::new();
     let mut current = String::new();
 
-    for ch in content.chars() {
+    for ch in filtered.chars() {
         current.push(ch);
 
         if ch == ';' {
