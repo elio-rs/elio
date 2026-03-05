@@ -59,6 +59,32 @@
 - sql: |
     MATCH (a)--(b) RETURN SUM(a.age)
   desc: global sum with pre projection
-  tasks: 
+  tasks:
+    - bind
+    - plan
+
+# count aggregate
+- sql: |
+    MATCH (a)--(b) RETURN a, count(b)
+  desc: aggregate count
+  tasks:
+    - bind
+    - plan
+- sql: |
+    MATCH (a)--(b) RETURN a, count(*)
+  desc: aggregate count star
+  tasks:
+    - bind
+    - plan
+- sql: |
+    MATCH (a)--(b) RETURN count(*)
+  desc: global count star
+  tasks:
+    - bind
+    - plan
+- sql: |
+    MATCH (a)--(b) RETURN count(a.age)
+  desc: global count with pre projection
+  tasks:
     - bind
     - plan

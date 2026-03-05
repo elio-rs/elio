@@ -174,3 +174,72 @@ RootPlan { names: [SUM(a.age)] }
         └─AllNodeScan { variable: a@0 }
 */
 
+-- aggregate count
+MATCH (a)--(b) RETURN a, count(b)
+
+/*
+RootIR { names: [a, count(b)] }
+└─IrSingleQueryPart
+  ├─match_pattern
+  │ └─QueryGraph { nodes: [a@0, b@1], rels: [(a@0)<-[anon@2:]->(b@1)] }
+  └─projection
+    └─Aggregate { group_by: [a@0 AS a@0], aggregate: [countb@3 AS count(b@1)], post_projection: [a@0 AS a@0, countb@3 AS countb@3] }
+RootPlan { names: [a, count(b)] }
+└─ProduceResult { return_columns: a@0,countb@3 }
+  └─Aggregate { group_by: [a@0 AS a@0], aggregate: [countb@3 AS count(b@1)] }
+    └─ExpandAll { from: a@0, to: b@1, rel: anon@2, direction: -, types: [] }
+      └─AllNodeScan { variable: a@0 }
+*/
+
+-- aggregate count star
+MATCH (a)--(b) RETURN a, count(*)
+
+/*
+RootIR { names: [a, count()] }
+└─IrSingleQueryPart
+  ├─match_pattern
+  │ └─QueryGraph { nodes: [a@0, b@1], rels: [(a@0)<-[anon@2:]->(b@1)] }
+  └─projection
+    └─Aggregate { group_by: [a@0 AS a@0], aggregate: [count@3 AS count()], post_projection: [a@0 AS a@0, count@3 AS count@3] }
+RootPlan { names: [a, count()] }
+└─ProduceResult { return_columns: a@0,count@3 }
+  └─Aggregate { group_by: [a@0 AS a@0], aggregate: [count@3 AS count()] }
+    └─ExpandAll { from: a@0, to: b@1, rel: anon@2, direction: -, types: [] }
+      └─AllNodeScan { variable: a@0 }
+*/
+
+-- global count star
+MATCH (a)--(b) RETURN count(*)
+
+/*
+RootIR { names: [count()] }
+└─IrSingleQueryPart
+  ├─match_pattern
+  │ └─QueryGraph { nodes: [a@0, b@1], rels: [(a@0)<-[anon@2:]->(b@1)] }
+  └─projection
+    └─Aggregate { aggregate: [count@3 AS count()], post_projection: [count@3 AS count@3] }
+RootPlan { names: [count()] }
+└─ProduceResult { return_columns: count@3 }
+  └─Aggregate { aggregate: [count@3 AS count()] }
+    └─ExpandAll { from: a@0, to: b@1, rel: anon@2, direction: -, types: [] }
+      └─AllNodeScan { variable: a@0 }
+*/
+
+-- global count with pre projection
+MATCH (a)--(b) RETURN count(a.age)
+
+/*
+RootIR { names: [count(a.age)] }
+└─IrSingleQueryPart
+  ├─match_pattern
+  │ └─QueryGraph { nodes: [a@0, b@1], rels: [(a@0)<-[anon@2:]->(b@1)] }
+  └─projection
+    └─Aggregate { aggregate: [countaage@3 AS count(a@0.age)], post_projection: [countaage@3 AS countaage@3] }
+RootPlan { names: [count(a.age)] }
+└─ProduceResult { return_columns: countaage@3 }
+  └─Aggregate { aggregate: [countaage@3 AS count(anon@0)] }
+    └─Project { exprs: [anon@0 AS a@0.age] }
+      └─ExpandAll { from: a@0, to: b@1, rel: anon@2, direction: -, types: [] }
+        └─AllNodeScan { variable: a@0 }
+*/
+
