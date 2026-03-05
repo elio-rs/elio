@@ -1,0 +1,33 @@
+# Test aggregate functions
+
+# count(*) with UNWIND
+query A
+UNWIND [1, 2, 3] AS x RETURN count(*)
+----
+3
+
+# count(expr) with non-null values
+query A
+UNWIND [1, 2, 3, 4, 5] AS x RETURN count(x)
+----
+5
+
+# count(expr) with null values should skip nulls
+query A
+UNWIND [1, null, 3, null, 5] AS x RETURN count(x)
+----
+3
+
+# count(*) counts all rows including nulls
+query A
+UNWIND [1, null, 3, null, 5] AS x RETURN count(*)
+----
+5
+
+# count with GROUP BY
+query AA
+UNWIND [1, 1, 2, 2, 2] AS x RETURN x, count(*)
+----
+1	2
+2	3
+

@@ -686,7 +686,11 @@ peg::parser! {
 
 
     rule function_call() -> Expr
-        = name:ident() _? "(" _? distinct:distinct()? _? args:(expr() ** comma_separator()) _? ")" {
+        // for function like `count(*)`
+        = name:ident() _? "(" _? "*" _? ")" {
+            Expr::new_function_call(name.to_string(), false, vec![])
+        }
+        / name:ident() _? "(" _? distinct:distinct()? _? args:(expr() ** comma_separator()) _? ")" {
             Expr::new_function_call(name.to_string(), distinct.unwrap_or(false), args)
         }
 
