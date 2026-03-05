@@ -22,6 +22,7 @@ pub mod expand;
 pub mod filter;
 pub mod hash_aggregate;
 pub mod load_csv;
+pub mod node_by_label_scan;
 pub mod node_index_seek;
 pub mod pagination;
 pub mod produce_result;

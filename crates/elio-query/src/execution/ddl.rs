@@ -12,6 +12,7 @@ use hashbrown::HashSet;
 
 use crate::execution::QueryContext;
 use crate::execution::error::ExecError;
+use crate::execution::executor::CHUNK_SIZE;
 
 pub struct CreateConstraintExecutor {
     constraint_kind: ConstraintKind,
@@ -73,7 +74,7 @@ fn build_index(
 
     let mut seen_keys: HashSet<Vec<u8>> = HashSet::new();
 
-    let opts = NodeScanOptions { batch_size: 1024 };
+    let opts = NodeScanOptions { batch_size: CHUNK_SIZE };
     let mut iter = qctx.graph_store().node_scan(qctx.txn().as_ref(), opts)?;
 
     while let Some(chunk) = iter.next_batch()? {

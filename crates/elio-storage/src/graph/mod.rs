@@ -64,6 +64,15 @@ impl GraphStore {
         node::batch_node_scan(tx, opts)
     }
 
+    pub fn node_scan_by_label<'a>(
+        &'a self,
+        tx: &'a Transaction,
+        label_id: LabelId,
+        opts: NodeScanOptions,
+    ) -> Result<Box<dyn DataChunkIterator + 'a>, GraphStoreError> {
+        node::batch_node_scan_by_label(tx, label_id, opts)
+    }
+
     pub fn materialize_node(
         &self,
         tx: &Transaction,

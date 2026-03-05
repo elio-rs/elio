@@ -25,6 +25,7 @@ pub mod expand;
 pub mod filter;
 pub mod get_prop;
 pub mod load;
+pub mod node_by_label_scan;
 pub mod node_index_seek;
 pub mod pagination;
 pub mod plan_base;
@@ -48,6 +49,7 @@ pub use expand::*;
 pub use filter::*;
 pub use get_prop::*;
 pub use load::*;
+pub use node_by_label_scan::*;
 pub use node_index_seek::*;
 pub use pagination::*;
 pub use produce_result::*;
@@ -68,6 +70,7 @@ pub enum PathMode {
 pub enum PlanExpr {
     // graph
     AllNodeScan(AllNodeScan),
+    NodeByLabelScan(NodeByLabelScan),
     NodeIndexSeek(NodeIndexSeek),
     GetProperty(GetProperty),
     Expand(Expand),
@@ -154,6 +157,7 @@ macro_rules! impl_plan_node_common {
 }
 
 impl_plan_node_common!(AllNodeScan, AllNodeScanInner);
+impl_plan_node_common!(NodeByLabelScan, NodeByLabelScanInner);
 impl_plan_node_common!(NodeIndexSeek, NodeIndexSeekInner);
 impl_plan_node_common!(GetProperty, GetPropertyInner);
 impl_plan_node_common!(Expand, ExpandInner);
@@ -214,6 +218,7 @@ macro_rules! impl_plan_expr_dispatch {
 
 impl_plan_expr_dispatch!(
     AllNodeScan,
+    NodeByLabelScan,
     NodeIndexSeek,
     GetProperty,
     Expand,
@@ -276,6 +281,19 @@ impl PlanExpr {
                     None => None,
                 };
                 Ok(AllNodeScan::new(AllNodeScanInner::new(variable, arguments, ctx)).into())
+            }
+            PlanExpr::NodeByLabelScan(plan) => {
+                let NodeByLabelScanInner {
+                    variable,
+                    label,
+                    arguments,
+                    ctx,
+                } = plan.into_inner();
+                let arguments = match arguments {
+                    Some(arg) => Some(Box::new(f(*arg)?)),
+                    None => None,
+                };
+                Ok(NodeByLabelScan::new(NodeByLabelScanInner::new(variable, label, arguments, ctx)).into())
             }
             PlanExpr::NodeIndexSeek(plan) => {
                 let NodeIndexSeekInner {

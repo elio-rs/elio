@@ -12,6 +12,7 @@ pub trait PlanVisitor<C = ()> {
     fn dispatch(&mut self, plan: &PlanExpr, ctx: &C) -> Self::Output {
         match plan {
             PlanExpr::AllNodeScan(p) => self.visit_all_node_scan(p, ctx),
+            PlanExpr::NodeByLabelScan(p) => self.visit_node_by_label_scan(p, ctx),
             PlanExpr::NodeIndexSeek(p) => self.visit_node_index_seek(p, ctx),
             PlanExpr::GetProperty(p) => self.visit_get_property(p, ctx),
             PlanExpr::Expand(p) => self.visit_expand(p, ctx),
@@ -45,6 +46,10 @@ pub trait PlanVisitor<C = ()> {
 
     fn visit_all_node_scan(&mut self, plan: &AllNodeScan, ctx: &C) -> Self::Output {
         self.visit_children(&PlanExpr::AllNodeScan(plan.clone()), ctx)
+    }
+
+    fn visit_node_by_label_scan(&mut self, plan: &NodeByLabelScan, ctx: &C) -> Self::Output {
+        self.visit_children(&PlanExpr::NodeByLabelScan(plan.clone()), ctx)
     }
 
     fn visit_node_index_seek(&mut self, plan: &NodeIndexSeek, ctx: &C) -> Self::Output {

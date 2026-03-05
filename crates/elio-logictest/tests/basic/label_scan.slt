@@ -1,0 +1,50 @@
+# Test NodeByLabelScan: create nodes with different labels and scan by label
+
+query A
+CREATE (a:Person{name: 'Alice', age: 30}) RETURN *
+----
+{id: 1, labels: [Person], props: {name: 'Alice', age: 30}}
+
+query A
+CREATE (a:Person{name: 'Bob', age: 25}) RETURN *
+----
+{id: 2, labels: [Person], props: {name: 'Bob', age: 25}}
+
+query A
+CREATE (a:Animal{name: 'Max', species: 'Dog'}) RETURN *
+----
+{id: 3, labels: [Animal], props: {name: 'Max', species: 'Dog'}}
+
+query A
+CREATE (a:Animal{name: 'Luna', species: 'Cat'}) RETURN *
+----
+{id: 4, labels: [Animal], props: {name: 'Luna', species: 'Cat'}}
+
+# Scan only Person nodes (should use NodeByLabelScan)
+query A rowsort
+MATCH (n:Person) RETURN n
+----
+{id: 1, labels: [Person], props: {name: 'Alice', age: 30}}
+{id: 2, labels: [Person], props: {name: 'Bob', age: 25}}
+
+# Scan only Animal nodes (should use NodeByLabelScan)
+query A rowsort
+MATCH (n:Animal) RETURN n
+----
+{id: 3, labels: [Animal], props: {name: 'Max', species: 'Dog'}}
+{id: 4, labels: [Animal], props: {name: 'Luna', species: 'Cat'}}
+
+# Scan all nodes (should use AllNodeScan)
+query A rowsort
+MATCH (n) RETURN n
+----
+{id: 1, labels: [Person], props: {name: 'Alice', age: 30}}
+{id: 2, labels: [Person], props: {name: 'Bob', age: 25}}
+{id: 3, labels: [Animal], props: {name: 'Max', species: 'Dog'}}
+{id: 4, labels: [Animal], props: {name: 'Luna', species: 'Cat'}}
+
+# Label scan with additional filter
+query A rowsort
+MATCH (n:Person) WHERE n.age > 27 RETURN n
+----
+{id: 1, labels: [Person], props: {name: 'Alice', age: 30}}

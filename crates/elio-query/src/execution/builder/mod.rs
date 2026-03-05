@@ -19,6 +19,7 @@ use crate::execution::executor::expand::ExpandExecutor;
 use crate::execution::executor::filter::FilterExecutor;
 use crate::execution::executor::hash_aggregate::HashAggregateExecutor;
 use crate::execution::executor::load_csv::LoadCsvExecutor;
+use crate::execution::executor::node_by_label_scan::NodeByLabelScanExecutor;
 use crate::execution::executor::node_index_seek::NodeIndexSeekExecutor;
 use crate::execution::executor::pagination::PaginationExecutor;
 use crate::execution::executor::produce_result::ProduceResultExecutor;
@@ -98,6 +99,7 @@ fn build_node(ctx: &mut ExecutorBuildContext, node: &PlanExpr) -> Result<SharedE
 
     match node {
         PlanExpr::AllNodeScan(all_node_scan) => build_all_node_scan(ctx, all_node_scan, inputs),
+        PlanExpr::NodeByLabelScan(node_by_label_scan) => build_node_by_label_scan(ctx, node_by_label_scan, inputs),
         PlanExpr::NodeIndexSeek(node_index_seek) => build_node_index_seek(ctx, node_index_seek, inputs),
         PlanExpr::GetProperty(_get_property) => todo!(),
         PlanExpr::Expand(expand) => build_expand(ctx, expand, inputs),
@@ -151,6 +153,40 @@ fn build_all_node_scan(
         Ok(AllNodeScanExectuor::with_input(schema, inputs[0].clone(), output_mapping).into_shared())
     } else {
         Ok(AllNodeScanExectuor::new(schema).into_shared())
+    }
+}
+
+fn build_node_by_label_scan(
+    _ctx: &mut ExecutorBuildContext,
+    node_by_label_scan: &plan_node::NodeByLabelScan,
+    inputs: Vec<SharedExecutor>,
+) -> Result<SharedExecutor, BuildError> {
+    let schema = node_by_label_scan.schema();
+    let arguments = &node_by_label_scan.inner().arguments;
+
+    if let Some(arguments) = arguments {
+        assert_eq!(inputs.len(), 1);
+        let argument_schema = arguments.schema();
+        let mut output_mapping = Vec::with_capacity(schema.columns().len());
+        let arg_name_to_col = argument_schema.name_to_col_map();
+
+        for col in schema.columns() {
+            if let Some(&arg_idx) = arg_name_to_col.get(&col.name) {
+                output_mapping.push(OutputColumnSource::Left(arg_idx));
+            } else {
+                output_mapping.push(OutputColumnSource::Right(0));
+            }
+        }
+
+        Ok(NodeByLabelScanExecutor::with_input(
+            schema,
+            node_by_label_scan.inner().label.clone(),
+            inputs[0].clone(),
+            output_mapping,
+        )
+        .into_shared())
+    } else {
+        Ok(NodeByLabelScanExecutor::new(schema, node_by_label_scan.inner().label.clone()).into_shared())
     }
 }
 

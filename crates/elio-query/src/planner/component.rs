@@ -8,14 +8,14 @@ use elio_common::variable::VariableName;
 use indexmap::IndexSet;
 use itertools::Itertools;
 
-use super::index_selection::find_index_candidates;
+use super::index_selection::{find_index_candidates, find_label_scan_candidate};
 use super::*;
 use crate::plan::expr::FilterExprs;
 use crate::plan::ir::node_connection::RelPattern;
 use crate::plan::ir::query_graph::QueryGraph;
 use crate::plan::plan_node::{
     AllNodeScan, AllNodeScanInner, Argument, ArgumentInner, Expand, ExpandInner, ExpandKind, Filter, FilterInner,
-    NodeIndexSeek, NodeIndexSeekInner, PathMode, VarExpand, VarExpandInner,
+    NodeByLabelScan, NodeByLabelScanInner, NodeIndexSeek, NodeIndexSeekInner, PathMode, VarExpand, VarExpandInner,
 };
 
 // This is an simple implementation of planning an query graph.
@@ -105,18 +105,21 @@ impl<'a> TraversalSolver<'a> {
             let first = Variable::new(first, &LogicalType::VIRTUAL_NODE);
 
             // Check if we can use an index for this node
-            let (plan, filter) = Self::try_create_index_seek(ctx, &first, &qg.filter, &imported).unwrap_or_else(|| {
-                // Fallback to AllNodeScan
-                let arguments = (!imported.is_empty()).then(|| {
-                    Argument::new(ArgumentInner {
-                        variables: imported.iter().cloned().collect_vec(),
-                        ctx: ctx.ctx.clone(),
-                    })
-                    .into()
+            // Decision chain: NodeIndexSeek → NodeByLabelScan → AllNodeScan
+            let (plan, filter) = Self::try_create_index_seek(ctx, &first, &qg.filter, &imported)
+                .or_else(|| Self::try_create_label_scan(ctx, &first, &qg.filter, &imported))
+                .unwrap_or_else(|| {
+                    // Fallback to AllNodeScan
+                    let arguments = (!imported.is_empty()).then(|| {
+                        Argument::new(ArgumentInner {
+                            variables: imported.iter().cloned().collect_vec(),
+                            ctx: ctx.ctx.clone(),
+                        })
+                        .into()
+                    });
+                    let inner = AllNodeScanInner::new(first.name.clone(), arguments, ctx.ctx.clone());
+                    (AllNodeScan::new(inner).into(), qg.filter.clone())
                 });
-                let inner = AllNodeScanInner::new(first.name.clone(), arguments, ctx.ctx.clone());
-                (AllNodeScan::new(inner).into(), qg.filter.clone())
-            });
 
             root = Some(plan);
             remaining_filter = filter;
@@ -175,6 +178,40 @@ impl<'a> TraversalSolver<'a> {
         ));
 
         // Remove conditions covered by the index from the filter
+        let remaining_filter = filter.diff(&candidate.solved_predicate);
+
+        Some((plan.into(), remaining_filter))
+    }
+
+    /// Try to create a NodeByLabelScan for the given node variable
+    /// Returns Some((plan, remaining_filter)) if a label predicate exists, None otherwise
+    fn try_create_label_scan(
+        ctx: &PlannerContext,
+        node_var: &Variable,
+        filter: &FilterExprs,
+        arguments: &IndexSet<Variable>,
+    ) -> Option<(PlanExpr, FilterExprs)> {
+        let candidate = find_label_scan_candidate(filter, node_var)?;
+
+        let arguments = if !arguments.is_empty() {
+            Some(
+                Argument::new(ArgumentInner {
+                    variables: arguments.iter().cloned().collect_vec(),
+                    ctx: ctx.ctx.clone(),
+                })
+                .into(),
+            )
+        } else {
+            None
+        };
+
+        let plan = NodeByLabelScan::new(NodeByLabelScanInner::new(
+            candidate.variable,
+            candidate.label,
+            arguments,
+            ctx.ctx.clone(),
+        ));
+
         let remaining_filter = filter.diff(&candidate.solved_predicate);
 
         Some((plan.into(), remaining_filter))

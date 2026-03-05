@@ -27,8 +27,7 @@ RootIR { names: [n] }
 RootPlan { names: [n] }
 └─ProduceResult { return_columns: n@0 }
   └─Project { exprs: [n@0 AS n@0] }
-    └─Filter { condition: n@0:Person }
-      └─AllNodeScan { variable: n@0 }
+    └─NodeByLabelScan { variable: n@0, label: Person }
 */
 
 -- match and return wild card
@@ -44,8 +43,7 @@ RootIR { names: [n] }
 RootPlan { names: [n] }
 └─ProduceResult { return_columns: n@0 }
   └─Project { exprs: [n@0 AS n@0] }
-    └─Filter { condition: n@0:Person }
-      └─AllNodeScan { variable: n@0 }
+    └─NodeByLabelScan { variable: n@0, label: Person }
 */
 
 -- match with projection
@@ -61,8 +59,7 @@ RootIR { names: [n.name] }
 RootPlan { names: [n.name] }
 └─ProduceResult { return_columns: nname@1 }
   └─Project { exprs: [nname@1 AS n@0.name] }
-    └─Filter { condition: n@0:Person }
-      └─AllNodeScan { variable: n@0 }
+    └─NodeByLabelScan { variable: n@0, label: Person }
 */
 
 -- match with cross product
@@ -80,10 +77,8 @@ RootPlan { names: [a, b] }
   └─Project { exprs: [a@0 AS a@0, b@1 AS b@1] }
     └─Filter { condition: gt(a@0.age, b@1.age) }
       └─CrossProduct
-        ├─Filter { condition: a@0:Person }
-        │ └─AllNodeScan { variable: a@0 }
-        └─Filter { condition: b@1:Person }
-          └─AllNodeScan { variable: b@1 }
+        ├─NodeByLabelScan { variable: a@0, label: Person }
+        └─NodeByLabelScan { variable: b@1, label: Person }
 */
 
 -- match with cross product and overlapping variables
@@ -101,11 +96,9 @@ RootPlan { names: [a, b, c, d] }
   └─Project { exprs: [a@0 AS a@0, b@1 AS b@1, c@3 AS c@3, d@4 AS d@4] }
     └─Filter { condition: gt(a@0.age, c@3.age) }
       └─CrossProduct
-        ├─Filter { condition: a@0:Person }
-        │ └─ExpandAll { from: a@0, to: b@1, rel: anon@2, direction: -, types: [] }
-        │   └─AllNodeScan { variable: a@0 }
-        └─Filter { condition: c@3:Person }
-          └─ExpandAll { from: c@3, to: d@4, rel: anon@5, direction: -, types: [] }
-            └─AllNodeScan { variable: c@3 }
+        ├─ExpandAll { from: a@0, to: b@1, rel: anon@2, direction: -, types: [] }
+        │ └─NodeByLabelScan { variable: a@0, label: Person }
+        └─ExpandAll { from: c@3, to: d@4, rel: anon@5, direction: -, types: [] }
+          └─NodeByLabelScan { variable: c@3, label: Person }
 */
 

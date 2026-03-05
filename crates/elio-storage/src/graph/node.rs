@@ -6,10 +6,10 @@ use elio_common::array::chunk::DataChunk;
 use elio_common::array::{Array, ArrayImpl, NodeArray, NodeArrayBuilder, VirtualNodeArray, VirtualNodeArrayBuilder};
 use elio_common::scalar::{NodeValueRef, StructValue};
 
-use crate::codec::NodeFormat;
+use crate::codec::{LabelIndexCodec, NodeFormat};
 use crate::error::GraphStoreError;
 use crate::id::IdStore;
-use crate::kv::cf_property;
+use crate::kv::cf_data;
 use crate::token::TokenStore;
 use crate::transaction::{DataChunkIterator, NodeScanOptions, Transaction};
 
@@ -59,10 +59,17 @@ pub(crate) fn batch_node_create(
     }
 
     // construct batch
-    let cf = tx.snapshot._db.cf_handle(cf_property::CF_NAME).unwrap();
+    let cf = tx.snapshot._db.cf_handle(cf_data::CF_NAME).unwrap();
     let mut guard = tx.write_state.lock().unwrap();
     for (k, v) in keys.iter().zip(values.iter()) {
         guard.batch.put_cf(&cf, k, v);
+    }
+    // write label index entries
+    for node_id in node_ids.iter() {
+        for label_id in label_ids.iter() {
+            let label_key = LabelIndexCodec::encode_key(*label_id, *node_id);
+            guard.batch.put_cf(&cf, &label_key, []);
+        }
     }
     drop(guard);
 
@@ -85,13 +92,27 @@ pub(crate) fn batch_node_scan(
     tx: &Transaction,
     opts: NodeScanOptions,
 ) -> Result<Box<dyn DataChunkIterator + '_>, GraphStoreError> {
-    let cf_handle = tx.snapshot._db.cf_handle(cf_property::CF_NAME).unwrap();
+    let cf_handle = tx.snapshot._db.cf_handle(cf_data::CF_NAME).unwrap();
     let mut readopts = rocksdb::ReadOptions::default();
     // TODO(pgao): check the behavior of prefix scan
     readopts.set_prefix_same_as_start(true);
-    let mode = rocksdb::IteratorMode::From(cf_property::NODE_KEY_PREFIX, rocksdb::Direction::Forward);
+    let mode = rocksdb::IteratorMode::From(cf_data::NODE_KEY_PREFIX, rocksdb::Direction::Forward);
     let iter = tx.snapshot.snapshot.iterator_cf_opt(&cf_handle, readopts, mode);
     Ok(Box::new(NodeIterator { iter, opts }))
+}
+
+pub(crate) fn batch_node_scan_by_label(
+    tx: &Transaction,
+    label_id: elio_common::LabelId,
+    opts: NodeScanOptions,
+) -> Result<Box<dyn DataChunkIterator + '_>, GraphStoreError> {
+    let cf_handle = tx.snapshot._db.cf_handle(cf_data::CF_NAME).unwrap();
+    let prefix = LabelIndexCodec::encode_prefix(label_id);
+    let mut readopts = rocksdb::ReadOptions::default();
+    readopts.set_prefix_same_as_start(true);
+    let mode = rocksdb::IteratorMode::From(&prefix, rocksdb::Direction::Forward);
+    let iter = tx.snapshot.snapshot.iterator_cf_opt(&cf_handle, readopts, mode);
+    Ok(Box::new(LabelNodeIterator { iter, prefix, opts }))
 }
 
 // null node id handling:
@@ -108,7 +129,7 @@ pub(crate) fn batch_materialize_node(
     node_ids: &VirtualNodeArray,
     vis: &BitVec,
 ) -> Result<NodeArray, GraphStoreError> {
-    let cf_handle = tx.snapshot._db.cf_handle(cf_property::CF_NAME).unwrap();
+    let cf_handle = tx.snapshot._db.cf_handle(cf_data::CF_NAME).unwrap();
     let mut builder = NodeArrayBuilder::with_capacity(node_ids.len());
 
     let mut valid_node_keys = vec![];
@@ -179,10 +200,43 @@ impl<'a, D: rocksdb::DBAccess> DataChunkIterator for NodeIterator<'a, D> {
         for _ in 0..self.opts.batch_size {
             if let Some(item) = self.iter.next() {
                 let (key, _val) = item.map_err(GraphStoreError::Rocksdb)?;
-                if !key.starts_with(cf_property::NODE_KEY_PREFIX) {
+                if !key.starts_with(cf_data::NODE_KEY_PREFIX) {
                     break;
                 }
                 let node_id = NodeFormat::decode_node_key(&key);
+                builder.push(Some(node_id));
+            } else {
+                break;
+            }
+        }
+
+        let array = builder.finish();
+        if array.is_empty() {
+            Ok(None)
+        } else {
+            let vis = BitVec::repeat(true, array.len());
+            let chunk = DataChunk::new(vec![Arc::new(array.into())], vis);
+            Ok(Some(chunk))
+        }
+    }
+}
+
+pub struct LabelNodeIterator<'a, D: rocksdb::DBAccess> {
+    iter: rocksdb::DBIteratorWithThreadMode<'a, D>,
+    prefix: bytes::Bytes,
+    opts: NodeScanOptions,
+}
+
+impl<'a, D: rocksdb::DBAccess> DataChunkIterator for LabelNodeIterator<'a, D> {
+    fn next_batch(&mut self) -> Result<Option<DataChunk>, GraphStoreError> {
+        let mut builder = VirtualNodeArrayBuilder::with_capacity(self.opts.batch_size);
+        for _ in 0..self.opts.batch_size {
+            if let Some(item) = self.iter.next() {
+                let (key, _val) = item.map_err(GraphStoreError::Rocksdb)?;
+                if !key.starts_with(&self.prefix) {
+                    break;
+                }
+                let (_label_id, node_id) = LabelIndexCodec::decode_key(&key);
                 builder.push(Some(node_id));
             } else {
                 break;
