@@ -13,10 +13,13 @@ use hashbrown::HashMap;
 use crate::catalog::FunctionCatalogEntry;
 use crate::database::Database;
 use crate::database::error::Error;
-use crate::database::result::{EmptyResultHandle, ExplainResultHandle, ResultHandle, TaskHandleBridge};
+use crate::database::result::{
+    EmptyResultHandle, ExplainResultHandle, ProfileResultHandle, ResultHandle, TaskHandleBridge,
+};
 use crate::execution::QueryContext;
+use crate::execution::builder::ExecutorBuildContext;
 use crate::execution::ddl::{CreateConstraintExecutor, DropConstraintExecutor};
-use crate::execution::task::create_task;
+use crate::execution::task::{create_task, create_task_with_executor};
 use crate::plan::session::{PlanLevel, PlannerCatalog, PlannerSession, PlannerToken, parse_statement, plan_query};
 use crate::planner;
 
@@ -102,6 +105,7 @@ impl Session {
 
         match ast {
             ast::Statement::Explain(explain) => handle_explain(qctx, &explain.query).await,
+            ast::Statement::Profile(profile) => handle_profile(qctx, &profile.query).await,
             ast::Statement::Query(regular_query) => handle_query(qctx, &regular_query).await,
             ast::Statement::CreateConstraint(constraint) => handle_create_constraint(qctx, &constraint).await,
             ast::Statement::DropConstraint(constraint) => handle_drop_constraint(qctx, &constraint).await,
@@ -116,6 +120,22 @@ async fn handle_explain(
     let plan = plan_query(qctx.as_ref(), query, PlanLevel::Optimize)?;
     let explain_str = plan.explain();
     Ok(Box::pin(ExplainResultHandle::new(explain_str)))
+}
+
+async fn handle_profile(
+    qctx: Arc<QueryContext>,
+    query: &ast::RegularQuery,
+) -> Result<Pin<Box<dyn ResultHandle>>, Error> {
+    let plan = plan_query(qctx.as_ref(), query, PlanLevel::Optimize)?;
+    let columns = plan.names.keys().cloned().collect::<Vec<_>>();
+
+    let mut bctx = ExecutorBuildContext::new_profiled(&qctx);
+    let (executor, metrics) = crate::execution::builder::build_profiled_executor(&mut bctx, &plan)?;
+
+    let query_id = uuid::Uuid::new_v4().to_string().into();
+    let handle = create_task_with_executor(qctx, query_id, executor, columns.clone()).await?;
+    let result = ProfileResultHandle::new(columns, handle.recv, metrics);
+    Ok(Box::pin(result))
 }
 
 async fn handle_query(qctx: Arc<QueryContext>, query: &ast::RegularQuery) -> Result<Pin<Box<dyn ResultHandle>>, Error> {

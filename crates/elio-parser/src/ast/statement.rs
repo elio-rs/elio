@@ -9,6 +9,8 @@ pub enum Statement {
     #[display("{}", _0)]
     Explain(Box<Explain>),
     #[display("{}", _0)]
+    Profile(Box<Profile>),
+    #[display("{}", _0)]
     Query(Box<RegularQuery>),
     #[display("{}", _0)]
     CreateConstraint(Box<CreateConstraint>),
@@ -25,6 +27,7 @@ impl Statement {
     pub fn query_kind(&self) -> QueryKind {
         match self {
             Statement::Explain(_) => QueryKind::Read,
+            Statement::Profile(profile) => profile.query.query_kind(),
             Statement::Query(regular_query) => regular_query.query_kind(),
             Statement::CreateConstraint(_) => QueryKind::ReadWrite,
             Statement::DropConstraint(_) => QueryKind::ReadWrite,
@@ -36,6 +39,13 @@ impl Statement {
 #[derive(Debug, Display)]
 #[display("EXPLAIN {}", query)]
 pub struct Explain {
+    pub query: RegularQuery,
+}
+
+/// PROFILE query
+#[derive(Debug, Display)]
+#[display("PROFILE {}", query)]
+pub struct Profile {
     pub query: RegularQuery,
 }
 

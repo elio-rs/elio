@@ -15,6 +15,7 @@ peg::parser! {
     /// ---------------------
     pub rule statement() -> Statement
         = _? s:explain_stmt() _? (";" _?)? { s }
+        / _? s:profile_stmt() _? (";" _?)? { s }
         / _? s:create_constraint_stmt() _? (";" _?)? { s }
         / _? s:drop_constraint_stmt() _? (";" _?)? { s }
         / _? s:regular_query() _? (";" _?)? { s }
@@ -23,6 +24,12 @@ peg::parser! {
     rule explain_stmt() -> Statement
         = EXPLAIN() _ query:regular_query_inner() {
             Statement::Explain(Box::new(Explain { query }))
+        }
+
+    /// PROFILE query
+    rule profile_stmt() -> Statement
+        = PROFILE() _ query:regular_query_inner() {
+            Statement::Profile(Box::new(Profile { query }))
         }
 
     /// CREATE CONSTRAINT constraint_name [IF NOT EXISTS]
@@ -893,6 +900,8 @@ peg::parser! {
         = ['d' | 'D'] ['r' | 'R'] ['o' | 'O'] ['p' | 'P'] { "DROP" }
     rule EXPLAIN() -> &'static str
         = ['e' | 'E'] ['x' | 'X'] ['p' | 'P'] ['l' | 'L'] ['a' | 'A'] ['i' | 'I'] ['n' | 'N'] { "EXPLAIN" }
+    rule PROFILE() -> &'static str
+        = ['p' | 'P'] ['r' | 'R'] ['o' | 'O'] ['f' | 'F'] ['i' | 'I'] ['l' | 'L'] ['e' | 'E'] { "PROFILE" }
 
     // operator
     rule OR() -> &'static str

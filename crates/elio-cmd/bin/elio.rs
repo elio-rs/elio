@@ -69,6 +69,13 @@ async fn execute_query(sess: &Arc<Session>, query: &str) {
                 println!("{} row(s)", rows.len());
             }
 
+            // Print profile statistics if available (PROFILE statement)
+            if let Some(profile) = result.profile() {
+                println!();
+                println!("Profile:");
+                println!("{}", profile);
+            }
+
             println!("Executed in {:.3}s", elapsed.as_secs_f64());
         }
         Err(e) => {

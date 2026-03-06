@@ -67,9 +67,18 @@ pub async fn create_task(qctx: Arc<QueryContext>, query_id: Arc<str>, plan: Root
     let mut bctx = ExecutorBuildContext::new(&qctx);
     let root_executor = build_executor(&mut bctx, &plan)?;
 
-    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-
     let columns = plan.names.keys().cloned().collect_vec();
+    create_task_with_executor(qctx, query_id, root_executor, columns).await
+}
+
+/// Create a task from an already-built executor (used by PROFILE).
+pub async fn create_task_with_executor(
+    qctx: Arc<QueryContext>,
+    query_id: Arc<str>,
+    root_executor: SharedExecutor,
+    columns: Vec<String>,
+) -> Result<TaskHandle, ExecError> {
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
     let handle = TaskHandle {
         query_id,

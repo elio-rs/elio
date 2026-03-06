@@ -2,6 +2,7 @@ use std::backtrace::Backtrace;
 
 use thiserror::Error;
 
+use crate::execution::builder::BuildError;
 use crate::execution::error::ExecError;
 use crate::plan::error::PlanError;
 
@@ -17,6 +18,8 @@ pub enum Error {
     PlanError(#[from] PlanError, #[backtrace] Backtrace),
     #[error("{0}")]
     ExecError(#[from] ExecError, #[backtrace] Backtrace),
+    #[error("{0}")]
+    BuildError(#[from] BuildError, #[backtrace] Backtrace),
 
     // DDL errors
     #[error("constraint '{0}' already exists")]

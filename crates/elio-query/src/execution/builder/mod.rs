@@ -31,6 +31,7 @@ use crate::execution::executor::var_expand::{
 };
 use crate::execution::executor::*;
 use crate::execution::expr::SharedExpression;
+use crate::execution::profile::{OperatorMetrics, ProfiledExecutor};
 use crate::plan::expr::{self, AggCall, Expr, VariableRef};
 use crate::plan::ir::query_project::LoadFormat;
 use crate::plan::plan_node::{self, CreateNode, PlanExpr, PlanNode, Project};
@@ -61,6 +62,8 @@ impl BuildError {
 pub struct ExecutorBuildContext<'a> {
     pub qctx: &'a Arc<QueryContext>,
     pub argument_ctx: Option<ArgumentContext>,
+    pub profile: bool,
+    pub profile_metrics: Vec<Arc<OperatorMetrics>>,
 }
 
 impl<'a> ExecutorBuildContext<'a> {
@@ -68,6 +71,17 @@ impl<'a> ExecutorBuildContext<'a> {
         Self {
             qctx: ctx,
             argument_ctx: None,
+            profile: false,
+            profile_metrics: vec![],
+        }
+    }
+
+    pub fn new_profiled(ctx: &'a Arc<QueryContext>) -> Self {
+        Self {
+            qctx: ctx,
+            argument_ctx: None,
+            profile: true,
+            profile_metrics: vec![],
         }
     }
 }
@@ -79,16 +93,32 @@ pub fn build_executor(
     build_node(ctx, plan)
 }
 
+pub fn build_profiled_executor(
+    ctx: &mut ExecutorBuildContext,
+    _root @ RootPlan { plan, .. }: &RootPlan,
+) -> Result<(SharedExecutor, Arc<OperatorMetrics>), BuildError> {
+    assert!(ctx.profile, "build_profiled_executor requires profile mode");
+    let executor = build_node(ctx, plan)?;
+    // The root metrics should be the last (and only remaining) item
+    assert_eq!(ctx.profile_metrics.len(), 1);
+    let root_metrics = ctx.profile_metrics.pop().unwrap();
+    Ok((executor, root_metrics))
+}
+
 fn build_node(ctx: &mut ExecutorBuildContext, node: &PlanExpr) -> Result<SharedExecutor, BuildError> {
     // Handle Apply specially - don't pre-build right child
     if let PlanExpr::Apply(apply) = node {
-        return build_apply(ctx, apply);
+        let executor = build_apply(ctx, apply)?;
+        return Ok(maybe_wrap_profiled(ctx, executor));
     }
 
     // Handle Argument specially - it uses the shared ArgumentContext
     if let PlanExpr::Argument(argument) = node {
         return build_argument(ctx, argument);
     }
+
+    // Remember how many child metrics existed before building children
+    let metrics_before = ctx.profile_metrics.len();
 
     // For all other nodes, build children first
     let inputs = node
@@ -97,7 +127,7 @@ fn build_node(ctx: &mut ExecutorBuildContext, node: &PlanExpr) -> Result<SharedE
         .map(|x| build_node(ctx, x))
         .collect::<Result<Vec<_>, _>>()?;
 
-    match node {
+    let executor = match node {
         PlanExpr::AllNodeScan(all_node_scan) => build_all_node_scan(ctx, all_node_scan, inputs),
         PlanExpr::NodeByLabelScan(node_by_label_scan) => build_node_by_label_scan(ctx, node_by_label_scan, inputs),
         PlanExpr::NodeIndexSeek(node_index_seek) => build_node_index_seek(ctx, node_index_seek, inputs),
@@ -121,6 +151,37 @@ fn build_node(ctx: &mut ExecutorBuildContext, node: &PlanExpr) -> Result<SharedE
         PlanExpr::Unwind(unwind) => build_unwind(ctx, unwind, inputs),
         PlanExpr::Empty(_empty) => todo!(),
         PlanExpr::BlackHole(black_hole) => build_black_hole(ctx, black_hole, inputs),
+    }?;
+
+    if ctx.profile {
+        // Collect child metrics that were pushed during recursive builds
+        let child_metrics: Vec<Arc<OperatorMetrics>> = ctx.profile_metrics.drain(metrics_before..).collect();
+        let metrics = Arc::new(OperatorMetrics::new(executor.name(), child_metrics));
+        let profiled = ProfiledExecutor {
+            inner: executor,
+            metrics: metrics.clone(),
+        };
+        ctx.profile_metrics.push(metrics);
+        Ok(profiled.into_shared())
+    } else {
+        Ok(executor)
+    }
+}
+
+/// Wrap an executor with profiling if profile mode is enabled (for Apply which is built separately).
+fn maybe_wrap_profiled(ctx: &mut ExecutorBuildContext, executor: SharedExecutor) -> SharedExecutor {
+    if ctx.profile {
+        // For Apply, children were already wrapped, but we can't easily extract their metrics
+        // from the built executor. We wrap Apply itself as a single metrics node.
+        let metrics = Arc::new(OperatorMetrics::new(executor.name(), vec![]));
+        let profiled = ProfiledExecutor {
+            inner: executor,
+            metrics: metrics.clone(),
+        };
+        ctx.profile_metrics.push(metrics);
+        profiled.into_shared()
+    } else {
+        executor
     }
 }
 
@@ -433,6 +494,8 @@ fn build_apply(ctx: &mut ExecutorBuildContext, apply: &plan_node::Apply) -> Resu
     let mut right_ctx = ExecutorBuildContext {
         qctx: ctx.qctx,
         argument_ctx: Some(argument_ctx.clone()),
+        profile: ctx.profile,
+        profile_metrics: vec![],
     };
     let right = build_node(&mut right_ctx, &apply.inner().right)?;
 

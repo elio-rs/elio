@@ -1,4 +1,5 @@
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::Poll;
 
 use async_stream::stream;
@@ -10,6 +11,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 
 use crate::database::error::Error;
 use crate::execution::error::ExecError;
+use crate::execution::profile::OperatorMetrics;
 
 /// Query Result Handle.
 /// Result handle contains three parts:
@@ -30,11 +32,17 @@ use crate::execution::error::ExecError;
 /// ResultHandle communicate with execution engine with QueryExecutionHandle object
 pub trait ResultHandle: Stream<Item = Result<Row, Error>> + Send {
     fn columns(&self) -> &[String];
+
+    /// Returns profile information after the data stream is fully consumed.
+    /// Only available for PROFILE statements.
+    fn profile(&self) -> Option<String> {
+        None
+    }
 }
 
 pub struct TaskHandleBridge {
     pub stream: BoxStream<'static, Result<Row, Error>>,
-    columns: Vec<String>,
+    pub columns: Vec<String>,
 }
 
 impl TaskHandleBridge {
@@ -147,5 +155,44 @@ impl Stream for ExplainResultHandle {
 impl ResultHandle for ExplainResultHandle {
     fn columns(&self) -> &[String] {
         &self.columns
+    }
+}
+
+/// Result handle for PROFILE statements.
+/// Streams normal query results; profile statistics are available as metadata
+/// via `ResultHandle::profile()` after the data stream is consumed.
+pub struct ProfileResultHandle {
+    inner: TaskHandleBridge,
+    metrics: Arc<OperatorMetrics>,
+}
+
+impl ProfileResultHandle {
+    pub fn new(
+        columns: Vec<String>,
+        data: UnboundedReceiver<Result<DataChunk, ExecError>>,
+        metrics: Arc<OperatorMetrics>,
+    ) -> Self {
+        Self {
+            inner: TaskHandleBridge::new(columns, data),
+            metrics,
+        }
+    }
+}
+
+impl Stream for ProfileResultHandle {
+    type Item = Result<Row, Error>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Option<Self::Item>> {
+        self.inner.stream.as_mut().poll_next(cx)
+    }
+}
+
+impl ResultHandle for ProfileResultHandle {
+    fn columns(&self) -> &[String] {
+        &self.inner.columns
+    }
+
+    fn profile(&self) -> Option<String> {
+        Some(self.metrics.format_tree())
     }
 }
