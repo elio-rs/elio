@@ -31,3 +31,38 @@ UNWIND [1, 1, 2, 2, 2] AS x RETURN x, count(*)
 1	2
 2	3
 
+# collect basic
+query A
+UNWIND [1, 2, 3] AS x RETURN collect(x)
+----
+[1, 2, 3]
+
+# collect with nulls should skip nulls
+query A
+UNWIND [1, null, 3, null, 5] AS x RETURN collect(x)
+----
+[1, 3, 5]
+
+# collect strings
+query A
+UNWIND ['a', 'b', 'c'] AS x RETURN collect(x)
+----
+['a', 'b', 'c']
+
+# collect with GROUP BY
+query AA
+UNWIND [1, 1, 2, 2, 2] AS x RETURN x, collect(x)
+----
+1	[1, 1]
+2	[2, 2, 2]
+
+# collect empty result (all nulls)
+query A
+UNWIND [null, null] AS x RETURN collect(x)
+----
+[]
+
+# collect with DISTINCT (not supported yet)
+statement error
+UNWIND [1, 2, 1, 3, 2, 3] AS x RETURN collect(DISTINCT x)
+
