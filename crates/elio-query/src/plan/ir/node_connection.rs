@@ -51,9 +51,14 @@ impl std::fmt::Display for RelPattern {
             ("<-", "->")
         };
         let var = &self.variable;
+        let types = if self.types.is_empty() {
+            String::new()
+        } else {
+            self.types.iter().map(|t| t.to_string()).collect::<Vec<_>>().join("|")
+        };
         write!(
             f,
-            "({lnode}){ldir}[{var}:{length}]{rdir}({rnode})",
+            "({lnode}){ldir}[{var}:{types}{length}]{rdir}({rnode})",
             lnode = self.left(),
             rnode = self.right(),
             length = self.length
