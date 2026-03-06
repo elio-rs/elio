@@ -29,6 +29,17 @@ impl PlanNode for VarExpand {
             ("from", Pretty::from(self.inner.from.as_ref())),
             ("to", Pretty::from(self.inner.to.as_ref())),
             ("rel_pattern", Pretty::display(&self.inner.rel_pattern)),
+            (
+                "types",
+                Pretty::Array(
+                    self.inner
+                        .rel_pattern
+                        .types
+                        .iter()
+                        .map(|x| Pretty::from(x.to_string()))
+                        .collect_vec(),
+                ),
+            ),
             ("path_mode", Pretty::display(&self.inner.path_mode)),
         ];
         if !self.inner.node_filter.is_true() {
