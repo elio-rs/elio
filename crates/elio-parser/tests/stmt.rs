@@ -23,6 +23,12 @@ fn test_query() {
 }
 
 #[test]
+fn test_profile() {
+    assert_snapshot!(stmt!("PROFILE MATCH (n:Person) RETURN n.name"), @"PROFILE MATCH (n:Person) RETURN n.name");
+    assert_snapshot!(stmt!("profile MATCH (n) RETURN n"), @"PROFILE MATCH (n) RETURN n");
+}
+
+#[test]
 fn test_create_constraint() {
     // Node unique constraint (single property)
     assert_snapshot!(

@@ -13,6 +13,7 @@ pub mod error;
 pub mod executor;
 pub mod expr;
 pub mod panic;
+pub mod profile;
 pub mod task;
 
 pub struct QueryContext {
