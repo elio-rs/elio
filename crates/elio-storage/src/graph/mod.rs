@@ -11,7 +11,7 @@ pub use self::relationship::{NodeIdContainer, RelIterForNode};
 use crate::codec::UniqueIndexCodec;
 use crate::error::GraphStoreError;
 use crate::id::IdStore;
-use crate::kv::{KvEngine, cf_indexdata};
+use crate::kv::{CfKind, KvEngine};
 use crate::token::TokenStore;
 use crate::transaction::{DataChunkIterator, NodeScanOptions, Transaction};
 
@@ -56,20 +56,20 @@ impl GraphStore {
         node::batch_node_create(tx, &self.id_store, &self.token_store, labels, props)
     }
 
-    pub fn node_scan<'a>(
-        &'a self,
-        tx: &'a Transaction,
+    pub fn node_scan(
+        &self,
+        tx: &Transaction,
         opts: NodeScanOptions,
-    ) -> Result<Box<dyn DataChunkIterator + 'a>, GraphStoreError> {
+    ) -> Result<Box<dyn DataChunkIterator>, GraphStoreError> {
         node::batch_node_scan(tx, opts)
     }
 
-    pub fn node_scan_by_label<'a>(
-        &'a self,
-        tx: &'a Transaction,
+    pub fn node_scan_by_label(
+        &self,
+        tx: &Transaction,
         label_id: LabelId,
         opts: NodeScanOptions,
-    ) -> Result<Box<dyn DataChunkIterator + 'a>, GraphStoreError> {
+    ) -> Result<Box<dyn DataChunkIterator>, GraphStoreError> {
         node::batch_node_scan_by_label(tx, label_id, opts)
     }
 
@@ -98,7 +98,7 @@ impl GraphStore {
     }
 
     pub fn rel_iter_for_node<'a>(
-        &'a self,
+        &self,
         tx: &'a Transaction,
         node_id: NodeId,
         dir: SemanticDirection,
@@ -108,7 +108,7 @@ impl GraphStore {
     }
 
     // ==================== Graph Index Operations ====================
-    /// Check if a unique index entry exists (reads from transaction snapshot)
+    /// Check if a unique index entry exists (reads from transaction)
     pub fn unique_index_exists(
         &self,
         tx: &Transaction,
@@ -116,12 +116,11 @@ impl GraphStore {
         prop_key_ids: &[PropertyKeyId],
         prop_values: &[&[u8]],
     ) -> Result<bool, GraphStoreError> {
-        let cf = self.db.cf_handle(cf_indexdata::CF_NAME).unwrap();
         let key = UniqueIndexCodec::encode_key(label_id, prop_key_ids, prop_values);
-        Ok(tx.snapshot.get_cf(&cf, &key)?.is_some())
+        Ok(tx.get(CfKind::IndexData, &key)?.is_some())
     }
 
-    /// Get node_id from unique index (reads from transaction snapshot)
+    /// Get node_id from unique index (reads from transaction)
     pub fn get_unique_index(
         &self,
         tx: &Transaction,
@@ -129,15 +128,14 @@ impl GraphStore {
         prop_key_ids: &[PropertyKeyId],
         prop_values: &[&[u8]],
     ) -> Result<Option<NodeId>, GraphStoreError> {
-        let cf = self.db.cf_handle(cf_indexdata::CF_NAME).unwrap();
         let key = UniqueIndexCodec::encode_key(label_id, prop_key_ids, prop_values);
-        match tx.snapshot.get_cf(&cf, &key)? {
+        match tx.get(CfKind::IndexData, &key)? {
             Some(value) => Ok(UniqueIndexCodec::decode_value(&value)),
             None => Ok(None),
         }
     }
 
-    /// Put unique index entry (buffered in transaction write batch)
+    /// Put unique index entry (buffered in transaction write buffer)
     pub fn put_unique_index(
         &self,
         tx: &Transaction,
@@ -146,16 +144,13 @@ impl GraphStore {
         prop_values: &[&[u8]],
         node_id: NodeId,
     ) -> Result<(), GraphStoreError> {
-        let cf = self.db.cf_handle(cf_indexdata::CF_NAME).unwrap();
         let key = UniqueIndexCodec::encode_key(label_id, prop_key_ids, prop_values);
         let value = UniqueIndexCodec::encode_value(node_id);
-
-        let mut guard = tx.write_state.lock().unwrap();
-        guard.batch.put_cf(&cf, &key, &value);
+        tx.put(CfKind::IndexData, key.to_vec(), value.to_vec());
         Ok(())
     }
 
-    /// Delete unique index entry (buffered in transaction write batch)
+    /// Delete unique index entry (buffered in transaction write buffer)
     pub fn delete_unique_index(
         &self,
         tx: &Transaction,
@@ -163,11 +158,8 @@ impl GraphStore {
         prop_key_ids: &[PropertyKeyId],
         prop_values: &[&[u8]],
     ) -> Result<(), GraphStoreError> {
-        let cf = self.db.cf_handle(cf_indexdata::CF_NAME).unwrap();
         let key = UniqueIndexCodec::encode_key(label_id, prop_key_ids, prop_values);
-
-        let mut guard = tx.write_state.lock().unwrap();
-        guard.batch.delete_cf(&cf, &key);
+        tx.delete(CfKind::IndexData, key.to_vec());
         Ok(())
     }
 }

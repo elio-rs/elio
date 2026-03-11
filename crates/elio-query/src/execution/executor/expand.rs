@@ -3,12 +3,26 @@ use educe::Educe;
 use elio_common::array::chunk::DataChunkBuilder;
 use elio_common::scalar::{RelValueRef, ScalarRef, StructValue};
 use elio_common::store_types::RelDirection;
-use elio_common::{SemanticDirection, TokenId, TokenKind};
+use elio_common::{NodeId, RelationshipId, SemanticDirection, TokenId, TokenKind};
 use elio_storage::codec::RelFormat;
 use futures::StreamExt;
 
 use super::*;
 use crate::execution::executor::var_expand::ExpandKindStrategy;
+
+type RelScanRow = (NodeId, RelDirection, TokenId, NodeId, RelationshipId, Box<[u8]>);
+
+fn collect_rels_for_node(
+    qctx: &QueryContext,
+    from_id: NodeId,
+    dir: SemanticDirection,
+    rtype: &[TokenId],
+) -> Result<Vec<RelScanRow>, ExecError> {
+    let rel_iter = qctx
+        .graph_store()
+        .rel_iter_for_node(qctx.txn().as_ref(), from_id, dir, rtype)?;
+    rel_iter.collect::<Result<Vec<_>, _>>().map_err(ExecError::from)
+}
 
 // Given from which column to expand
 // generate rel and to columns at the end of input schema
@@ -53,9 +67,8 @@ impl<EXPANDKIND: ExpandKindStrategy> Executor for ExpandExecutor<EXPANDKIND> {
                         Some(id) => id,
                         None => continue, // if from is null, then skip this row
                     };
-                    let rel_iter = qctx.graph_store().rel_iter_for_node(qctx.txn().as_ref(),from_id, dir, &rtype)?;
-                    for rel_kv in rel_iter {
-                        let (from_id, rel_dir, token_id, to_id, rel_id, value) = rel_kv?;
+                    let rels = collect_rels_for_node(qctx.as_ref(), from_id, dir, &rtype)?;
+                    for (from_id, rel_dir, token_id, to_id, rel_id, value) in rels {
                         let mut row = row.clone();
                         // add rel to row
                         // SAFETY

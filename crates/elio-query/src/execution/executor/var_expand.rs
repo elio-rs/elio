@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::LazyLock;
 
 use async_stream::try_stream;
@@ -6,10 +6,9 @@ use educe::Educe;
 use elio_common::array::{ArrayImpl, DataChunkBuilder, RelArrayBuilder};
 use elio_common::scalar::{ListValueRef, RelValue, ScalarRef, ScalarVTable, StructValue};
 use elio_common::store_types::RelDirection;
-use elio_common::{NodeId, SemanticDirection, TokenId, TokenKind};
+use elio_common::{NodeId, RelationshipId, SemanticDirection, TokenId, TokenKind};
 use elio_storage::codec::RelFormat;
 use futures::StreamExt;
-use indexmap::IndexSet;
 
 use super::*;
 use crate::execution::expr::SharedExpression;
@@ -65,7 +64,7 @@ impl<PATHMODE: PathContainer, EXPANDKIND: ExpandKindStrategy> Executor for VarEx
                         rel_types: rel_types.clone(),
                         min_len: len_min,
                         max_len: len_max,
-                        // path_mode: (self.path_mode_factory)(),
+                        token_cache: HashMap::new(),
                     };
 
                     for item in path_iter {
@@ -114,6 +113,7 @@ pub struct VarExpandIter<PATHMODE: PathContainer> {
     pub rel_types: Arc<[TokenId]>,
     pub min_len: usize,
     pub max_len: usize,
+    pub token_cache: HashMap<(TokenId, TokenKind), Arc<str>>,
 }
 
 impl<PATHMODE: PathContainer> Iterator for VarExpandIter<PATHMODE> {
@@ -143,15 +143,12 @@ impl<PATHMODE: PathContainer> Iterator for VarExpandIter<PATHMODE> {
                     Err(e) => return Some(Err(e.into())),
                 };
                 let (from_id, rel_dir, token_id, to_id, rel_id, value) = rel_kv;
-                // TODO(pgao): avoid get token value for each rel
-                // maybe we can cache all the token value on the execution context
-                let rel_type = match self
-                    .ctx
-                    .token_store()
-                    .get_token_val(token_id, TokenKind::RelationshipType)
-                {
-                    Ok(rel_type) => rel_type,
-                    Err(e) => return Some(Err(e.into())),
+                let rel_type = match self.token_cache.get(&(token_id, TokenKind::RelationshipType)) {
+                    Some(cached) => cached.clone(),
+                    None => match self.ctx.token_store().get_token_val(token_id, TokenKind::RelationshipType) {
+                        Ok(val) => { self.token_cache.insert((token_id, TokenKind::RelationshipType), val.clone()); val }
+                        Err(e) => return Some(Err(e.into())),
+                    },
                 };
 
                 // TODO(pgao): we can know the start id and end id at planning time
@@ -166,14 +163,12 @@ impl<PATHMODE: PathContainer> Iterator for VarExpandIter<PATHMODE> {
                 let struct_value = {
                     let mut fileds = vec![];
                     for entry in prop_map.iter() {
-                        let key = match self
-                            .ctx
-                            .graph_store()
-                            .token_store()
-                            .get_token_val(entry.key(), TokenKind::PropertyKey)
-                        {
-                            Ok(key) => key,
-                            Err(e) => return Some(Err(e.into())),
+                        let key = match self.token_cache.get(&(entry.key(), TokenKind::PropertyKey)) {
+                            Some(cached) => cached.clone(),
+                            None => match self.ctx.graph_store().token_store().get_token_val(entry.key(), TokenKind::PropertyKey) {
+                                Ok(val) => { self.token_cache.insert((entry.key(), TokenKind::PropertyKey), val.clone()); val }
+                                Err(e) => return Some(Err(e.into())),
+                            },
                         };
                         // TODO(pgao): avoid clone
                         fileds.push((key, entry.value().to_owned_scalar()));
@@ -279,20 +274,22 @@ impl PathContainer for WalkPathContainer {
 
 #[derive(Default, Clone)]
 pub struct TrailPathContainer {
-    pub(crate) path: IndexSet<RelValue>,
+    pub(crate) path: Vec<RelValue>,
+    pub(crate) seen: HashSet<RelationshipId>,
 }
 
 impl PathContainer for TrailPathContainer {
     fn can_add_rel(&self, step: &RelValue) -> bool {
-        !self.path.contains(step)
+        !self.seen.contains(&step.id)
     }
 
     fn add_rel(&mut self, step: RelValue) {
-        self.path.insert(step);
+        self.seen.insert(step.id);
+        self.path.push(step);
     }
 
     fn into_list(self) -> Vec<RelValue> {
-        self.path.into_iter().collect()
+        self.path
     }
 
     fn len(&self) -> usize {

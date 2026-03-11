@@ -10,7 +10,7 @@ use tracing::warn;
 pub use self::codec::{ConstraintCodec, IndexCodec};
 pub(crate) use self::snapshot::{CatalogChange, DurableCatalogSnapshot};
 use crate::error::GraphStoreError;
-use crate::kv::{KvEngine, cf_catalog};
+use crate::kv::{self, cf_catalog, CfKind, KvEngine};
 
 /// In-memory catalog state, kept as a singleton in the database instance.
 /// Manages the current `DurableCatalogSnapshot` — loads it on startup,
@@ -42,18 +42,13 @@ impl CatalogState {
     }
 
     fn load_snapshot_from_db(db: &KvEngine) -> Result<DurableCatalogSnapshot, GraphStoreError> {
-        let cf = db.cf_handle(cf_catalog::CF_NAME).unwrap();
+        let tree = db.tree(CfKind::Catalog);
 
         // Load constraints
         let mut constraints = Vec::new();
         let constraint_prefix = [cf_catalog::CONSTRAINT_META_PREFIX];
-        let constraint_iter = db.prefix_iterator_cf(&cf, constraint_prefix);
-        for item in constraint_iter {
-            let (key, value) = item?;
-            if !key.starts_with(&constraint_prefix) {
-                break;
-            }
-
+        let constraint_entries = kv::bf_prefix_scan_iter(tree, &constraint_prefix)?;
+        for (key, value) in constraint_entries {
             let Some(name) = ConstraintCodec::decode_meta_key(&key) else {
                 warn!("skip invalid constraint meta key while loading snapshot");
                 continue;
@@ -70,13 +65,8 @@ impl CatalogState {
         // Load indexes
         let mut indexes = Vec::new();
         let index_prefix = [cf_catalog::INDEX_META_PREFIX];
-        let index_iter = db.prefix_iterator_cf(&cf, index_prefix);
-        for item in index_iter {
-            let (key, value) = item?;
-            if !key.starts_with(&index_prefix) {
-                break;
-            }
-
+        let index_entries = kv::bf_prefix_scan_iter(tree, &index_prefix)?;
+        for (key, value) in index_entries {
             let Some(name) = IndexCodec::decode_meta_key(&key) else {
                 warn!("skip invalid index meta key while loading snapshot");
                 continue;

@@ -9,7 +9,7 @@ use elio_common::{NodeId, RelationshipId, SemanticDirection, TokenId, TokenKind}
 use crate::codec::RelFormat;
 use crate::error::GraphStoreError;
 use crate::id::IdStore;
-use crate::kv::cf_topology;
+use crate::kv::{BfPrefixScanIter, CfKind};
 use crate::token::TokenStore;
 use crate::transaction::Transaction;
 
@@ -74,14 +74,11 @@ where
         values.push(value);
     }
 
-    // construct batch
-    let cf = tx.snapshot._db.cf_handle(cf_topology::CF_NAME).unwrap();
-    let mut guard = tx.write_state.lock().unwrap();
+    // buffer writes via transaction
     for i in 0..values.len() {
-        guard.batch.put_cf(&cf, &out_keys[i], &values[i]);
-        guard.batch.put_cf(&cf, &in_keys[i], &values[i]);
+        tx.put(CfKind::Topology, out_keys[i].to_vec(), values[i].to_vec());
+        tx.put(CfKind::Topology, in_keys[i].to_vec(), values[i].to_vec());
     }
-    drop(guard);
 
     // create rel array
     let mut builder = RelArrayBuilder::with_capacity(len);
@@ -106,13 +103,8 @@ pub(crate) fn rel_iter_for_node<'a>(
     dir: SemanticDirection,
     rtypes: &[TokenId],
 ) -> Result<RelIterForNode<'a>, GraphStoreError> {
-    let cf = tx.snapshot._db.cf_handle(cf_topology::CF_NAME).unwrap();
     let prefix = RelFormat::node_rel_iter_prefix(node_id, dir);
-
-    let mut readopts = rocksdb::ReadOptions::default();
-    readopts.set_prefix_same_as_start(true);
-    let mode = rocksdb::IteratorMode::From(&prefix, rocksdb::Direction::Forward);
-    let iter = tx.snapshot.snapshot.iterator_cf_opt(&cf, readopts, mode);
+    let iter = tx.prefix_scan_snapshot_iter(CfKind::Topology, &prefix)?;
     Ok(RelIterForNode {
         iter,
         from_id: node_id,
@@ -161,7 +153,7 @@ impl NodeIdContainer for VirtualNodeArray {
 }
 
 pub struct RelIterForNode<'a> {
-    iter: rocksdb::DBIteratorWithThreadMode<'a, rocksdb::DBWithThreadMode<rocksdb::MultiThreaded>>,
+    iter: BfPrefixScanIter<'a>,
     from_id: NodeId,
     dir: SemanticDirection,
     // TODO(pgao): use binary search?
@@ -170,7 +162,7 @@ pub struct RelIterForNode<'a> {
     // TODO: project expression etc
 }
 
-impl<'a> Iterator for RelIterForNode<'a> {
+impl Iterator for RelIterForNode<'_> {
     // we return properties because we do not want to have another io to fetch the property
     // values
     // TODO(pgao): lazy materialize
@@ -179,26 +171,19 @@ impl<'a> Iterator for RelIterForNode<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         // filter given reltypes
-        for item in self.iter.by_ref() {
-            match item {
-                Err(e) => {
-                    return Some(Err(e.into()));
-                }
-                Ok((key, val)) => {
-                    let (from, dir, reltype, end, rel_id) = RelFormat::decode_key(&key);
-                    if from != self.from_id {
-                        return None;
-                    }
-                    if !dir.satisfies(self.dir) {
-                        continue;
-                    }
-                    // TODO(pgao): rtypes.is_empty() can be put in outer loop
-                    if !self.rtypes.is_empty() && !self.rtypes.contains(&reltype) {
-                        continue;
-                    }
-                    return Some(Ok((from, dir, reltype, end, rel_id, val)));
-                }
+        for (key, val) in self.iter.by_ref() {
+            let (from, dir, reltype, end, rel_id) = RelFormat::decode_key(&key);
+            if from != self.from_id {
+                return None;
             }
+            if !dir.satisfies(self.dir) {
+                continue;
+            }
+            // TODO(pgao): rtypes.is_empty() can be put in outer loop
+            if !self.rtypes.is_empty() && !self.rtypes.contains(&reltype) {
+                continue;
+            }
+            return Some(Ok((from, dir, reltype, end, rel_id, val.into_boxed_slice())));
         }
         None
     }

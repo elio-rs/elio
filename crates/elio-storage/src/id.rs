@@ -4,9 +4,9 @@ use std::sync::{Arc, Mutex};
 use elio_common::{NodeId, RelationshipId};
 
 use crate::error::GraphStoreError;
-use crate::kv::KvEngine;
+use crate::kv::{self, CfKind, KvEngine};
 
-// Number of ids to allocate from rocksdb
+// Number of ids to allocate from storage
 const ID_BATCH_SIZE: u64 = 1000;
 
 /// In charge of allocating node and relationship ids.
@@ -17,16 +17,8 @@ pub struct IdStore {
 
 impl IdStore {
     pub fn new(db: Arc<KvEngine>) -> Result<Self, GraphStoreError> {
-        let node_id = IdGenerator::new(
-            db.clone(),
-            (*crate::kv::cf_meta::MAX_NODE_ID_KEY).into(),
-            crate::kv::cf_meta::CF_NAME.into(),
-        )?;
-        let rel_id = IdGenerator::new(
-            db.clone(),
-            (*crate::kv::cf_meta::MAX_REL_ID_KEY).into(),
-            crate::kv::cf_meta::CF_NAME.into(),
-        )?;
+        let node_id = IdGenerator::new(db.clone(), (*crate::kv::cf_meta::MAX_NODE_ID_KEY).into())?;
+        let rel_id = IdGenerator::new(db.clone(), (*crate::kv::cf_meta::MAX_REL_ID_KEY).into())?;
         Ok(Self { node_id, rel_id })
     }
 }
@@ -57,37 +49,30 @@ pub struct IdGenerator {
     // max available id in memory
     max: AtomicU64,
 
-    // key and cf in rocksdb store
+    // key in storage
     key: Arc<[u8]>,
-    cf_name: Arc<str>,
     db: Arc<KvEngine>,
 
-    // refil from rocksdb lock
+    // refill from storage lock
     // only one write can access db
     refill_lock: Mutex<()>,
 }
 
 impl IdGenerator {
-    pub fn new(db: Arc<KvEngine>, key: Arc<[u8]>, cf_name: Arc<str>) -> Result<Self, GraphStoreError> {
-        // initialize current and max from db.
-        // SAFETY
-        //   cf_handle is safe because we check it in open.
-        let cf = db.cf_handle(&cf_name).unwrap();
-        let start_val = match db.get_cf(&cf, &key)? {
+    pub fn new(db: Arc<KvEngine>, key: Arc<[u8]>) -> Result<Self, GraphStoreError> {
+        let start_val = match kv::bf_read(db.tree(CfKind::Meta), &key)? {
             Some(val) => {
-                // value should be u64
                 let mut bytes = [0u8; 8];
                 bytes.copy_from_slice(&val);
                 u64::from_le_bytes(bytes)
             }
-            None => 0, // start from zero
+            None => 0,
         };
         Ok(Self {
             current: AtomicU64::new(start_val),
-            // force refil when initialize
+            // force refill when initialize
             max: AtomicU64::new(start_val),
             key,
-            cf_name,
             db: db.clone(),
             refill_lock: Mutex::new(()),
         })
@@ -112,7 +97,7 @@ impl IdGenerator {
                 continue;
             }
 
-            // refill from rocksdb
+            // refill from storage
             let _guard = self.refill_lock.lock().unwrap();
 
             // other may refill when we're waiting for the lock,
@@ -120,32 +105,28 @@ impl IdGenerator {
             if self.current.load(Ordering::Relaxed) < self.max.load(Ordering::Relaxed) {
                 continue;
             }
-            // refill from rocksdb
+            // refill from storage
             self.refill_from_db()?;
         }
     }
 
     fn refill_from_db(&self) -> Result<(), GraphStoreError> {
-        let cf = self.db.cf_handle(&self.cf_name).unwrap();
+        let tree = self.db.tree(CfKind::Meta);
 
-        // load old value from db
-        let old_max = match self.db.get_cf(&cf, &self.key)? {
+        // load old value from storage
+        let old_max = match kv::bf_read(tree, &self.key)? {
             Some(val) => {
-                // value should be u64
                 let mut bytes = [0u8; 8];
                 bytes.copy_from_slice(&val);
                 u64::from_le_bytes(bytes)
             }
-            None => 0, // start from zero
+            None => 0,
         };
 
         let new_max = old_max + ID_BATCH_SIZE;
 
-        // write new_max to rocksdb
-        let mut write_opts = rocksdb::WriteOptions::default();
-        write_opts.set_sync(true);
-        self.db
-            .put_cf_opt(&cf, self.key.as_ref(), new_max.to_le_bytes(), &write_opts)?;
+        // write new_max to storage
+        kv::bf_insert(tree, self.key.as_ref(), &new_max.to_le_bytes())?;
 
         // update in memory state
         self.current.store(old_max, Ordering::Release);

@@ -2,11 +2,52 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::{Arc, RwLock};
 
+use arc_swap::ArcSwap;
 use elio_common::{LabelId, PropertyKeyId, RelationshipTypeId, TokenId, TokenKind};
 
 use crate::codec::TokenCodec;
 use crate::error::GraphStoreError;
-use crate::kv::{KvEngine, cf_meta};
+use crate::kv::{self, CfKind, KvEngine};
+
+/// Lock-free reverse lookup table: token_id (u16) → token string.
+/// Reads are wait-free via `ArcSwap::load`. Writes clone-on-write the inner Vec.
+struct IdToStr(ArcSwap<Vec<Arc<str>>>);
+
+impl IdToStr {
+    fn new() -> Self {
+        Self(ArcSwap::from_pointee(Vec::new()))
+    }
+
+    /// O(1) lookup by index — no hashing, no locking.
+    fn get(&self, id: u16) -> Option<Arc<str>> {
+        let v = self.0.load();
+        v.get(id as usize).cloned()
+    }
+
+    /// Insert at position `id`, growing the vec if needed.
+    fn insert(&self, id: u16, val: Arc<str>) {
+        let mut v = (*self.0.load_full()).clone();
+        let idx = id as usize;
+        if idx >= v.len() {
+            v.resize(idx + 1, Arc::from(""));
+        }
+        v[idx] = val;
+        self.0.store(Arc::new(v));
+    }
+
+    /// Bulk load from (token, id) pairs.
+    fn load_from(&self, entries: &[(String, u16)]) {
+        let max_id = entries.iter().map(|(_, id)| *id as usize).max();
+        let mut v = match max_id {
+            Some(m) => vec![Arc::from(""); m + 1],
+            None => Vec::new(),
+        };
+        for (token, id) in entries {
+            v[*id as usize] = Arc::from(token.as_str());
+        }
+        self.0.store(Arc::new(v));
+    }
+}
 
 pub struct TokenStore {
     db: Arc<KvEngine>,
@@ -18,9 +59,9 @@ pub struct TokenStore {
     reltypes: RwLock<HashMap<String, RelationshipTypeId>>,
     property_keys: RwLock<HashMap<String, PropertyKeyId>>,
 
-    id2label: RwLock<HashMap<LabelId, String>>,
-    id2reltype: RwLock<HashMap<RelationshipTypeId, String>>,
-    id2property_key: RwLock<HashMap<PropertyKeyId, String>>,
+    id2label: IdToStr,
+    id2reltype: IdToStr,
+    id2property_key: IdToStr,
 }
 
 impl TokenStore {
@@ -33,17 +74,15 @@ impl TokenStore {
             labels: RwLock::new(HashMap::new()),
             reltypes: RwLock::new(HashMap::new()),
             property_keys: RwLock::new(HashMap::new()),
-            id2label: RwLock::new(HashMap::new()),
-            id2reltype: RwLock::new(HashMap::new()),
-            id2property_key: RwLock::new(HashMap::new()),
+            id2label: IdToStr::new(),
+            id2reltype: IdToStr::new(),
+            id2property_key: IdToStr::new(),
         };
         store.load_from_db()?;
         Ok(store)
     }
 
     fn load_from_db(&mut self) -> Result<(), GraphStoreError> {
-        // load state from db to cache
-        // token dict
         self.load_token_dict(TokenKind::Label)?;
         self.load_token_dict(TokenKind::RelationshipType)?;
         self.load_token_dict(TokenKind::PropertyKey)?;
@@ -88,13 +127,10 @@ impl TokenStore {
 
 impl TokenStore {
     pub fn get_or_create_token(&self, token: &str, token_kind: TokenKind) -> Result<u16, GraphStoreError> {
-        let (mut tokens, mut id2str) = match token_kind {
-            TokenKind::Label => (self.labels.write().unwrap(), self.id2label.write().unwrap()),
-            TokenKind::RelationshipType => (self.reltypes.write().unwrap(), self.id2reltype.write().unwrap()),
-            TokenKind::PropertyKey => (
-                self.property_keys.write().unwrap(),
-                self.id2property_key.write().unwrap(),
-            ),
+        let mut tokens = match token_kind {
+            TokenKind::Label => self.labels.write().unwrap(),
+            TokenKind::RelationshipType => self.reltypes.write().unwrap(),
+            TokenKind::PropertyKey => self.property_keys.write().unwrap(),
         };
         if let Some(token_id) = tokens.get(token) {
             return Ok(*token_id);
@@ -107,14 +143,20 @@ impl TokenStore {
             TokenKind::PropertyKey => self.next_property_key_id.fetch_add(1, Ordering::Relaxed),
         };
         tokens.insert(token.to_string(), token_id);
-        id2str.insert(token_id, token.to_string());
+
+        let id2str = match token_kind {
+            TokenKind::Label => &self.id2label,
+            TokenKind::RelationshipType => &self.id2reltype,
+            TokenKind::PropertyKey => &self.id2property_key,
+        };
+        id2str.insert(token_id, Arc::from(token));
+
         // write to db
-        let cf = self.db.cf_handle(cf_meta::CF_NAME).unwrap();
+        let tree = self.db.tree(CfKind::Meta);
         {
-            // insert token -> id to db
             let key = TokenCodec::data_key(&token_kind, token);
             let value = TokenCodec::encode_data_value(token_id);
-            self.db.put_cf(&cf, key, value)?;
+            kv::bf_insert(tree, &key, &value)?;
         }
         Ok(token_id)
     }
@@ -125,20 +167,15 @@ impl TokenStore {
             TokenKind::RelationshipType => &self.id2reltype,
             TokenKind::PropertyKey => &self.id2property_key,
         };
-        let id2str = id2str.read().unwrap();
-        id2str
-            .get(&id)
-            .cloned()
-            .map(Arc::from)
-            .ok_or(GraphStoreError::Token(id.to_string()))
+        id2str.get(id).ok_or(GraphStoreError::Token(id.to_string()))
     }
 
     fn load_token_dict(&mut self, token_kind: TokenKind) -> Result<(), GraphStoreError> {
         let tokens = self.db_get_all_token(token_kind)?;
-        let (dict, id2str) = match token_kind {
-            TokenKind::Label => (&mut self.labels, &mut self.id2label),
-            TokenKind::RelationshipType => (&mut self.reltypes, &mut self.id2reltype),
-            TokenKind::PropertyKey => (&mut self.property_keys, &mut self.id2property_key),
+        let dict = match token_kind {
+            TokenKind::Label => &mut self.labels,
+            TokenKind::RelationshipType => &mut self.reltypes,
+            TokenKind::PropertyKey => &mut self.property_keys,
         };
         // update next id
         let next_id = match tokens.iter().map(|(_, id)| id).max() {
@@ -151,34 +188,33 @@ impl TokenStore {
             TokenKind::PropertyKey => self.next_property_key_id.store(next_id, Ordering::Relaxed),
         }
 
+        // Bulk load id→str
+        let id2str = match token_kind {
+            TokenKind::Label => &self.id2label,
+            TokenKind::RelationshipType => &self.id2reltype,
+            TokenKind::PropertyKey => &self.id2property_key,
+        };
+        id2str.load_from(&tokens);
+
+        // Load str→id
         {
             let mut dict = dict.write().unwrap();
             dict.clear();
-            let mut id2str = id2str.write().unwrap();
-            id2str.clear();
-
             dict.reserve(tokens.len());
-            id2str.reserve(tokens.len());
-
             for (token, id) in tokens {
-                dict.insert(token.clone(), id);
-                id2str.insert(id, token);
+                dict.insert(token, id);
             }
         }
         Ok(())
     }
 
     fn db_get_all_token(&self, token_kind: TokenKind) -> Result<Vec<(String, u16)>, GraphStoreError> {
-        let cf = self.db.cf_handle(cf_meta::CF_NAME).unwrap();
+        let tree = self.db.tree(CfKind::Meta);
         let prefix = TokenCodec::data_key_prefix(&token_kind);
-        let iter = self.db.prefix_iterator_cf(&cf, &prefix);
+        let entries = kv::bf_prefix_scan_iter(tree, &prefix)?;
 
         let mut tokens = Vec::new();
-        for res in iter {
-            let (key, value) = res?;
-            if !key.starts_with(&prefix) {
-                break;
-            }
+        for (key, value) in entries {
             let (_, token) = TokenCodec::decode_data_key(&key);
             let token_id = TokenCodec::decode_data_value(&value);
             tokens.push((token, token_id));

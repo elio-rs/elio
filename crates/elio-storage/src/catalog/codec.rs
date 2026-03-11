@@ -1,6 +1,6 @@
 use bytes::{BufMut, Bytes, BytesMut};
-use elio_common::LabelId;
 use elio_common::catalog::{ConstraintCatalogEntry, IndexCatalogEntry};
+use elio_common::LabelId;
 
 use crate::kv::cf_catalog;
 

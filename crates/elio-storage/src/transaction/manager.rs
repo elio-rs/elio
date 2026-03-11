@@ -24,43 +24,11 @@ pub(crate) enum TxGuard {
 unsafe impl Send for TxGuard {}
 unsafe impl Sync for TxGuard {}
 
-pub(crate) struct OwnedSnapshot {
-    // snapshot is static, so we need to keep the db alive
-    pub(crate) _db: Arc<KvEngine>,
-    pub(crate) snapshot: rocksdb::Snapshot<'static>,
-}
-
-impl OwnedSnapshot {
-    pub fn new(db: Arc<KvEngine>) -> Self {
-        unsafe {
-            let snapshot = db.snapshot();
-            let static_snapshot: rocksdb::Snapshot<'static> = std::mem::transmute(snapshot);
-            Self {
-                _db: db,
-                snapshot: static_snapshot,
-            }
-        }
-    }
-
-    pub fn db(&self) -> &Arc<KvEngine> {
-        &self._db
-    }
-}
-
-impl std::ops::Deref for OwnedSnapshot {
-    type Target = rocksdb::Snapshot<'static>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.snapshot
-    }
-}
-
 pub struct TransactionManager {
     db: Arc<KvEngine>,
     // used to apply changes to inmemory catalog snapshot
     catalog_state: Arc<CatalogState>,
     // the global transaction lock, this is used to enforce single-writer
-    // TODO(pgao): we should have a mutext here, reads should not hold locks.
     tx_lock: RwLock<()>,
 }
 
@@ -94,7 +62,7 @@ impl TransactionManager {
         let catalog_state = self.catalog_state.clone();
         let on_catalog_commit: CatalogCommitFn = Arc::new(move |changes| catalog_state.publish_changes(changes));
         Arc::new(Transaction {
-            snapshot: OwnedSnapshot::new(self.db.clone()),
+            db: self.db.clone(),
             catalog_snapshot,
             write_state: std::sync::Mutex::new(WriteState::default()),
             on_catalog_commit,
