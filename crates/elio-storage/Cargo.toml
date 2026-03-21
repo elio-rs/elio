@@ -18,9 +18,8 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 # local
-bytemuck = { version = "1.24.0", features = ["derive"] }
+heed = { workspace = true }
 parking_lot = "0.12"
-rocksdb = { version = "0.24.0", features = ["multi-threaded-cf"] }
 
 [dev-dependencies]
 tempfile = { workspace = true }

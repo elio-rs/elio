@@ -10,25 +10,21 @@ use tracing::warn;
 pub use self::codec::{ConstraintCodec, IndexCodec};
 pub(crate) use self::snapshot::{CatalogChange, DurableCatalogSnapshot};
 use crate::error::GraphStoreError;
-use crate::kv::{KvEngine, cf_catalog};
+use crate::kv::{KvEngine, graph_keys};
 
 /// In-memory catalog state, kept as a singleton in the database instance.
-/// Manages the current `DurableCatalogSnapshot` — loads it on startup,
-/// hands it to new transactions, and advances it on commit.
 pub struct CatalogState {
-    // in memory snapshot for fast read
     snapshot: ArcSwap<DurableCatalogSnapshot>,
 }
 
 impl CatalogState {
-    pub fn new(db: Arc<KvEngine>) -> Result<Self, GraphStoreError> {
-        let snapshot = Arc::new(Self::load_snapshot_from_db(db.as_ref())?);
+    pub fn new(engine: Arc<KvEngine>) -> Result<Self, GraphStoreError> {
+        let snapshot = Arc::new(Self::load_snapshot_from_db(&engine)?);
         Ok(Self {
             snapshot: ArcSwap::from(snapshot),
         })
     }
 
-    /// Returns the current catalog snapshot for use in transaction isolation.
     pub(crate) fn current_snapshot(&self) -> Arc<DurableCatalogSnapshot> {
         self.snapshot.load_full()
     }
@@ -41,25 +37,26 @@ impl CatalogState {
         self.snapshot.rcu(|old| Arc::new(old.apply_changes(&changes)));
     }
 
-    fn load_snapshot_from_db(db: &KvEngine) -> Result<DurableCatalogSnapshot, GraphStoreError> {
-        let cf = db.cf_handle(cf_catalog::CF_NAME).unwrap();
+    fn load_snapshot_from_db(engine: &KvEngine) -> Result<DurableCatalogSnapshot, GraphStoreError> {
+        let rtxn = engine.graph.env.read_txn().map_err(GraphStoreError::Heed)?;
+        let catalog_db = engine.graph.catalog;
 
         // Load constraints
         let mut constraints = Vec::new();
-        let constraint_prefix = [cf_catalog::CONSTRAINT_META_PREFIX];
-        let constraint_iter = db.prefix_iterator_cf(&cf, constraint_prefix);
-        for item in constraint_iter {
-            let (key, value) = item?;
+        let constraint_prefix = [graph_keys::CONSTRAINT_META_PREFIX];
+        let iter = catalog_db.iter(&rtxn).map_err(GraphStoreError::Heed)?;
+        for item in iter {
+            let (key, value) = item.map_err(GraphStoreError::Heed)?;
             if !key.starts_with(&constraint_prefix) {
-                break;
+                continue;
             }
 
-            let Some(name) = ConstraintCodec::decode_meta_key(&key) else {
+            let Some(name) = ConstraintCodec::decode_meta_key(key) else {
                 warn!("skip invalid constraint meta key while loading snapshot");
                 continue;
             };
 
-            let Some(entry) = ConstraintCodec::decode_meta_value(name.clone(), &value) else {
+            let Some(entry) = ConstraintCodec::decode_meta_value(name.clone(), value) else {
                 warn!(constraint_name = %name, "skip invalid constraint meta value while loading snapshot");
                 continue;
             };
@@ -69,20 +66,20 @@ impl CatalogState {
 
         // Load indexes
         let mut indexes = Vec::new();
-        let index_prefix = [cf_catalog::INDEX_META_PREFIX];
-        let index_iter = db.prefix_iterator_cf(&cf, index_prefix);
-        for item in index_iter {
-            let (key, value) = item?;
+        let index_prefix = [graph_keys::INDEX_META_PREFIX];
+        let iter = catalog_db.iter(&rtxn).map_err(GraphStoreError::Heed)?;
+        for item in iter {
+            let (key, value) = item.map_err(GraphStoreError::Heed)?;
             if !key.starts_with(&index_prefix) {
-                break;
+                continue;
             }
 
-            let Some(name) = IndexCodec::decode_meta_key(&key) else {
+            let Some(name) = IndexCodec::decode_meta_key(key) else {
                 warn!("skip invalid index meta key while loading snapshot");
                 continue;
             };
 
-            let Some(entry) = IndexCodec::decode_meta_value(name.clone(), &value) else {
+            let Some(entry) = IndexCodec::decode_meta_value(name.clone(), value) else {
                 warn!(index_name = %name, "skip invalid index meta value while loading snapshot");
                 continue;
             };
@@ -90,8 +87,7 @@ impl CatalogState {
             indexes.push(entry);
         }
 
-        // Backward compatibility: older constraints may not have backing_index set.
-        // Synthesize missing index entries and patch constraints with backing_index names.
+        // Backward compatibility: synthesize missing index entries
         let existing_index_names: std::collections::HashSet<Arc<str>> =
             indexes.iter().map(|entry| entry.name.clone()).collect();
         for constraint in &mut constraints {
@@ -104,7 +100,6 @@ impl CatalogState {
             let index_name: Arc<str> = match &constraint.backing_index {
                 Some(name) => name.clone(),
                 None => {
-                    // Legacy constraint without backing_index — assign the new naming convention
                     let name: Arc<str> = Arc::from(format!("idx_{}", constraint.name));
                     constraint.backing_index = Some(name.clone());
                     name

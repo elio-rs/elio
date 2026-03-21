@@ -1,12 +1,12 @@
 use bytes::{BufMut, Bytes, BytesMut};
 use elio_common::{LabelId, NodeId};
 
-use crate::kv::cf_data::LABEL_INDEX_PREFIX;
+use crate::kv::graph_keys::LABEL_INDEX_PREFIX;
 
 pub struct LabelIndexCodec;
 
 impl LabelIndexCodec {
-    /// Encode a label index key: `[0x02][label_id u16 LE][node_id u64 BE]`
+    /// Encode a label index key: `[0x01][label_id u16 LE][node_id u64 BE]`
     pub fn encode_key(label_id: LabelId, node_id: NodeId) -> Bytes {
         let mut key = BytesMut::with_capacity(1 + 2 + 8);
         key.put_u8(LABEL_INDEX_PREFIX);
@@ -15,7 +15,7 @@ impl LabelIndexCodec {
         key.freeze()
     }
 
-    /// Encode a label index prefix for prefix scan: `[0x02][label_id u16 LE]`
+    /// Encode a label index prefix for prefix scan: `[0x01][label_id u16 LE]`
     pub fn encode_prefix(label_id: LabelId) -> Bytes {
         let mut key = BytesMut::with_capacity(1 + 2);
         key.put_u8(LABEL_INDEX_PREFIX);

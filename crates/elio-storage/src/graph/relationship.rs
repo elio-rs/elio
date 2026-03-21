@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use bitvec::vec::BitVec;
@@ -6,25 +7,12 @@ use elio_common::scalar::{RelValueRef, StructValue};
 use elio_common::store_types::RelDirection;
 use elio_common::{NodeId, RelationshipId, SemanticDirection, TokenId, TokenKind};
 
-use crate::codec::RelFormat;
+use crate::codec::{AdaptiveNodeCodec, EdgeEntry, GraphKeyCodec};
 use crate::error::GraphStoreError;
 use crate::id::IdStore;
-use crate::kv::cf_topology;
 use crate::token::TokenStore;
 use crate::transaction::Transaction;
 
-/// start/end are expected to be :
-///   - VirtualNodeArray
-///   - NodeArray
-///
-/// prop expected to be:
-///   - StructArray
-///
-/// 1. mapping rtype to TokenId
-/// 2. mapping property key ids to TokenId
-/// 3. create relationship id
-/// 3. serialize key-value
-/// 4. batch write
 pub(crate) fn batch_rel_create<A, B>(
     tx: &Transaction,
     dict: &IdStore,
@@ -38,7 +26,6 @@ where
     A: NodeIdContainer,
     B: NodeIdContainer,
 {
-    // check start and end should not be null
     if !start.valid_map().all() || !end.valid_map().all() {
         return Err(GraphStoreError::internal("start/end should not be null".to_string()));
     }
@@ -54,34 +41,117 @@ where
         .collect::<Result<Vec<_>, _>>()?;
     let len = start.len();
 
-    let mut out_keys = Vec::with_capacity(len);
-    let mut in_keys = Vec::with_capacity(len);
-    let mut values = Vec::with_capacity(len);
+    // Encode property bytes for each relationship
     let empty_prop = StructValue::default();
     let empty_prop_ref = empty_prop.as_scalar_ref();
+    let mut rel_prop_bytes = Vec::with_capacity(len);
+    for i in 0..len {
+        let p = prop.get(i).unwrap_or(empty_prop_ref);
+        let prop_bytes = AdaptiveNodeCodec::encode_property_value(&prop_key_ids, p)
+            .map_err(|e| GraphStoreError::internal(e.to_string()))?;
+        rel_prop_bytes.push(prop_bytes);
+    }
+
+    // Group edges by affected node_id
+    struct PendingEdge {
+        edge: EdgeEntry,
+        is_out: bool,
+    }
+
+    let mut node_edges: HashMap<NodeId, Vec<PendingEdge>> = HashMap::new();
+
     for (i, rel_id) in rel_ids.iter().enumerate() {
         let start_id = start.get_unchecked(i);
         let end_id = end.get_unchecked(i);
-        let prop = prop.get(i);
 
-        let out_key = RelFormat::encode_key(start_id, RelDirection::Out, rtype_id, end_id, *rel_id);
-        let in_key = RelFormat::encode_key(end_id, RelDirection::In, rtype_id, start_id, *rel_id);
-        out_keys.push(out_key);
-        in_keys.push(in_key);
+        node_edges.entry(start_id).or_default().push(PendingEdge {
+            edge: EdgeEntry {
+                rel_id: *rel_id,
+                other_node_id: end_id,
+                rel_type_id: rtype_id,
+                prop_bytes: rel_prop_bytes[i].clone(),
+            },
+            is_out: true,
+        });
 
-        let value = RelFormat::encode_value(&prop_key_ids, prop.unwrap_or(empty_prop_ref))
-            .map_err(|e| GraphStoreError::internal(e.to_string()))?;
-        values.push(value);
+        node_edges.entry(end_id).or_default().push(PendingEdge {
+            edge: EdgeEntry {
+                rel_id: *rel_id,
+                other_node_id: start_id,
+                rel_type_id: rtype_id,
+                prop_bytes: rel_prop_bytes[i].clone(),
+            },
+            is_out: false,
+        });
     }
 
-    // construct batch
-    let cf = tx.snapshot._db.cf_handle(cf_topology::CF_NAME).unwrap();
-    let mut guard = tx.write_state.lock().unwrap();
-    for i in 0..values.len() {
-        guard.batch.put_cf(&cf, &out_keys[i], &values[i]);
-        guard.batch.put_cf(&cf, &in_keys[i], &values[i]);
-    }
-    drop(guard);
+    // Read-modify-write for each affected node
+    tx.with_rw_txn_mut(|txn| {
+        let graph_db = tx._engine.graph.graph;
+
+        for (node_id, pending) in &node_edges {
+            let header_key = GraphKeyCodec::encode_header_key(*node_id);
+
+            let header_val = graph_db
+                .get(txn, &header_key)
+                .map_err(GraphStoreError::Heed)?
+                .ok_or_else(|| GraphStoreError::internal(format!("node {} not found for rel create", node_id)))?;
+
+            let (is_packed, label_ref, prop_bytes, remaining) =
+                AdaptiveNodeCodec::decode_header(header_val).map_err(GraphStoreError::internal)?;
+
+            let labels: Vec<u16> = label_ref.iter().collect();
+            let prop_bytes_owned = prop_bytes.to_vec();
+
+            let (mut out_edges, mut in_edges) = if is_packed {
+                AdaptiveNodeCodec::decode_packed_edges(remaining).map_err(GraphStoreError::internal)?
+            } else {
+                let out_key = GraphKeyCodec::encode_out_edges_key(*node_id);
+                let in_key = GraphKeyCodec::encode_in_edges_key(*node_id);
+
+                let out = match graph_db.get(txn, &out_key).map_err(GraphStoreError::Heed)? {
+                    Some(data) => AdaptiveNodeCodec::decode_edge_list(data).map_err(GraphStoreError::internal)?,
+                    None => Vec::new(),
+                };
+                let inc = match graph_db.get(txn, &in_key).map_err(GraphStoreError::Heed)? {
+                    Some(data) => AdaptiveNodeCodec::decode_edge_list(data).map_err(GraphStoreError::internal)?,
+                    None => Vec::new(),
+                };
+                (out, inc)
+            };
+
+            for p in pending {
+                if p.is_out {
+                    out_edges.push(p.edge.clone());
+                } else {
+                    in_edges.push(p.edge.clone());
+                }
+            }
+
+            if let Some(packed) =
+                AdaptiveNodeCodec::try_encode_packed(&labels, &prop_bytes_owned, &out_edges, &in_edges)
+            {
+                graph_db.put(txn, &header_key, &packed).map_err(GraphStoreError::Heed)?;
+                if !is_packed {
+                    let out_key = GraphKeyCodec::encode_out_edges_key(*node_id);
+                    let in_key = GraphKeyCodec::encode_in_edges_key(*node_id);
+                    let _ = graph_db.delete(txn, &out_key);
+                    let _ = graph_db.delete(txn, &in_key);
+                }
+            } else {
+                let header = AdaptiveNodeCodec::encode_header(&labels, &prop_bytes_owned);
+                let out_data = AdaptiveNodeCodec::encode_edge_list(&out_edges);
+                let in_data = AdaptiveNodeCodec::encode_edge_list(&in_edges);
+
+                graph_db.put(txn, &header_key, &header).map_err(GraphStoreError::Heed)?;
+                let out_key = GraphKeyCodec::encode_out_edges_key(*node_id);
+                let in_key = GraphKeyCodec::encode_in_edges_key(*node_id);
+                graph_db.put(txn, &out_key, &out_data).map_err(GraphStoreError::Heed)?;
+                graph_db.put(txn, &in_key, &in_data).map_err(GraphStoreError::Heed)?;
+            }
+        }
+        Ok::<_, GraphStoreError>(())
+    })?;
 
     // create rel array
     let mut builder = RelArrayBuilder::with_capacity(len);
@@ -100,23 +170,71 @@ where
     Ok(builder.finish())
 }
 
-pub(crate) fn rel_iter_for_node<'a>(
-    tx: &'a Transaction,
+pub(crate) fn rel_iter_for_node(
+    tx: &Transaction,
     node_id: NodeId,
     dir: SemanticDirection,
     rtypes: &[TokenId],
-) -> Result<RelIterForNode<'a>, GraphStoreError> {
-    let cf = tx.snapshot._db.cf_handle(cf_topology::CF_NAME).unwrap();
-    let prefix = RelFormat::node_rel_iter_prefix(node_id, dir);
+) -> Result<RelIterForNode, GraphStoreError> {
+    let entries = tx.with_rw_txn(|txn| {
+        let graph_db = tx._engine.graph.graph;
 
-    let mut readopts = rocksdb::ReadOptions::default();
-    readopts.set_prefix_same_as_start(true);
-    let mode = rocksdb::IteratorMode::From(&prefix, rocksdb::Direction::Forward);
-    let iter = tx.snapshot.snapshot.iterator_cf_opt(&cf, readopts, mode);
+        let header_key = GraphKeyCodec::encode_header_key(node_id);
+        let header_val = match graph_db.get(txn, &header_key).map_err(GraphStoreError::Heed)? {
+            Some(v) => v,
+            None => {
+                return Ok(Vec::new());
+            }
+        };
+
+        let (is_packed, _labels, _prop_bytes, remaining) =
+            AdaptiveNodeCodec::decode_header(header_val).map_err(GraphStoreError::internal)?;
+
+        let (out_edges, in_edges) = if is_packed {
+            AdaptiveNodeCodec::decode_packed_edges(remaining).map_err(GraphStoreError::internal)?
+        } else {
+            let out_key = GraphKeyCodec::encode_out_edges_key(node_id);
+            let in_key = GraphKeyCodec::encode_in_edges_key(node_id);
+
+            let out = match graph_db.get(txn, &out_key).map_err(GraphStoreError::Heed)? {
+                Some(data) => AdaptiveNodeCodec::decode_edge_list(data).map_err(GraphStoreError::internal)?,
+                None => Vec::new(),
+            };
+            let inc = match graph_db.get(txn, &in_key).map_err(GraphStoreError::Heed)? {
+                Some(data) => AdaptiveNodeCodec::decode_edge_list(data).map_err(GraphStoreError::internal)?,
+                None => Vec::new(),
+            };
+            (out, inc)
+        };
+
+        let mut entries = Vec::new();
+        match dir {
+            SemanticDirection::Outgoing => {
+                for e in out_edges {
+                    entries.push((e, RelDirection::Out));
+                }
+            }
+            SemanticDirection::Incoming => {
+                for e in in_edges {
+                    entries.push((e, RelDirection::In));
+                }
+            }
+            SemanticDirection::Both => {
+                for e in out_edges {
+                    entries.push((e, RelDirection::Out));
+                }
+                for e in in_edges {
+                    entries.push((e, RelDirection::In));
+                }
+            }
+        }
+        Ok::<_, GraphStoreError>(entries)
+    })?;
+
     Ok(RelIterForNode {
-        iter,
+        entries,
+        pos: 0,
         from_id: node_id,
-        dir,
         rtypes: rtypes.into(),
     })
 }
@@ -136,7 +254,6 @@ impl NodeIdContainer for NodeArray {
     }
 
     fn get_unchecked(&self, index: usize) -> NodeId {
-        // TODO(pgao): optimize
         <Self as Array>::get(self, index).unwrap().id
     }
 
@@ -151,7 +268,6 @@ impl NodeIdContainer for VirtualNodeArray {
     }
 
     fn get_unchecked(&self, index: usize) -> NodeId {
-        // TODO(pgao): optimize
         <Self as Array>::get(self, index).unwrap()
     }
 
@@ -160,45 +276,39 @@ impl NodeIdContainer for VirtualNodeArray {
     }
 }
 
-pub struct RelIterForNode<'a> {
-    iter: rocksdb::DBIteratorWithThreadMode<'a, rocksdb::DBWithThreadMode<rocksdb::MultiThreaded>>,
+pub struct RelIterForNode {
+    entries: Vec<(EdgeEntry, RelDirection)>,
+    pos: usize,
     from_id: NodeId,
-    dir: SemanticDirection,
-    // TODO(pgao): use binary search?
     rtypes: Box<[TokenId]>,
-    // TODO: filter expression etc
-    // TODO: project expression etc
 }
 
-impl<'a> Iterator for RelIterForNode<'a> {
-    // we return properties because we do not want to have another io to fetch the property
-    // values
-    // TODO(pgao): lazy materialize
-    // start, dir, reltype, end, property bytes
+impl Iterator for RelIterForNode {
+    // from, dir, reltype, to, rel_id, property bytes
+    #[allow(clippy::type_complexity)]
     type Item = Result<(NodeId, RelDirection, TokenId, NodeId, RelationshipId, Box<[u8]>), GraphStoreError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // filter given reltypes
-        for item in self.iter.by_ref() {
-            match item {
-                Err(e) => {
-                    return Some(Err(e.into()));
-                }
-                Ok((key, val)) => {
-                    let (from, dir, reltype, end, rel_id) = RelFormat::decode_key(&key);
-                    if from != self.from_id {
-                        return None;
-                    }
-                    if !dir.satisfies(self.dir) {
-                        continue;
-                    }
-                    // TODO(pgao): rtypes.is_empty() can be put in outer loop
-                    if !self.rtypes.is_empty() && !self.rtypes.contains(&reltype) {
-                        continue;
-                    }
-                    return Some(Ok((from, dir, reltype, end, rel_id, val)));
-                }
+        while self.pos < self.entries.len() {
+            let (entry, dir) = &self.entries[self.pos];
+            self.pos += 1;
+
+            if !self.rtypes.is_empty() && !self.rtypes.contains(&entry.rel_type_id) {
+                continue;
             }
+
+            // Return (from_id, dir, reltype, to_id, rel_id, props)
+            // where from_id = the node we're iterating, to_id = the other node.
+            // The caller (expand executor) computes the relationship's actual
+            // start_id/end_id based on direction.
+            return Some(Ok((
+                self.from_id,
+                *dir,
+                entry.rel_type_id,
+                entry.other_node_id,
+                entry.rel_id,
+                entry.prop_bytes.to_vec().into_boxed_slice(),
+            )));
         }
         None
     }

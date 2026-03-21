@@ -6,15 +6,13 @@ use elio_common::array::chunk::DataChunk;
 use elio_common::array::{Array, ArrayImpl, NodeArray, NodeArrayBuilder, VirtualNodeArray, VirtualNodeArrayBuilder};
 use elio_common::scalar::{NodeValueRef, StructValue};
 
-use crate::codec::{LabelIndexCodec, NodeFormat};
+use crate::codec::{AdaptiveNodeCodec, GraphKeyCodec, LabelIndexCodec};
 use crate::error::GraphStoreError;
 use crate::id::IdStore;
-use crate::kv::cf_data;
+use crate::kv::graph_keys;
 use crate::token::TokenStore;
 use crate::transaction::{DataChunkIterator, NodeScanOptions, Transaction};
 
-// props only accept the following array types
-// - StructArray
 pub(crate) fn batch_node_create(
     tx: &Transaction,
     dict: &IdStore,
@@ -24,54 +22,49 @@ pub(crate) fn batch_node_create(
 ) -> Result<NodeArray, GraphStoreError> {
     let len = props.len();
 
-    // props
     let props = props
         .as_struct()
         .ok_or(GraphStoreError::type_mismatch("Expected struct array"))?;
 
-    // create label ids
     let label_ids = labels
         .iter()
         .map(|l| token.get_or_create_token(l, TokenKind::Label))
         .collect::<Result<Vec<_>, _>>()?;
 
-    // create property key names
     let token_ids = props
         .fields()
         .iter()
         .map(|(k, _)| token.get_or_create_token(k, TokenKind::PropertyKey))
         .collect::<Result<Vec<_>, _>>()?;
 
-    // allocate node id for the batch
     let node_ids = dict.batch_node_id(len)?;
 
-    // create node fields for the batch
-    let mut keys = Vec::with_capacity(len);
-    let mut values = Vec::with_capacity(len);
+    // Write to graph env via RwTxn
+    tx.with_rw_txn_mut(|txn| {
+        let engine = &tx._engine;
+        let graph_db = engine.graph.graph;
+        let index_db = engine.graph.index;
 
-    for (node_id, prop) in node_ids.iter().zip(props.iter()) {
-        let key = NodeFormat::encode_node_key(*node_id);
-        keys.push(key);
-        // labels and props must not be null
-        let prop = prop.unwrap();
-        let value = NodeFormat::encode_node_value(&label_ids, &token_ids, prop).map_err(GraphStoreError::internal)?;
-        values.push(value);
-    }
+        for (node_id, prop) in node_ids.iter().zip(props.iter()) {
+            let prop = prop.unwrap();
+            let prop_bytes =
+                AdaptiveNodeCodec::encode_property_value(&token_ids, prop).map_err(GraphStoreError::internal)?;
 
-    // construct batch
-    let cf = tx.snapshot._db.cf_handle(cf_data::CF_NAME).unwrap();
-    let mut guard = tx.write_state.lock().unwrap();
-    for (k, v) in keys.iter().zip(values.iter()) {
-        guard.batch.put_cf(&cf, k, v);
-    }
-    // write label index entries
-    for node_id in node_ids.iter() {
-        for label_id in label_ids.iter() {
-            let label_key = LabelIndexCodec::encode_key(*label_id, *node_id);
-            guard.batch.put_cf(&cf, &label_key, []);
+            // New node has 0 edges → always packed
+            let value = AdaptiveNodeCodec::try_encode_packed(&label_ids, &prop_bytes, &[], &[])
+                .expect("new node with 0 edges should always fit in packed mode");
+
+            let key = GraphKeyCodec::encode_header_key(*node_id);
+            graph_db.put(txn, &key, &value).map_err(GraphStoreError::Heed)?;
+
+            // write label index entries
+            for label_id in &label_ids {
+                let label_key = LabelIndexCodec::encode_key(*label_id, *node_id);
+                index_db.put(txn, &label_key, &[]).map_err(GraphStoreError::Heed)?;
+            }
         }
-    }
-    drop(guard);
+        Ok::<_, GraphStoreError>(())
+    })?;
 
     // create node array
     let mut builder = NodeArrayBuilder::with_capacity(len);
@@ -92,13 +85,25 @@ pub(crate) fn batch_node_scan(
     tx: &Transaction,
     opts: NodeScanOptions,
 ) -> Result<Box<dyn DataChunkIterator + '_>, GraphStoreError> {
-    let cf_handle = tx.snapshot._db.cf_handle(cf_data::CF_NAME).unwrap();
-    let mut readopts = rocksdb::ReadOptions::default();
-    // TODO(pgao): check the behavior of prefix scan
-    readopts.set_prefix_same_as_start(true);
-    let mode = rocksdb::IteratorMode::From(cf_data::NODE_KEY_PREFIX, rocksdb::Direction::Forward);
-    let iter = tx.snapshot.snapshot.iterator_cf_opt(&cf_handle, readopts, mode);
-    Ok(Box::new(NodeIterator { iter, opts }))
+    let node_ids = tx.with_rw_txn(|txn| {
+        let graph_db = tx._engine.graph.graph;
+
+        let mut node_ids = Vec::new();
+        let iter = graph_db.iter(txn).map_err(GraphStoreError::Heed)?;
+        for result in iter {
+            let (key, _) = result.map_err(GraphStoreError::Heed)?;
+            if key.len() < 9 {
+                continue;
+            }
+            let (node_id, segment) = GraphKeyCodec::decode(key);
+            if segment == graph_keys::SEGMENT_HEADER {
+                node_ids.push(node_id);
+            }
+        }
+        Ok::<_, GraphStoreError>(node_ids)
+    })?;
+
+    Ok(Box::new(NodeIterator { node_ids, pos: 0, opts }))
 }
 
 pub(crate) fn batch_node_scan_by_label(
@@ -106,45 +111,89 @@ pub(crate) fn batch_node_scan_by_label(
     label_id: elio_common::LabelId,
     opts: NodeScanOptions,
 ) -> Result<Box<dyn DataChunkIterator + '_>, GraphStoreError> {
-    let cf_handle = tx.snapshot._db.cf_handle(cf_data::CF_NAME).unwrap();
     let prefix = LabelIndexCodec::encode_prefix(label_id);
-    let mut readopts = rocksdb::ReadOptions::default();
-    readopts.set_prefix_same_as_start(true);
-    let mode = rocksdb::IteratorMode::From(&prefix, rocksdb::Direction::Forward);
-    let iter = tx.snapshot.snapshot.iterator_cf_opt(&cf_handle, readopts, mode);
-    Ok(Box::new(LabelNodeIterator { iter, prefix, opts }))
+
+    let node_ids = tx.with_rw_txn(|txn| {
+        let index_db = tx._engine.graph.index;
+
+        let mut node_ids = Vec::new();
+        let iter = index_db.iter(txn).map_err(GraphStoreError::Heed)?;
+        for result in iter {
+            let (key, _) = result.map_err(GraphStoreError::Heed)?;
+            if key.starts_with(&prefix) {
+                let (_label_id, node_id) = LabelIndexCodec::decode_key(key);
+                node_ids.push(node_id);
+            } else if key > prefix.as_ref() {
+                break;
+            }
+        }
+        Ok::<_, GraphStoreError>(node_ids)
+    })?;
+
+    Ok(Box::new(NodeIterator { node_ids, pos: 0, opts }))
 }
 
-// null node id handling:
-// two pass:
-// 1. pass over the valid map of node id array, collect the valid node id
-// 2. issue the rocksdb batch read for valid node id
-// 3. pass over the valid map, if the node id is valid, then push the result from rocksdb to the builder, else push None
-//
-// Possible optimizations:
-//  1. for dense array(all the data are valid, we should handle it separately)
 pub(crate) fn batch_materialize_node(
     tx: &Transaction,
     token: &TokenStore,
     node_ids: &VirtualNodeArray,
     vis: &BitVec,
 ) -> Result<NodeArray, GraphStoreError> {
-    let cf_handle = tx.snapshot._db.cf_handle(cf_data::CF_NAME).unwrap();
     let mut builder = NodeArrayBuilder::with_capacity(node_ids.len());
 
-    let mut valid_node_keys = vec![];
-    for (idx, node_id) in node_ids.iter().enumerate() {
-        match (vis[idx], node_id) {
-            (true, Some(node_id)) => valid_node_keys.push(NodeFormat::encode_node_key(node_id)),
-            _ => continue,
-        }
+    // Collect data from LMDB within the txn lock
+    struct NodeData {
+        label_strs: Vec<Arc<str>>,
+        struct_value: StructValue,
     }
 
-    // rocksdb batch read
-    let keys_cf = valid_node_keys.iter().map(|k| (&cf_handle, k));
-    let batch = tx.snapshot.snapshot.multi_get_cf(keys_cf);
-    let mut batch_iter = batch.into_iter();
+    let mut results: Vec<Option<NodeData>> = Vec::with_capacity(node_ids.len());
 
+    tx.with_rw_txn(|txn| {
+        let graph_db = tx._engine.graph.graph;
+
+        for (idx, node_id) in node_ids.iter().enumerate() {
+            if !vis[idx] || node_id.is_none() {
+                results.push(None);
+                continue;
+            }
+
+            let node_id = node_id.unwrap();
+            let key = GraphKeyCodec::encode_header_key(node_id);
+            let val = graph_db.get(txn, &key).map_err(GraphStoreError::Heed)?;
+
+            if let Some(val) = val {
+                let (_is_packed, label_ids_ref, prop_bytes, _remaining) =
+                    AdaptiveNodeCodec::decode_header(val).map_err(GraphStoreError::internal)?;
+
+                let label_strs = label_ids_ref
+                    .iter()
+                    .map(|id| token.get_token_val(id, TokenKind::Label))
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                let prop_map = AdaptiveNodeCodec::decode_property_map(prop_bytes);
+                let struct_value = {
+                    let mut fields = vec![];
+                    for entry in prop_map.iter() {
+                        let key = token.get_token_val(entry.key(), TokenKind::PropertyKey)?;
+                        fields.push((key, entry.value().to_owned_scalar()));
+                    }
+                    StructValue::new(fields)
+                };
+
+                results.push(Some(NodeData {
+                    label_strs,
+                    struct_value,
+                }));
+            } else {
+                tracing::warn!("node id {} not found", node_id);
+                results.push(None);
+            }
+        }
+        Ok::<_, GraphStoreError>(())
+    })?;
+
+    // Build the array outside the txn lock
     for (idx, node_id) in node_ids.iter().enumerate() {
         if !vis[idx] || node_id.is_none() {
             builder.push(None);
@@ -152,96 +201,44 @@ pub(crate) fn batch_materialize_node(
         }
 
         let node_id = node_id.unwrap();
-        // SAFETY: rocksdb will guarantee the length of batch eq to length of valid node_ids
-        let val = batch_iter.next().unwrap()?;
-        if let Some(val) = val {
-            // deserialize
-            // TODO(pgao): lazy deserialize
-            let (label_ids, prop_map) = NodeFormat::decode_node_value(&val).map_err(GraphStoreError::internal)?;
-
-            let label_strs = label_ids
-                .iter()
-                .map(|id| token.get_token_val(id, TokenKind::Label))
-                .collect::<Result<Vec<_>, _>>()?;
-
-            let struct_value = {
-                let mut fileds = vec![];
-                for entry in prop_map.iter() {
-                    let key = token.get_token_val(entry.key(), TokenKind::PropertyKey)?;
-                    fileds.push((key, entry.value().to_owned_scalar()));
-                }
-                StructValue::new(fileds)
-            };
-
-            let node_ref = NodeValueRef {
-                id: node_id,
-                labels: &label_strs,
-                props: struct_value.as_scalar_ref(),
-            };
-            builder.push(Some(node_ref));
-        } else {
-            // if val does not exists, then push None
-            tracing::warn!("node id {} not found", node_id);
-            builder.push(None);
+        match &results[idx] {
+            Some(data) => {
+                let node_ref = NodeValueRef {
+                    id: node_id,
+                    labels: &data.label_strs,
+                    props: data.struct_value.as_scalar_ref(),
+                };
+                builder.push(Some(node_ref));
+            }
+            None => {
+                builder.push(None);
+            }
         }
     }
 
     Ok(builder.finish())
 }
 
-pub struct NodeIterator<'a, D: rocksdb::DBAccess> {
-    iter: rocksdb::DBIteratorWithThreadMode<'a, D>,
+/// Iterator that yields batches of node IDs from a pre-collected Vec
+pub struct NodeIterator {
+    node_ids: Vec<elio_common::NodeId>,
+    pos: usize,
     opts: NodeScanOptions,
 }
 
-impl<'a, D: rocksdb::DBAccess> DataChunkIterator for NodeIterator<'a, D> {
+impl DataChunkIterator for NodeIterator {
     fn next_batch(&mut self) -> Result<Option<DataChunk>, GraphStoreError> {
+        if self.pos >= self.node_ids.len() {
+            return Ok(None);
+        }
+
+        let end = (self.pos + self.opts.batch_size).min(self.node_ids.len());
         let mut builder = VirtualNodeArrayBuilder::with_capacity(self.opts.batch_size);
-        for _ in 0..self.opts.batch_size {
-            if let Some(item) = self.iter.next() {
-                let (key, _val) = item.map_err(GraphStoreError::Rocksdb)?;
-                if !key.starts_with(cf_data::NODE_KEY_PREFIX) {
-                    break;
-                }
-                let node_id = NodeFormat::decode_node_key(&key);
-                builder.push(Some(node_id));
-            } else {
-                break;
-            }
-        }
 
-        let array = builder.finish();
-        if array.is_empty() {
-            Ok(None)
-        } else {
-            let vis = BitVec::repeat(true, array.len());
-            let chunk = DataChunk::new(vec![Arc::new(array.into())], vis);
-            Ok(Some(chunk))
+        for i in self.pos..end {
+            builder.push(Some(self.node_ids[i]));
         }
-    }
-}
-
-pub struct LabelNodeIterator<'a, D: rocksdb::DBAccess> {
-    iter: rocksdb::DBIteratorWithThreadMode<'a, D>,
-    prefix: bytes::Bytes,
-    opts: NodeScanOptions,
-}
-
-impl<'a, D: rocksdb::DBAccess> DataChunkIterator for LabelNodeIterator<'a, D> {
-    fn next_batch(&mut self) -> Result<Option<DataChunk>, GraphStoreError> {
-        let mut builder = VirtualNodeArrayBuilder::with_capacity(self.opts.batch_size);
-        for _ in 0..self.opts.batch_size {
-            if let Some(item) = self.iter.next() {
-                let (key, _val) = item.map_err(GraphStoreError::Rocksdb)?;
-                if !key.starts_with(&self.prefix) {
-                    break;
-                }
-                let (_label_id, node_id) = LabelIndexCodec::decode_key(&key);
-                builder.push(Some(node_id));
-            } else {
-                break;
-            }
-        }
+        self.pos = end;
 
         let array = builder.finish();
         if array.is_empty() {

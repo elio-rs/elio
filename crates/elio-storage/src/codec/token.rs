@@ -1,15 +1,7 @@
 use elio_common::TokenKind;
 
-use crate::kv::cf_meta::{LABEL_KEY_PREFIX, PROPERTY_KEY_PREFIX, RELTYPE_KEY_PREFIX};
+use crate::kv::meta_keys::{LABEL_KEY_PREFIX, PROPERTY_KEY_PREFIX, RELTYPE_KEY_PREFIX};
 
-/// Storage
-///   - key   := <LABEL_PREFIX> <label>
-///   - value := <label_id>
-///
-/// NextId [deleted]
-///   we do not need to record the next id here, since the next id can be recovered from the data part
-///   - key   := <LABEL_PREFIX> <TOKEN_NEXT_ID>
-///   - value := <next_id>
 pub struct TokenCodec;
 
 impl TokenCodec {
@@ -53,21 +45,9 @@ impl TokenCodec {
     pub fn decode_data_value(val: &[u8]) -> u16 {
         u16::from_le_bytes([val[0], val[1]])
     }
-}
-
-impl TokenCodec {
-    #[inline]
-    pub fn read_token(buf: &[u8]) -> u16 {
-        TokenCodec::decode(buf)
-    }
 
     #[inline]
     pub fn encode_data_value(id: u16) -> [u8; 2] {
         id.to_le_bytes()
-    }
-
-    #[inline]
-    pub fn decode(buffer: &[u8]) -> u16 {
-        u16::from_le_bytes([buffer[0], buffer[1]])
     }
 }

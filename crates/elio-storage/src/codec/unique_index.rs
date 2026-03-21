@@ -1,7 +1,7 @@
 use bytes::{BufMut, Bytes, BytesMut};
 use elio_common::{LabelId, NodeId, PropertyKeyId};
 
-use crate::kv::cf_indexdata;
+use crate::kv::graph_keys;
 
 /// Codec for unique index
 pub struct UniqueIndexCodec;
@@ -15,7 +15,7 @@ impl UniqueIndexCodec {
         assert_eq!(prop_key_ids.len(), prop_values.len());
 
         let mut buf = BytesMut::new();
-        buf.put_u8(cf_indexdata::UNIQUE_INDEX_PREFIX);
+        buf.put_u8(graph_keys::UNIQUE_INDEX_PREFIX);
         buf.put_u16_le(label_id);
 
         for (prop_key_id, prop_value) in prop_key_ids.iter().zip(prop_values.iter()) {

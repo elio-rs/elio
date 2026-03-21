@@ -6,10 +6,10 @@ use elio_common::{LabelId, PropertyKeyId, RelationshipTypeId, TokenId, TokenKind
 
 use crate::codec::TokenCodec;
 use crate::error::GraphStoreError;
-use crate::kv::{KvEngine, cf_meta};
+use crate::kv::KvEngine;
 
 pub struct TokenStore {
-    db: Arc<KvEngine>,
+    engine: Arc<KvEngine>,
     // in memory cache
     next_label_id: AtomicU16,
     next_reltype_id: AtomicU16,
@@ -24,9 +24,9 @@ pub struct TokenStore {
 }
 
 impl TokenStore {
-    pub fn new(db: Arc<KvEngine>) -> Result<Self, GraphStoreError> {
+    pub fn new(engine: Arc<KvEngine>) -> Result<Self, GraphStoreError> {
         let mut store = Self {
-            db,
+            engine,
             next_label_id: AtomicU16::new(0),
             next_reltype_id: AtomicU16::new(0),
             next_property_key_id: AtomicU16::new(0),
@@ -42,8 +42,6 @@ impl TokenStore {
     }
 
     fn load_from_db(&mut self) -> Result<(), GraphStoreError> {
-        // load state from db to cache
-        // token dict
         self.load_token_dict(TokenKind::Label)?;
         self.load_token_dict(TokenKind::RelationshipType)?;
         self.load_token_dict(TokenKind::PropertyKey)?;
@@ -108,13 +106,18 @@ impl TokenStore {
         };
         tokens.insert(token.to_string(), token_id);
         id2str.insert(token_id, token.to_string());
-        // write to db
-        let cf = self.db.cf_handle(cf_meta::CF_NAME).unwrap();
+
+        // write to meta env with independent short RwTxn
         {
-            // insert token -> id to db
+            let mut wtxn = self.engine.meta.env.write_txn().map_err(GraphStoreError::Heed)?;
             let key = TokenCodec::data_key(&token_kind, token);
             let value = TokenCodec::encode_data_value(token_id);
-            self.db.put_cf(&cf, key, value)?;
+            self.engine
+                .meta
+                .tokens
+                .put(&mut wtxn, &key, &value)
+                .map_err(GraphStoreError::Heed)?;
+            wtxn.commit().map_err(GraphStoreError::Heed)?;
         }
         Ok(token_id)
     }
@@ -169,18 +172,19 @@ impl TokenStore {
     }
 
     fn db_get_all_token(&self, token_kind: TokenKind) -> Result<Vec<(String, u16)>, GraphStoreError> {
-        let cf = self.db.cf_handle(cf_meta::CF_NAME).unwrap();
+        let rtxn = self.engine.meta.env.read_txn().map_err(GraphStoreError::Heed)?;
         let prefix = TokenCodec::data_key_prefix(&token_kind);
-        let iter = self.db.prefix_iterator_cf(&cf, &prefix);
 
         let mut tokens = Vec::new();
-        for res in iter {
-            let (key, value) = res?;
+        let iter = self.engine.meta.tokens.iter(&rtxn).map_err(GraphStoreError::Heed)?;
+
+        for result in iter {
+            let (key, value) = result.map_err(GraphStoreError::Heed)?;
             if !key.starts_with(&prefix) {
-                break;
+                continue;
             }
-            let (_, token) = TokenCodec::decode_data_key(&key);
-            let token_id = TokenCodec::decode_data_value(&value);
+            let (_, token) = TokenCodec::decode_data_key(key);
+            let token_id = TokenCodec::decode_data_value(value);
             tokens.push((token, token_id));
         }
         Ok(tokens)

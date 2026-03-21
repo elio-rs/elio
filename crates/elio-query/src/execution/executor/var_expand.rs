@@ -7,7 +7,7 @@ use elio_common::array::{ArrayImpl, DataChunkBuilder, RelArrayBuilder};
 use elio_common::scalar::{ListValueRef, RelValue, ScalarRef, ScalarVTable, StructValue};
 use elio_common::store_types::RelDirection;
 use elio_common::{NodeId, SemanticDirection, TokenId, TokenKind};
-use elio_storage::codec::RelFormat;
+use elio_storage::codec::AdaptiveNodeCodec;
 use futures::StreamExt;
 use indexmap::IndexSet;
 
@@ -161,7 +161,7 @@ impl<PATHMODE: PathContainer> Iterator for VarExpandIter<PATHMODE> {
                 };
 
                 // TODO(pgao): lazy deserialize
-                let prop_map = RelFormat::decode_value(&value);
+                let prop_map = AdaptiveNodeCodec::decode_property_map(&value);
                 // TODO(pgao): avoid clone
                 let struct_value = {
                     let mut fileds = vec![];

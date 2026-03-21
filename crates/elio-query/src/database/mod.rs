@@ -37,10 +37,7 @@ impl DatabaseConfig {
 pub struct Database {
     graph_store: Arc<GraphStore>,
     token_store: Arc<TokenStore>,
-    // catalog_state: Arc<CatalogState>,
     transaction_manager: Arc<TransactionManager>,
-    // Currently we put functions here since they are static over the database lifetime
-    // and have nothing todo with transaction.
     scalar_functions: ScalarFunctionRegistry,
     agg_functions: AggFunctionRegistry,
     #[allow(unused)]
@@ -53,15 +50,13 @@ impl Database {
         let token_store = Arc::new(TokenStore::new(kv_engine.clone())?);
         let graph_store = Arc::new(GraphStore::new(kv_engine.clone(), token_store.clone())?);
         let catalog_state = Arc::new(CatalogState::new(kv_engine.clone())?);
-        let transaction_manager = Arc::new(TransactionManager::new(kv_engine.clone(), catalog_state.clone()));
-        // initialize function registries
+        let transaction_manager = Arc::new(TransactionManager::new(kv_engine, catalog_state));
         let scalar_functions = SCALAR_FUNCTION_REGISTRY.clone();
         let agg_functions = AGG_FUNCTION_REGISTRY.clone();
 
         Ok(Arc::new(Self {
             graph_store,
             token_store,
-            // catalog_state,
             transaction_manager,
             scalar_functions,
             agg_functions,

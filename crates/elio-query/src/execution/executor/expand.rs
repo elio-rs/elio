@@ -4,7 +4,7 @@ use elio_common::array::chunk::DataChunkBuilder;
 use elio_common::scalar::{RelValueRef, ScalarRef, StructValue};
 use elio_common::store_types::RelDirection;
 use elio_common::{SemanticDirection, TokenId, TokenKind};
-use elio_storage::codec::RelFormat;
+use elio_storage::codec::AdaptiveNodeCodec;
 use futures::StreamExt;
 
 use super::*;
@@ -62,7 +62,7 @@ impl<EXPANDKIND: ExpandKindStrategy> Executor for ExpandExecutor<EXPANDKIND> {
                         //  planner and executor builder will only generate valid token_id
                         let reltype = qctx.graph_store().token_store().get_token_val(token_id, TokenKind::RelationshipType).unwrap();
                         // TODO(pgao): lazy deserialize
-                        let prop_map = RelFormat::decode_value(&value);
+                        let prop_map = AdaptiveNodeCodec::decode_property_map(&value);
                         // TODO(pgao): avoid clone
                         let struct_value = {
                             let mut fileds = vec![];
